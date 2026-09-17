@@ -1,0 +1,27 @@
+<html>
+<head><title>Member Detail</title>{% include "_legacy.css.html" %}</head>
+<body>
+<div class="bar">MockCore Member Services 1.0</div>
+<div class="pane">
+<h3>Member Detail</h3>
+<table class="frm">
+<tr><td>Member ID</td><td>{{ member.member_id }}</td></tr>
+<tr><td>Name</td><td>{{ member.name }}</td></tr>
+<tr><td>Branch</td><td>{{ member.branch }}</td></tr>
+</table>
+<br>
+<h3>Balances</h3>
+<table class="grd">
+<tr><th>Account</th><th>Balance</th><th>Status</th></tr>
+{% for account, amount in rows %}
+<tr><td>{{ account }}</td><td>{{ amount }}</td><td>Open</td></tr>
+{% endfor %}
+</table>
+<br>
+<table class="frm">
+<tr><td><a href="/subaccount/{{ member.member_id }}">Open Sub-account</a></td></tr>
+<tr><td><a href="/search">Back to Member Search</a></td></tr>
+</table>
+</div>
+</body>
+</html>

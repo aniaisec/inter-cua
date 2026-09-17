@@ -1,0 +1,19 @@
+# Tenant binding: the per-deployment facts a capability artifact must not carry.
+# A capability is keyed by target.app_family; this file says where that app
+# lives for one tenant and where its credentials come from.
+id: local
+app_family: legacy-core
+base_url: http://127.0.0.1:8000
+
+# secret:// refs are resolved at invoke time by cua.secrets.resolver (M5).
+# Values live only in process memory and are never written to an artifact,
+# a log, or an intervention request.
+secrets:
+  mockcore/operator:
+    provider: env
+    var: CUA_SECRET_MOCKCORE_OPERATOR
+    format: "username:password"
+
+# Overlay that adapts a shared capability to this tenant's wording and layout.
+# None needed locally: the mock app is the reference deployment.
+overlay: null

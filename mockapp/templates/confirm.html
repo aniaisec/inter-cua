@@ -1,0 +1,18 @@
+<html>
+<head><title>Sub-account Opened</title>{% include "_legacy.css.html" %}</head>
+<body>
+<div class="bar">MockCore Member Services 1.0</div>
+<div class="pane">
+<h3>Sub-account Opened</h3>
+<table class="grd">
+<tr><th>Field</th><th>Value</th></tr>
+<tr><td>Reference number</td><td>{{ reference }}</td></tr>
+<tr><td>Member ID</td><td>{{ member.member_id }}</td></tr>
+<tr><td>Account Type</td><td>{{ pending.account_type }}</td></tr>
+<tr><td>Initial Deposit</td><td>{{ pending.deposit }}</td></tr>
+</table>
+<br>
+<table class="frm"><tr><td><a href="/member/{{ member.member_id }}">Return to Member Detail</a></td></tr></table>
+</div>
+</body>
+</html>

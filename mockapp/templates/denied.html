@@ -1,0 +1,16 @@
+<html>
+<head><title>Access Denied</title>{% include "_legacy.css.html" %}</head>
+<body>
+<div class="bar">MockCore Member Services 1.0</div>
+<div class="pane">
+<h3>Member Detail</h3>
+<p class="err">You are not authorized to view this record</p>
+<table class="frm">
+{% if member %}<tr><td>Member ID</td><td>{{ member.member_id }}</td></tr>
+<tr><td>Name</td><td>{{ member.name }}</td></tr>{% endif %}
+<tr><td colspan="2">Contact the branch administrator for access.</td></tr>
+<tr><td colspan="2"><a href="/search">Back to Member Search</a></td></tr>
+</table>
+</div>
+</body>
+</html>

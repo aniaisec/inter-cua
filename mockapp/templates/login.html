@@ -1,0 +1,27 @@
+<html>
+<head><title>MockCore 1.0 - Sign On</title>{% include "_legacy.css.html" %}</head>
+<body>
+<div class="bar">MockCore Member Services 1.0</div>
+<div class="pane">
+<h3>Sign On</h3>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+<form method="post" action="/login">
+<table class="frm">
+<tr>
+  <td>User ID</td>
+  <td><input type="text" name="F_USRID" size="20" maxlength="20"></td>
+</tr>
+<tr>
+  <td>Password</td>
+  <td><input type="password" name="F_PWD" size="20" maxlength="20"></td>
+</tr>
+<tr>
+  <td>&nbsp;</td>
+  <td><input type="submit" value="Sign On"></td>
+</tr>
+</table>
+</form>
+<p>MockCore is a simulated core banking system. All member data is synthetic.</p>
+</div>
+</body>
+</html>

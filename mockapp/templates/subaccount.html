@@ -1,0 +1,34 @@
+<html>
+<head><title>Open Sub-account</title>{% include "_legacy.css.html" %}</head>
+<body>
+<div class="bar">MockCore Member Services 1.0</div>
+<div class="pane">
+<h3>Open Sub-account</h3>
+<table class="frm">
+<tr><td>Member ID</td><td>{{ member.member_id }}</td></tr>
+<tr><td>Name</td><td>{{ member.name }}</td></tr>
+</table>
+<br>
+{% if error %}<table class="frm"><tr><td class="err">{{ error }}</td></tr></table>{% endif %}
+<form method="post" action="/subaccount/{{ member.member_id }}">
+<table class="frm">
+<tr>
+  <td>Account Type</td>
+  <td><select name="F_ACCTTYP">
+    {% for t in account_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+  </select></td>
+</tr>
+<tr>
+  <td>Initial Deposit</td>
+  <td><input type="text" name="F_DEPAMT" size="12" value="{{ deposit }}"></td>
+</tr>
+<tr>
+  <td>&nbsp;</td>
+  <td><input type="submit" value="Continue"></td>
+</tr>
+</table>
+</form>
+<table class="frm"><tr><td><a href="/member/{{ member.member_id }}">Cancel</a></td></tr></table>
+</div>
+</body>
+</html>

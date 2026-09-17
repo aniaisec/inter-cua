@@ -1,0 +1,20 @@
+<html>
+<head><title>Member Search</title>{% include "_legacy.css.html" %}</head>
+<body>
+<div class="bar">MockCore Member Services 1.0</div>
+<div class="pane">
+<h3>Member Search</h3>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+<form method="post" action="/search">
+<table class="frm">
+<tr>
+  <td>Member ID</td>
+  <td><input type="text" name="F_MBRID" size="8" maxlength="5" value="{{ member_id }}"></td>
+  <td><input type="submit" value="{{ submit_label }}"></td>
+</tr>
+</table>
+</form>
+<p>Enter a five digit member number.</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<html>
+<head><title>Review Sub-account</title>{% include "_legacy.css.html" %}</head>
+<body>
+<div class="bar">MockCore Member Services 1.0</div>
+<div class="pane">
+<h3>Review Sub-account</h3>
+<p>Review the application below. Selecting Confirm will open the account.</p>
+<table class="grd">
+<tr><th>Field</th><th>Value</th></tr>
+<tr><td>Member ID</td><td>{{ member.member_id }}</td></tr>
+<tr><td>Name</td><td>{{ member.name }}</td></tr>
+<tr><td>Account Type</td><td>{{ pending.account_type }}</td></tr>
+<tr><td>Initial Deposit</td><td>{{ pending.deposit }}</td></tr>
+</table>
+<br>
+<form method="post" action="/review/{{ member.member_id }}">
+<table class="frm"><tr><td><input type="submit" value="Confirm"></td></tr></table>
+</form>
+<table class="frm"><tr><td><a href="/subaccount/{{ member.member_id }}">Back</a></td></tr></table>
+</div>
+</body>
+</html>
