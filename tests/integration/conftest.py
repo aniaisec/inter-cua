@@ -1,14 +1,14 @@
 """Browser fixtures.
 
-The control-transfer model in the plan needs the browser to be reachable by a
-second party, so Chromium is launched with a DevTools endpoint and the CDP URL
-is published as part of the session handle. The automation side drives the
-browser it launched; the operator side attaches over CDP to the same process.
+Handoff needs the browser to be reachable by a second party, so Chromium is
+launched with a DevTools endpoint and the CDP URL is published as part of the
+session handle. The automation side drives the browser it launched; the
+operator side attaches over CDP to the same process.
 
-Plan correction: rev 2 §5 M0 says to use ``launch_server()``. That API exists
-only in the Node bindings; Python Playwright has no ``launch_server``. The
-equivalent is ``launch(args=["--remote-debugging-port=N"])`` plus
-``connect_over_cdp`` for the attaching party, which is what this module does.
+Note for anyone porting the Node recipe: ``launch_server()`` exists only in the
+Node bindings, and Python Playwright has no equivalent. The same result comes
+from ``launch(args=["--remote-debugging-port=N"])`` plus ``connect_over_cdp``
+for the attaching party, which is what this module does.
 """
 
 from __future__ import annotations

@@ -4,8 +4,9 @@ Goal-driven UI discovery → a reviewable capability artifact → deterministic
 replay with no model in the loop → human handoff on the live session.
 
 **Status: M0 complete.** Scaffold and the mock target app are in. The
-`src/cua` packages are placeholders until M1. See the implementation plan for
-the milestone breakdown; `README.md` gets its real treatment at M8.
+`src/cua` packages are placeholders, each landing in a later milestone; `cua
+--help` names the milestone for every subcommand that is not wired up yet.
+`README.md` gets its real treatment at M8.
 
 ## Setup
 

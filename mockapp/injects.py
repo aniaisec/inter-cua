@@ -1,4 +1,4 @@
-"""Failure-injection registry for the mock app (plan rev 2, §3).
+"""Failure-injection registry for the mock app.
 
 An inject mode is armed with ``?inject=<mode>`` on any request or the
 ``X-Inject`` header, and is stored in the session so that it fires on the
