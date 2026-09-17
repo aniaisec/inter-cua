@@ -3,10 +3,11 @@
 Goal-driven UI discovery → a reviewable capability artifact → deterministic
 replay with no model in the loop → human handoff on the live session.
 
-**Status: M0 complete.** Scaffold and the mock target app are in. The
-`src/cua` packages are placeholders, each landing in a later milestone; `cua
---help` names the milestone for every subcommand that is not wired up yet.
-`README.md` gets its real treatment at M8.
+**Status: M1 complete.** Scaffold, the mock target app, and the Surface
+layer — perception, the locator ladder and the condition vocabulary — are in.
+The remaining `src/cua` packages are placeholders, each landing in a later
+milestone; `cua --help` names the milestone for every subcommand that is not
+wired up yet. `README.md` gets its real treatment at M8.
 
 ## Setup
 
@@ -21,12 +22,42 @@ cp .env.example .env               # only `cua discover` needs an API key
 
 ```bash
 make mockapp        # serves the mock legacy credit-union core on :8000
-make test           # ruff + mypy --strict + pytest (44 tests, no API key needed)
+make test           # ruff + mypy --strict + pytest (115 tests, no API key needed)
 python -m pytest -m "not browser"   # skip the tests that need Chromium
+
+# What the automation sees, for a human. Needs `make mockapp` running.
+python -m cua.surface --url http://127.0.0.1:8000/login
+python -m cua.surface --url http://127.0.0.1:8000/login --signed-in
 ```
 
 Sign on to the mock app with `operator` / `operator`. Walk
 login → member 10003 → detail → sub-account → review → confirm.
+
+`python -m cua.surface --signed-in` signs on through the same locator ladders a
+recorded capability will use, and prints the compact tree for the screen it
+lands on:
+
+```
+# MockCore 1.0 :: http://127.0.0.1:8000/
+[nav] http://127.0.0.1:8000/nav
+  n52 text "Functions"
+  row: n57 link "Member Search"
+  row: n60 link "Account Inquiry"
+  row: n63 link "Reports"
+  row: n66 link "Sign Off"
+[main] http://127.0.0.1:8000/search
+  n67 text "MockCore Member Services 1.0"
+  n68 heading "Member Search"
+  row: n72 cell "Member ID" | n74 textbox ~'Member ID' | n76 button "Search"
+  n77 paragraph "Enter a five digit member number."
+```
+
+The refs start at `n52` because signing on took four looks at the screen first,
+and no observation reuses another's numbers.
+
+The `~'Member ID'` is the label the textbox does not have: the app gives it no
+accessible name, so perception records the text beside it, and the `near_text`
+locator rung finds it by the same geometry.
 
 ## The mock target app
 
@@ -75,13 +106,39 @@ an outcome rather than recover.
 
 ```
 mockapp/        the automation target
-src/cua/        surface | agent | artifact | replay | policy | secrets | escalation | evidence
+src/cua/surface/  protocol | a11y | locators | conditions | playwright_surface
+src/cua/        agent | artifact | replay | policy | secrets | escalation | evidence
 policies/       allowlist and risk rules (M5)
 tenants/        per-deployment binding: base_url, secret refs, overlay
 capabilities/   saved artifacts, git-tracked
 evidence/       discovery, replay and escalation runs (M7)
 tests/          unit | integration (`-m browser` needs Chromium)
 ```
+
+## The Surface layer
+
+Everything that touches the target goes through `Surface`, so the rest of the
+system never learns that this particular target is a web page.
+
+- **Perception** takes one `aria_snapshot()` per frame (a `<frameset>` has no
+  single tree, and `page.accessibility.snapshot()` is deprecated) and flattens
+  the result into refs, roles, names, values, boxes and parents. Refs are
+  scoped to one observation and never reused, so a ref that outlives its screen
+  addresses nothing instead of addressing whatever took its place.
+- **The locator ladder** is how a step names a control: `role_name`, then
+  `near_text`, then `table_cell`, then `bbox`. Every rung must resolve to
+  exactly one node; a rung that matches nothing *or matches several* falls
+  through to the next, and the run records which rung answered. Pixels are
+  refused outside the viewport the capability was recorded in.
+- **Conditions** (`location_matches`, `region_present`, `text_present`,
+  `value_set`, `error_banner_present`, `validation_message_present`, ...) are
+  pure functions of an observation, so the same check that a step waited for
+  can be re-run later against recorded evidence. Each one documents what it
+  would mean on a desktop target.
+
+No CSS or XPath selector appears anywhere under `src/cua`. The only exception
+is the document-level `body` anchor that `aria_snapshot` requires, which never
+names a control.
 
 ## License
 
