@@ -13,6 +13,11 @@ Persistence matters:
 * ``one_shot`` modes clear themselves the first time they fire. They model
   transient conditions. If they persisted, no recovery could ever succeed and
   the recovery tests would prove nothing.
+
+``native_confirm`` is persistent for that reason and not by oversight: an
+application that asks before committing an irreversible action asks *every*
+time. It is not a transient condition to be waited out, it is a step the
+recorded capability did not know about.
 """
 
 from __future__ import annotations
@@ -31,11 +36,14 @@ class Inject(StrEnum):
     RENAMED_BUTTON = "renamed_button"
     AMBIGUOUS_BUTTON = "ambiguous_button"
     SLOW_CONFIRM = "slow_confirm"
+    MODAL_DIALOG = "modal_dialog"
+    NATIVE_CONFIRM = "native_confirm"
 
 
 ONE_SHOT: frozenset[Inject] = frozenset(
     {
         Inject.INTERSTITIAL_DIALOG,
+        Inject.MODAL_DIALOG,
         Inject.SLOW_LOAD,
         Inject.SESSION_EXPIRED,
         Inject.SLOW_CONFIRM,
@@ -49,6 +57,19 @@ PERSISTENT: frozenset[Inject] = frozenset(set(Inject) - set(ONE_SHOT))
 # the irreversible step times out with side_effect: unknown.
 SLOW_LOAD_SECONDS = 4.0
 SLOW_CONFIRM_SECONDS = 6.0
+
+# The two dialog modes. They exist because "dialog" names two different
+# problems, and only one of them is visible to a perception layer built on the
+# accessibility tree.
+MODAL_TEXT = "Batch posting is running. Balances may be as of last night."
+"""An in-page overlay: ordinary markup, so perception sees it — but it covers
+the screen, so a control resolved underneath it cannot actually be clicked."""
+
+CONFIRM_TEXT = "Post this sub-account application now?"
+"""A native ``confirm()``. It is not in the DOM, not in the accessibility tree,
+and not in a screenshot of the page; it also blocks every further instruction
+to the browser until something answers it. Being unable to see the thing that
+is blocking you is a different failure from seeing it and being blocked."""
 
 DISARM = "none"
 

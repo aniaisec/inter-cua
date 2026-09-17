@@ -13,7 +13,7 @@
 <tr><td>Initial Deposit</td><td>{{ pending.deposit }}</td></tr>
 </table>
 <br>
-<form method="post" action="/review/{{ member.member_id }}">
+<form method="post" action="/review/{{ member.member_id }}"{% if confirm_prompt %} onsubmit="return confirm('{{ confirm_prompt }}')"{% endif %}>
 <table class="frm"><tr><td><input type="submit" value="Confirm"></td></tr></table>
 </form>
 <table class="frm"><tr><td><a href="/subaccount/{{ member.member_id }}">Back</a></td></tr></table>

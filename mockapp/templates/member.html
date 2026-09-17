@@ -23,5 +23,17 @@
 <tr><td><a href="/search">Back to Member Search</a></td></tr>
 </table>
 </div>
+{% if modal %}
+<!-- An in-page overlay. Ordinary markup with no ARIA and no dialog role, so it
+     reads as more page content; what makes it a dialog is that it covers
+     everything and swallows the clicks meant for the screen underneath. -->
+<div class="ovl">
+<table class="dlg">
+<tr><td class="bar">MockCore Notice</td></tr>
+<tr><td>{{ modal_text }}</td></tr>
+<tr><td><input type="submit" value="OK" onclick="this.parentNode.parentNode.parentNode.parentNode.parentNode.style.display='none'"></td></tr>
+</table>
+</div>
+{% endif %}
 </body>
 </html>

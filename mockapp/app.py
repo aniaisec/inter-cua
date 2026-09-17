@@ -291,6 +291,11 @@ async def member_detail(request: Request, member_id: str) -> Response:
             ("Savings", format_currency(member.savings)),
             ("Checking", format_currency(member.checking)),
         ],
+        # An in-page overlay, dismissed in the browser with no round trip. The
+        # URL does not change and the screen behind it still reads normally, so
+        # the only evidence that anything is wrong is in the tree.
+        modal=_fire(session, Inject.MODAL_DIALOG),
+        modal_text=injects.MODAL_TEXT,
     )
 
 
@@ -362,7 +367,17 @@ async def review(request: Request, member_id: str) -> Response:
     pending = session["pending"]
     if member is None or pending is None:
         return RedirectResponse(f"/subaccount/{member_id}", status_code=303)
-    return _render(request, "review.html", member=member, pending=pending)
+    return _render(
+        request,
+        "review.html",
+        member=member,
+        pending=pending,
+        # A native confirm() in front of the irreversible step. Presentation
+        # only, and persistent: an app that asks before committing asks every
+        # time. Nothing is recorded here, because nothing has happened yet —
+        # what matters is whether the POST arrives at all.
+        confirm_prompt=injects.CONFIRM_TEXT if _armed(session, Inject.NATIVE_CONFIRM) else None,
+    )
 
 
 @app.post("/review/{member_id}", response_class=HTMLResponse)
