@@ -262,12 +262,12 @@ def test_every_inject_mode_is_reachable_from_a_fresh_session(
     if mode is not Inject.INTERSTITIAL_DIALOG:
         search(client, "10003")
         client.get("/member/10003")
-    if mode in (Inject.VALIDATION_ERROR, Inject.SLOW_CONFIRM):
+    if mode in (Inject.VALIDATION_ERROR, Inject.SLOW_CONFIRM, Inject.NATIVE_CONFIRM):
         client.post("/subaccount/10003", data={"F_ACCTTYP": "Savings", "F_DEPAMT": "25.00"})
         if mode is Inject.SLOW_CONFIRM:
             client.post("/review/10003")
 
-    if mode in (Inject.RENAMED_BUTTON, Inject.AMBIGUOUS_BUTTON):
+    if mode in (Inject.RENAMED_BUTTON, Inject.AMBIGUOUS_BUTTON, Inject.NATIVE_CONFIRM):
         # Presentation-only modes: nothing "fires", the screen just differs.
         assert client.get("/_debug/session").json()["inject"] == mode.value
     else:
