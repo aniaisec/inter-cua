@@ -119,6 +119,22 @@ def _login_redirect() -> RedirectResponse:
     return RedirectResponse("/login", status_code=303)
 
 
+def _is_framed(request: Request) -> bool:
+    """Did this navigation happen inside a frame rather than the top document?
+
+    Session expiry redirects whichever frame was mid-request to the sign-on
+    screen, so signing on again happens *inside* the main frame. Sending that
+    request the whole frameset would load a second nav and main inside main:
+    every nav control would then exist twice, and an honest relogin recovery
+    would read as a locator ambiguity rather than a recovery.
+
+    ``Sec-Fetch-Dest`` is how the server can tell, with no client script and no
+    top-level navigation racing the frame teardown. Browsers that omit the
+    header fall through to the frameset, which is the pre-2020 behaviour.
+    """
+    return request.headers.get("sec-fetch-dest", "").lower() in ("frame", "iframe")
+
+
 # --------------------------------------------------------------------------
 # Sign on
 # --------------------------------------------------------------------------
@@ -143,7 +159,9 @@ async def login_submit(
     session["authed"] = True
     if _fire(session, Inject.INTERSTITIAL_DIALOG):
         return RedirectResponse("/notice", status_code=303)
-    return RedirectResponse("/", status_code=303)
+    # Signing on inside a frame re-enters the main pane only; from the top
+    # document it builds the full shell. See _is_framed.
+    return RedirectResponse("/search" if _is_framed(request) else "/", status_code=303)
 
 
 @app.get("/notice", response_class=HTMLResponse)

@@ -133,3 +133,36 @@ def test_operator_can_attach_to_the_live_session_over_cdp(
         )
 
     wait_until(attached_sees_the_shell, "the attached browser to see the signed-in shell")
+
+
+def test_session_expiry_relogin_does_not_nest_the_frameset(page: Page, mockapp_url: str) -> None:
+    """The nested-frameset trap that relogin recovery would otherwise fall into.
+
+    Session expiry redirects whichever frame was mid-request to the sign-on
+    screen, so the relogin happens inside the main frame. If that POST returned
+    the whole shell, nav and main would exist twice over and an honest recovery
+    would surface as LOCATOR_AMBIGUOUS. The frame re-enters the main pane only.
+    """
+    page.goto(f"{mockapp_url}/login?inject={Inject.SESSION_EXPIRED.value}")
+    sign_in(page, mockapp_url)
+    main = frame_named(page, "main")
+
+    main.fill("input[name=F_MBRID]", "10003")
+    main.click("input[type=submit]")
+    main.wait_for_url("**/login")
+
+    # Relogin, inside the frame this time.
+    main.fill("input[name=F_USRID]", "operator")
+    main.fill("input[name=F_PWD]", "operator")
+    main.click("input[type=submit]")
+    main.wait_for_url("**/search")
+
+    assert sorted(f.name for f in page.frames if f.name) == ["main", "nav"]
+    assert frame_named(page, "nav").get_by_role("link", name="Member Search").count() == 1
+    assert main.get_by_role("button", name="Search").count() == 1
+
+    # One-shot: the expiry does not fire a second time.
+    main.fill("input[name=F_MBRID]", "10003")
+    main.click("input[type=submit]")
+    main.wait_for_url("**/member/10003")
+    assert format_currency(MEMBERS["10003"].savings) in main.content()
