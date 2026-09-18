@@ -116,6 +116,7 @@ def test_family_detectors_arrive_only_where_their_anchors_exist() -> None:
     codes = [d.code for d in cap.outcome_detectors]
     assert codes == [
         "APP_ERROR",
+        "AUTH_FAILED",
         "NOT_FOUND",
         "PERMISSION_DENIED",
         "INTERSTITIAL",

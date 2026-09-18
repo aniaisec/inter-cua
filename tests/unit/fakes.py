@@ -40,7 +40,7 @@ class FakeSurface:
         return self.screens[self.index]
 
     def observe(self, *, screenshot: bool = False, masks: Sequence[Ladder] = ()) -> Observation:
-        self.observed_masks.append(masks)
+        self.observed_masks.append(list(masks))  # a copy: the caller's list grows
         return self.current.model_copy(update={"screenshot_png": PNG if screenshot else None})
 
     def act(self, action: Action) -> ActionResult:

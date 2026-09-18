@@ -184,11 +184,10 @@ def _run(
             log=log,
             config=config,
         )
-        try:
-            result = engine.run()
-        except BaseException:
-            log.event("run.interrupted")
-            raise
+        # An interruption (Ctrl+C, a crash) is written by the engine as a
+        # ``Failure INTERRUPTED`` with the side effect it can vouch for, and
+        # then re-raised; the browser is closed on the way out.
+        result = engine.run()
         keep = log.dir / trace.TRACE_NAME if result.kind == "failure" else None
         kept = trace.stop(context, keep_as=keep, redactor=Redactor(_encodings(secrets)))
 

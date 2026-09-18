@@ -471,8 +471,22 @@ def _distance(
     """Gap between a label and a candidate in one direction, or None if the
     candidate is not in that direction, or is too far away to be related."""
     assert anchor.bbox is not None and candidate.bbox is not None
-    a, c = anchor.bbox, candidate.bbox
+    return gap(anchor.bbox, candidate.bbox, direction, config)
 
+
+def beside(label: Rect, control: Rect, config: SurfaceConfig = DEFAULT_CONFIG) -> bool:
+    """Would ``near_text`` read this control as labelled by this label?
+
+    The same geometry the rung resolves by, exposed so a surface can check,
+    right before acting, that an unnamed control is still next to the label
+    it was observed beside.
+    """
+    return any(gap(label, control, d, config) is not None for d in DEFAULT_DIRECTIONS)
+
+
+def gap(a: Rect, c: Rect, direction: Direction, config: SurfaceConfig) -> float | None:
+    """Gap from box ``a`` to box ``c`` in one direction, or None if ``c`` is not
+    in that direction or is too far away to be related."""
     if direction in ("right", "left"):
         if not shares_row(a, c, config):
             return None

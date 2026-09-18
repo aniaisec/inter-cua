@@ -522,3 +522,46 @@ def test_a_timeout_says_what_it_saw(surface: PlaywrightSurface, mockapp_url: str
     sign_on(surface, mockapp_url)
     with pytest.raises(ConditionTimeout, match=r"region 'Balances' present.*main=.*/search"):
         surface.wait_for(RegionPresent(name="Balances"), 0.5)
+
+
+# -- identity of unnamed controls -------------------------------------------
+
+
+def test_two_unnamed_fields_that_swap_rows_are_not_confused(
+    surface: PlaywrightSurface, mockapp_url: str
+) -> None:
+    """Role and name say nothing here: both fields are ``textbox`` with no
+    name. After the rows swap, the ref's ordinal maps to the password field,
+    which now sits exactly where the user id field was — so position alone
+    would pass too. Only the label beside it gives the swap away."""
+    surface.act(Navigate(url=f"{mockapp_url}/login"))
+    user_id = _resolved(surface, USER_ID)
+
+    # The app re-lays its form between the look and the act. (Test-only DOM
+    # surgery on the target; nothing under src/cua addresses the page this way.)
+    surface.page.evaluate(
+        "() => { const rows = document.querySelectorAll('table.frm tr');"
+        " rows[0].parentNode.insertBefore(rows[1], rows[0]); }"
+    )
+
+    with pytest.raises(PerceptionDrift, match="no longer beside 'User ID'"):
+        surface.act(TypeText(ref=user_id.ref, text="operator"))
+
+
+def test_a_field_inserted_above_an_unnamed_control_is_a_fault_not_a_wrong_field(
+    surface: PlaywrightSurface, mockapp_url: str
+) -> None:
+    surface.act(Navigate(url=f"{mockapp_url}/login"))
+    password = _resolved(surface, PASSWORD)
+
+    # A notice row appears above the form: no new control, so the ref's
+    # ordinal still maps to the password field — a row lower than it was.
+    surface.page.evaluate(
+        "() => { const rows = document.querySelectorAll('table.frm tr');"
+        " const extra = rows[0].cloneNode(true); extra.cells[0].textContent = 'Notice';"
+        " extra.cells[1].textContent = 'Passwords expire on Friday.';"
+        " rows[0].parentNode.insertBefore(extra, rows[0]); }"
+    )
+
+    with pytest.raises(PerceptionDrift, match="no longer where it was seen"):
+        surface.act(TypeText(ref=password.ref, text="operator"))

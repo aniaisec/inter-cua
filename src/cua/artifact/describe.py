@@ -309,10 +309,13 @@ def _rung(rung: RoleName | NearText | TableCell | BBox) -> str:
             f'the "{rung.column_header}" column of the row with "{rung.row_contains}"'
             f"{_pane(rung.within)}"
         )
-    return (
-        f"the {rung.role or 'element'} at screen position ({rung.x:.0f}, {rung.y:.0f})"
-        f"{_pane(rung.within)} - last resort, recorded screen size only"
-    )
+    where = f"the {rung.role or 'element'} at screen position ({rung.x:.0f}, {rung.y:.0f})"
+    if rung.confidence == "low":
+        # Recorded so a reviewer can see where the control was, and so an
+        # operator who has looked at the screen can allow it for one step.
+        # Unattended replay never clicks by pixels alone.
+        return f"{where}{_pane(rung.within)} - for reference only; not used unattended"
+    return f"{where}{_pane(rung.within)} - recorded screen size only"
 
 
 def _value(value: str) -> str:

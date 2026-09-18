@@ -173,6 +173,10 @@ class DiscoveryLoop:
             goal, tenant, policy, {name: c.field_names for name, c in credentials.items()}
         )
         self.tools = tool_definitions(goal.outputs)
+        self.masks: list[Ladder] = list(policy.screenshot_masks)
+        """Painted out of every screenshot. Grows: a control the agent types a
+        credential into is masked from then on, so the picture the model and
+        the evidence get agrees with the scrubbed tree."""
         self.transcript: list[Turn] = []
         self._calls: dict[str, str] = {}
         """Tool call id → tool name; a Gemini function response is keyed by name."""
@@ -339,6 +343,11 @@ class DiscoveryLoop:
             return
 
         self._record_step(call, node, screen)
+        if isinstance(call, TypeCall) and node is not None and _PLACEHOLDER.search(call.text):
+            ladder = ladder_for(node, screen)
+            if ladder and ladder not in self.masks:
+                self.masks.append(ladder)
+                self.log.event("screenshot.mask_added", turn=self.watch.steps, target=node.label)
         if isinstance(call, ReadCall):
             text = self.redactor.text(result.text or "")
             self.log.event("action.read", turn=self.watch.steps, ref=call.ref, text=text)
@@ -480,9 +489,7 @@ class DiscoveryLoop:
     # -- screens and messages ------------------------------------------------
 
     def _look(self) -> Observation:
-        raw = self.surface.observe(
-            screenshot=self.config.screenshots, masks=self.policy.screenshot_masks
-        )
+        raw = self.surface.observe(screenshot=self.config.screenshots, masks=self.masks)
         screen = self.redactor.observation(raw)
         paths = self.log.observation(self.watch.steps, screen)
         self.log.event(

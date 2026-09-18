@@ -92,7 +92,8 @@ def _checkpoint_after_unknown_step(doc: Doc) -> None:
 
 
 def _detector_scoped_to_unknown_step(doc: Doc) -> None:
-    doc["outcome_detectors"][1]["scope"] = {"after_step": "search.go"}
+    not_found = next(d for d in doc["outcome_detectors"] if d["code"] == "NOT_FOUND")
+    not_found["scope"] = {"after_step": "search.go"}
 
 
 def _business_outcome_not_in_contract(doc: Doc) -> None:

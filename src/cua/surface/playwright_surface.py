@@ -27,6 +27,7 @@ Three things this module is careful about, each earned from the target app:
 
 from __future__ import annotations
 
+import math
 import os
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -36,6 +37,7 @@ from typing import Self
 from playwright.sync_api import (
     Browser,
     Dialog,
+    FloatRect,
     Frame,
     Locator,
     Page,
@@ -105,6 +107,12 @@ Measuring the containers as well would double the round trips and answer no
 question anyone asks."""
 
 MASK_COLOR = "#101010"
+
+DRIFT_TOLERANCE_PX = 8.0
+"""How far an unnamed control may have moved between being observed and being
+acted on before it is no longer trusted to be the same control. A field that
+changed rows on a legacy form moves by a full row height, well past this; a
+sub-pixel re-layout does not reach it."""
 
 
 class PlaywrightSurface:
@@ -408,7 +416,51 @@ class PlaywrightSurface:
         if not parsed or parsed[0].role != node.role or parsed[0].name != node.name:
             seen = f"{parsed[0].role} {parsed[0].name!r}" if parsed else "nothing"
             raise PerceptionDrift(f"{node.ref} was {node.label}, now {seen}")
+        if not node.name:
+            self._check_identity(node, locator)
         return locator
+
+    def _check_identity(self, node: Node, locator: Locator) -> None:
+        """Prove an unnamed control is the one that was observed.
+
+        Role and name cannot tell two unnamed textboxes apart, and those are
+        the controls this system exists for. Two things are left to check:
+
+        * where it sits — a field inserted above ours shifts every ordinal by
+          one, and the element the ref now maps to is a row away;
+        * what it sits beside — two fields that swapped rows put the other
+          one exactly where ours was, and only the label gives that away.
+
+        Either failing means the screen was re-laid out since it was observed
+        and the ref has to be minted again.
+        """
+        if node.bbox is None:
+            return
+        try:
+            box = locator.bounding_box(timeout=MEASURE_TIMEOUT_MS)
+        except PlaywrightError as exc:
+            raise PerceptionDrift(f"{node.ref} ({node.label}) cannot be measured") from exc
+        if box is None or _moved(node.bbox, box):
+            raise PerceptionDrift(f"{node.ref} ({node.label}) is no longer where it was seen")
+        if not node.near_text:
+            return
+        now = Rect(x=box["x"], y=box["y"], w=box["width"], h=box["height"])
+        labels = self._frame(node.frame).get_by_text(node.near_text, exact=True)
+        found = _count(labels)
+        if found == 0:
+            return  # the label cannot be measured, so it cannot contradict the ref
+        for i in range(found):
+            try:
+                label = labels.nth(i).bounding_box(timeout=MEASURE_TIMEOUT_MS)
+            except PlaywrightError:
+                continue
+            if label is not None and loc.beside(
+                Rect(x=label["x"], y=label["y"], w=label["width"], h=label["height"]),
+                now,
+                self._config,
+            ):
+                return
+        raise PerceptionDrift(f"{node.ref} ({node.label}) is no longer beside {node.near_text!r}")
 
     # -- acting ------------------------------------------------------------
 
@@ -723,6 +775,13 @@ def _query_for(frame: Frame, node: Node) -> Locator:
     if node.role == "text":
         return frame.get_by_text(node.name, exact=True)
     return frame.get_by_role(node.role)  # type: ignore[arg-type]
+
+
+def _moved(seen: Rect, now: FloatRect) -> bool:
+    """Has the element's centre moved further than the drift tolerance?"""
+    sx, sy = seen.center
+    nx, ny = now["x"] + now["width"] / 2, now["y"] + now["height"] / 2
+    return math.hypot(sx - nx, sy - ny) > DRIFT_TOLERANCE_PX
 
 
 def _count(query: Locator) -> int:

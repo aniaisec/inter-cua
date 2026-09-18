@@ -36,7 +36,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Literal, NoReturn
+from typing import Any, Literal, NoReturn, cast
 
 from pydantic import BaseModel, ConfigDict
 
@@ -57,12 +57,14 @@ from cua.replay.extract import ParseError, parse
 from cua.replay.invocation import Invocation, bind, credential_field, fill
 from cua.replay.recoverers import RecoveryLedger
 from cua.replay.result import (
+    FAILURE_CODES,
     BusinessOutcome,
     EscalationReason,
     Evidence,
     Failure,
     FailureCode,
     OutputValue,
+    Recovery,
     ReplayResult,
     SideEffect,
     Success,
@@ -109,6 +111,10 @@ REFIND_ATTEMPTS = 3
 """How many times a step looks for its control again when the screen changed
 between finding it and acting on it. Nothing was done in between, so this is
 not a retry of the step."""
+_CREDENTIAL_IN = re.compile(r"\$\{credentials\.")
+"""A step value that types a credential. The control it goes into is masked in
+every later screenshot: the tree is scrubbed of the value, and the picture must
+be too, or the picture is where the secret ends up."""
 
 
 class ReplayConfig(BaseModel):
@@ -217,6 +223,9 @@ class ReplayEngine:
         self.passed: list[str] = []
         self._in_flight: str | None = None
         """An irreversible step that was performed and has not landed yet."""
+        self._recovering: Recovery | None = None
+        """The recovery in progress, so a failure inside it says so."""
+        self._current_step: str | None = None
         self._shots = 0
         self._started = self.clock.now()
         self._budget = Deadline(self.clock, invocation.budget.timeout_s)
@@ -255,20 +264,41 @@ class ReplayEngine:
             # A fault the steps did not anticipate (the browser went away, a
             # frame detached mid-read). Still a typed result, never a crash.
             self.log.event("replay.surface_error", error=self.redactor.text(str(exc)))
-            result = Failure(
-                code="ACTION_FAILED",
-                message=self.redactor.text(f"{type(exc).__name__}: {exc}"),
-                side_effect=(
-                    "committed"
-                    if self.committed_through is not None
-                    else "unknown"
-                    if self._in_flight is not None
-                    else "none"
-                ),
-                capability=self.cap.name,
-                capability_version=self.cap.version,
-            )
+            result = self._unplanned("ACTION_FAILED", exc)
+        except BaseException as exc:
+            # Killed from outside (Ctrl+C), or a fault of the engine's own.
+            # The run directory still gets a result saying how far the run
+            # got and what it may have committed; then the interruption goes
+            # on. A run cut short with no record is the worst outcome there
+            # is for the person who has to find out whether a commit landed.
+            self.log.event("run.interrupted", error=type(exc).__name__)
+            self._finish(self._unplanned("INTERRUPTED", exc))
+            raise
         return self._finish(result)
+
+    def _unplanned(self, code: FailureCode, exc: BaseException) -> Failure:
+        """A failure the steps did not produce: the engine's own account of
+        where it was and what it can vouch for."""
+        text = f"{type(exc).__name__}: {exc}".rstrip(": ")
+        return Failure(
+            code=code,
+            step_id=self._current_step,
+            message=self.redactor.text(text),
+            side_effect=self._side_effect_so_far(),
+            outputs=dict(self.outputs),
+            during_recovery=self._during_recovery(),
+            capability=self.cap.name,
+            capability_version=self.cap.version,
+        )
+
+    def _side_effect_so_far(self) -> SideEffect:
+        if self.committed_through is not None:
+            return "committed"
+        return "unknown" if self._in_flight is not None else "none"
+
+    def _during_recovery(self) -> str | None:
+        r = self._recovering
+        return f"{r.code} at {r.step_id}" if r is not None else None
 
     def _finish(self, result: ReplayResult) -> ReplayResult:
         final = result.model_copy(
@@ -296,6 +326,7 @@ class ReplayEngine:
 
     def _step(self, index: int, mode: _Mode = "run") -> int:
         step = self.cap.steps[index]
+        self._current_step = step.id
         if self._budget.passed:
             self._within_budget(step, self.surface.observe())
         self.log.event("step.start", step=step.id, action=step.action, mode=mode)
@@ -303,6 +334,8 @@ class ReplayEngine:
         refinds = 0
         while True:
             node, screen = self._find(step)
+            if step.target and step.value and _CREDENTIAL_IN.search(step.value):
+                self._mask(step.id, step.target)
             action = self._action(step, node)
             self._permit(step, action, screen)
             try:
@@ -411,8 +444,16 @@ class ReplayEngine:
                 f"{key}: located by {found.rung}, recorded as {recorded or ladder[0].strategy}"
                 + (f"; skipped {skipped}" if skipped else "")
             )
-            self.warnings.append(warning)
-            self.log.event("locator.slip", target=key, warning=warning)
+            if warning not in self.warnings:  # an output may be located twice
+                self.warnings.append(warning)
+                self.log.event("locator.slip", target=key, warning=warning)
+
+    def _mask(self, step_id: str, ladder: Ladder) -> None:
+        """Paint this control out of every screenshot from now on."""
+        if ladder in self.masks:
+            return
+        self.masks.append(ladder)
+        self.log.event("screenshot.mask_added", step=step_id, target=_ladder_text(ladder))
 
     def _action(self, step: Step, node: Node | None) -> Action:
         ref = node.ref if node else None
@@ -570,6 +611,15 @@ class ReplayEngine:
             self.committed_through = index
             self._in_flight = None
             self.log.event("irreversible.committed", step=step.id)
+            # Read whatever outputs this screen shows, before anything else
+            # can go wrong. The confirmation screen is often the only place
+            # the reference number exists; a session expiry between here and
+            # the done step must not leave a caller with "committed" and no
+            # way to say what was committed.
+            captured = self._read_outputs(landing.observation, optional_only=False, tolerant=True)
+            self.outputs.update(captured)
+            if captured:
+                self.log.event("outputs.captured_at_commit", step=step.id, names=sorted(captured))
         if landing.checkpoint is not None:
             self.passed.append(landing.checkpoint.id)
             self.log.event("checkpoint.passed", checkpoint=landing.checkpoint.id, step=step.id)
@@ -584,8 +634,11 @@ class ReplayEngine:
         det, screen = landing.detector, landing.observation
         self.log.event("detector.matched", step=step.id, code=det.code, cls=det.class_)
         if det.class_ == "hard":
+            # A hard detector whose code is a failure code of its own
+            # (AUTH_FAILED) is reported as that; any other is the app failing.
+            code = cast(FailureCode, det.code) if det.code in FAILURE_CODES else "APP_ERROR"
             self._fail(
-                "APP_ERROR",
+                code,
                 step,
                 expected=_expectation(step, self.inputs),
                 message=f"{det.code}: {_match_text(det)}{_statuses(screen)}",
@@ -611,23 +664,60 @@ class ReplayEngine:
             )
         recover = det.recover
         if recover.then == "restart_from_last_checkpoint":
-            return self._restart(index, step, det)
+            attempt = self._begin_recovery(step, det, recover.run or "restart")
+            nxt, resumed = self._restart(index, step, det)
+            self._end_recovery(attempt, resumed_after_checkpoint=resumed)
+            return nxt
         if recover.run:
+            attempt = self._begin_recovery(step, det, recover.run)
             self._run_recoverer(recover.run, step)
+            self._end_recovery(attempt)
+        else:
+            self.ledger.record(
+                step, det, "retry_step" if recover.then == "retry_step" else "continue"
+            )
         if recover.then == "retry_step":
             if recover.backoff_s:
                 self.surface.idle(min(recover.backoff_s, self._budget.remaining))
-            self.ledger.record(step, det, "retry_step")
             self.log.event("recovery.retry", step=step.id, code=det.code)
             return "retry"
-        self.ledger.record(step, det, recover.run or "continue")
         self.log.event("recovery.continue", step=step.id, code=det.code, ran=recover.run)
         return "land"
+
+    def _begin_recovery(self, step: Step, det: Detector, action: str) -> Recovery:
+        """Listed in the result as failed from this moment; ``_end_recovery``
+        turns it into a success. A run that dies inside the recovery therefore
+        still shows the recovery, and every failure raised meanwhile names it."""
+        attempt = self.ledger.start(step, det, action)
+        self._recovering = attempt
+        return attempt
+
+    def _end_recovery(
+        self, attempt: Recovery, *, resumed_after_checkpoint: str | None = None
+    ) -> None:
+        self.ledger.finish(attempt, resumed_after_checkpoint=resumed_after_checkpoint)
+        self._recovering = None
 
     def _on_timeout(
         self, index: int, step: Step, landing: _TimedOut, mode: _Mode
     ) -> Literal["retry"]:
         screen = landing.observation
+        # Before calling a timeout a timeout: is the app in fact answering
+        # with a business outcome, just at a step its detector was not
+        # scoped to? A member deleted between the search and the next screen
+        # produces the same "not found" one step later. Scope sets precedence
+        # among detectors that fire; it must not make the run deaf.
+        business = [d for d in self.cap.outcome_detectors if d.class_ == "business"]
+        answered = det_rules.first_match(business, screen, self.ev, outputs=self.outputs)
+        if answered is not None:
+            self.warnings.append(
+                f"{answered.code} was detected after {step.id}, outside its declared scope "
+                f"({_scope_text(answered)})"
+            )
+            self.log.event(
+                "detector.matched", step=step.id, code=answered.code, cls="business", scoped=False
+            )
+            self._business(step, answered, screen)
         self._within_budget(step, screen, performed=step.risk == "irreversible")
         if landing.expectation_held:
             checkpoint = self._checkpoint_after(step.id)
@@ -682,7 +772,7 @@ class ReplayEngine:
                 code=det.code,
                 payload=payload,
                 message=message,
-                outputs=partial,
+                outputs={**self.outputs, **partial},
                 step_id=step.id,
                 side_effect=self._side_effect(step, screen, performed=step.risk == "irreversible"),
                 capability=self.cap.name,
@@ -746,6 +836,7 @@ class ReplayEngine:
                         expected=f"exactly one control for {_ladder_text(ladder)}",
                         message=f"recoverer {name} could not find its control",
                         observation=screen,
+                        performed=step.risk == "irreversible",
                     )
                 target = found.node
             act: Action = (
@@ -757,9 +848,10 @@ class ReplayEngine:
             self.surface.settle(self._deadline().remaining)
         self.log.event("recovery.done", step=step.id, recoverer=name)
 
-    def _restart(self, index: int, step: Step, det: Detector) -> int:
+    def _restart(self, index: int, step: Step, det: Detector) -> tuple[int, str | None]:
         """Start the session again from the entry, then let the screen say
-        where the run has got back to."""
+        where the run has got back to. Returns the step to carry on from and
+        the checkpoint that proved it."""
         assert det.recover is not None
         self.log.event("recovery.restart", step=step.id, code=det.code)
         self._navigate(self.entry_url)
@@ -797,11 +889,8 @@ class ReplayEngine:
                 observation=screen,
                 escalate="UNRECOVERABLE",
             )
-        self.ledger.record(
-            step, det, det.recover.run or "restart", resumed_after_checkpoint=resumed[0]
-        )
         self.log.event("recovery.resumed", step=step.id, after=resumed[0], next=nxt)
-        return nxt
+        return nxt, resumed[0]
 
     def _last_passed_step(self) -> int:
         ids = [s.id for s in self.cap.steps]
@@ -865,22 +954,31 @@ class ReplayEngine:
         found = resolve_ladder(ladder, obs, recording_env=self.cap.recording_env)
         return found if isinstance(found, Resolved) and self._trusted(ladder, found) else None
 
-    def _read_outputs(self, screen: Observation, *, optional_only: bool) -> dict[str, OutputValue]:
+    def _read_outputs(
+        self, screen: Observation, *, optional_only: bool, tolerant: bool = False
+    ) -> dict[str, OutputValue]:
         """Read outputs live off this screen. Required ones that cannot be
-        read or parsed end the run; optional ones are left out, with a note."""
+        read or parsed end the run; optional ones are left out, with a note.
+
+        ``tolerant``: an opportunistic read (right after a commit landed) —
+        whatever is on this screen is kept, and what is not is left for the
+        done step to find, silently.
+        """
         out: dict[str, OutputValue] = {}
         for name, spec in self.cap.outputs.items():
             if optional_only and not spec.optional:
                 continue
             found = self._locate(spec.extract.target, screen)
             if found is None:
-                if spec.optional and not optional_only:
+                if spec.optional and not optional_only and not tolerant:
                     self.warnings.append(f"optional output {name} was not on the screen")
                 continue
             try:
                 text = self.surface.act(ReadText(ref=found.ref)).text or ""
                 value = parse(self.redactor.text(text), spec)
             except (ParseError, SurfaceError) as exc:
+                if tolerant:
+                    continue
                 if spec.optional:
                     self.warnings.append(f"optional output {name} could not be read: {exc}")
                     continue
@@ -940,12 +1038,21 @@ class ReplayEngine:
     ) -> SideEffect:
         """What was committed, as far as can be known.
 
-        An irreversible step that is known to have happened is ``committed``.
-        One that was performed and then went wrong is ``committed`` only if
-        its marker is on the screen; otherwise ``unknown`` — the engine did
-        press the button, and cannot see what the button did.
+        An irreversible step that is known to have happened is ``committed``,
+        whatever the screen shows now — the engine saw it land, and a session
+        that has since expired does not un-commit it. One that was performed
+        and then went wrong is ``committed`` only if its marker is on the
+        screen; otherwise ``unknown`` — the engine did press the button, and
+        cannot see what the button did.
         """
-        if not performed:
+        ids = [s.id for s in self.cap.steps]
+        index = ids.index(step.id) if step.id in ids else None
+        seen_landing = self.committed_through is not None and (
+            index is None or index <= self.committed_through
+        )
+        if seen_landing:
+            return "committed"
+        if not performed or step.risk != "irreversible":
             return "committed" if self.committed_through is not None else "none"
         marker = step.side_effect_marker
         if marker is not None and screen is not None:
@@ -987,6 +1094,9 @@ class ReplayEngine:
             if escalate is not None and (step is None or step.on_fail == "escalate")
             else None
         )
+        during = self._during_recovery()
+        if during is not None:
+            message = f"during recovery ({during}): {message}"
         excerpt = self._excerpt(observation) if observation is not None else ""
         self.log.event(
             "replay.failed",
@@ -996,6 +1106,7 @@ class ReplayEngine:
             expected=self.redactor.text(expected),
             message=self.redactor.text(message),
             side_effect=side_effect,
+            during_recovery=during,
             escalation_reason=wanted,
         )
         if observation is not None:
@@ -1008,6 +1119,8 @@ class ReplayEngine:
                 observed=excerpt,
                 message=self.redactor.text(message),
                 side_effect=side_effect,
+                outputs=dict(self.outputs),
+                during_recovery=during,
                 escalation_reason=wanted,
                 capability=self.cap.name,
                 capability_version=self.cap.version,
@@ -1052,6 +1165,17 @@ def _statuses(screen: Observation) -> str:
 def _match_text(det: Detector) -> str:
     match = det.match
     return "a timeout" if isinstance(match, StepTimedOut) else describe(match)
+
+
+def _scope_text(det: Detector) -> str:
+    scope = det.scope
+    if scope is None:
+        return "every step"
+    if scope.after_step is not None:
+        return f"after {scope.after_step}"
+    if scope.after_checkpoint is not None:
+        return f"after {scope.after_checkpoint}"
+    return "every step"
 
 
 def _ladder_text(ladder: Ladder) -> str:

@@ -31,7 +31,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Annotated, Any, Literal, TypeAlias
+from typing import Annotated, Any, Literal, TypeAlias, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
@@ -48,11 +48,20 @@ FailureCode = Literal[
     "CHECKPOINT_FAILED",
     "EXTRACTION_FAILED",
     "APP_ERROR",
+    "AUTH_FAILED",
     "TIMEOUT",
     "RECOVERY_EXHAUSTED",
     "POLICY_BLOCKED",
     "ESCALATION_ABORTED",
+    "INTERRUPTED",
 ]
+FAILURE_CODES: frozenset[str] = frozenset(get_args(FailureCode))
+"""``AUTH_FAILED`` is the one a hard detector may carry as its own code: the
+sign-on was refused, which is not the application failing (``APP_ERROR``) and
+is the way a capability most often dies in production — a rotated password.
+``INTERRUPTED`` is the run being killed from outside (Ctrl+C, a crash) and is
+written so that a run cut short still says how far it got and what it may
+have committed."""
 
 EscalationReason = Literal["STUCK", "NEEDS_APPROVAL", "UNRECOVERABLE", "DEAD_END"]
 
@@ -79,6 +88,9 @@ class Recovery(_Model):
     action: str
     """What was done: ``dismiss_notice``, ``retry_step``, ``relogin``."""
     attempts: int = 1
+    outcome: Literal["succeeded", "failed"] = "succeeded"
+    """Recorded as ``failed`` before the recovery runs and flipped when it is
+    through, so a run that dies inside a relogin still shows the relogin."""
     resumed_after_checkpoint: str | None = None
     """For a restart: the checkpoint the resume-state search found holding."""
 
@@ -150,6 +162,14 @@ class Failure(_Common):
     """A compact, redacted excerpt of what was on screen instead."""
     message: str = ""
     side_effect: SideEffect = "none"
+    outputs: dict[str, OutputValue] = Field(default_factory=dict)
+    """What was read before the failure. Filled when an irreversible step had
+    landed and its confirmation screen was seen: a caller told ``committed``
+    is also told the reference number, even though the run then went wrong."""
+    during_recovery: str | None = None
+    """``<code> at <step>`` when the failure happened inside a recovery — a
+    relogin that could not find the sign-on form is reported as that, not as
+    a sign-on step failing out of nowhere."""
     escalation_reason: EscalationReason | None = None
     """Set when this fault is one a human should have been asked about, and
     no one could be (``budget.allow_escalation`` is false, or no operator
@@ -240,6 +260,11 @@ class IdempotencyCache:
         return result.model_copy(update={"cached": True})
 
     def put(self, key: str, request: str, result: ReplayResult) -> None:
+        if result.kind == "escalated":
+            # Not an answer yet. A caller retrying the same key would be handed
+            # a resume token for a run that may since have finished or been
+            # aborted; it has to reach the run's current state instead.
+            return
         self.dir.mkdir(parents=True, exist_ok=True)
         record = {"fingerprint": request, "result": result.model_dump(mode="json")}
         self._path(key).write_text(

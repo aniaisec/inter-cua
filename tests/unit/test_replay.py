@@ -442,11 +442,16 @@ def confirm_only() -> Capability:
 
 
 def engine(
-    tmp_path: Path, screens_: list, *, token: bool = True
+    tmp_path: Path,
+    screens_: list,
+    *,
+    token: bool = True,
+    surface: FakeSurface | None = None,
+    capability: Capability | None = None,
 ) -> tuple[ReplayEngine, FakeSurface]:
-    surface = FakeSurface(screens_)
+    surface = surface or FakeSurface(screens_)
     run = ReplayEngine(
-        capability=confirm_only(),
+        capability=capability or confirm_only(),
         surface=surface,
         tenant=TENANT,
         policy=POLICY,
@@ -513,3 +518,180 @@ def test_the_run_directory_records_the_ending(tmp_path: Path) -> None:
     assert "irreversible.act" in events and "irreversible.committed" not in events
     saved = json.loads((tmp_path / "run" / "result.json").read_text())
     assert saved["kind"] == "failure" and saved["side_effect"] == "unknown"
+
+
+# --------------------------------------------------------------------------
+# States the plan did not enumerate
+# --------------------------------------------------------------------------
+
+
+def log_events(tmp_path: Path) -> list[dict]:
+    return [json.loads(line) for line in (tmp_path / "run" / "log.jsonl").read_text().splitlines()]
+
+
+def test_a_refused_sign_on_has_its_own_code_and_listens_only_after_sign_on() -> None:
+    cap = goal1()
+    auth = next(d for d in cap.outcome_detectors if d.code == "AUTH_FAILED")
+    assert auth.class_ == "hard"
+    assert "AUTH_FAILED" not in codes(cap, "login.password")
+    assert "AUTH_FAILED" in codes(cap, "login.submit")
+    # It is not the application failing, so it is not APP_ERROR.
+    assert "AUTH_FAILED" in Failure.model_fields["code"].annotation.__args__
+
+
+class Interrupting(FakeSurface):
+    """Ctrl+C lands while the commit is being clicked."""
+
+    def act(self, action):
+        if isinstance(action, Click):
+            raise KeyboardInterrupt
+        return super().act(action)
+
+
+def test_an_interrupted_run_still_writes_what_it_may_have_committed(tmp_path: Path) -> None:
+    run, _ = engine(tmp_path, [review()], surface=Interrupting([review()]))
+    with pytest.raises(KeyboardInterrupt):
+        run.run()
+    saved = json.loads((tmp_path / "run" / "result.json").read_text())
+    assert saved["kind"] == "failure" and saved["code"] == "INTERRUPTED"
+    assert saved["step_id"] == "review.submit"
+    assert saved["side_effect"] == "unknown", "the click was in flight"
+    events = [e["event"] for e in log_events(tmp_path)]
+    assert "run.interrupted" in events and events[-1] == "run.end"
+
+
+class LosingTheScreen(FakeSurface):
+    """The confirmation screen shows for a few looks, then the session expires
+    and the sign-on screen replaces it — before the done step has read it."""
+
+    def __init__(self, screens_, *, keep_for: int) -> None:
+        super().__init__(screens_)
+        self.keep_for = keep_for
+        self.looks = 0
+
+    def observe(self, *, screenshot: bool = False, masks=()) -> Observation:
+        if self.index == len(self.screens) - 2:
+            self.looks += 1
+            if self.looks > self.keep_for:
+                self.index = len(self.screens) - 1
+        return super().observe(screenshot=screenshot, masks=masks)
+
+
+def test_outputs_are_read_the_moment_the_commit_lands(tmp_path: Path) -> None:
+    expired = signed_in(screens.LOGIN, f"{BASE}/login")
+    # One look sees the commit land; the done step's look finds the session gone.
+    surface = LosingTheScreen([review(), opened(), expired], keep_for=1)
+    run, _ = engine(tmp_path, [], surface=surface)
+    result = run.run()
+    assert isinstance(result, Failure), result
+    assert result.code == "EXTRACTION_FAILED"
+    # The commit was seen to land, so it is committed whatever the screen
+    # says now — and the caller gets the reference number that was on it.
+    assert result.side_effect == "committed"
+    assert result.outputs == {"reference_number": "REF-10003-0001"}
+    assert any(e["event"] == "outputs.captured_at_commit" for e in log_events(tmp_path))
+
+
+NOT_FOUND_LATER = """
+- heading "Member Search" [level=3]
+- paragraph: No matching member
+"""
+
+
+def with_detector(cap: Capability, detector: dict, **extra) -> Capability:
+    data = cap.model_dump(mode="json", by_alias=True)
+    data["outcome_detectors"].append(detector)
+    data.update(extra)
+    return Capability.model_validate(data)
+
+
+def test_a_business_outcome_at_an_unscoped_step_is_still_the_answer(tmp_path: Path) -> None:
+    """The member was deleted between the search and the commit: the app says
+    "not found" one screen later than the detector was scoped to."""
+    cap = with_detector(
+        confirm_only(),
+        {
+            "code": "NOT_FOUND",
+            "class": "business",
+            "scope": {"after_checkpoint": "cp.done"},  # never in scope during a step
+            "match": {"kind": "text_present", "text": "No matching member"},
+        },
+    )
+    gone = signed_in(NOT_FOUND_LATER, f"{BASE}/search")
+    run, _ = engine(tmp_path, [review(), gone], capability=cap)
+    result = run.run()
+    assert isinstance(result, BusinessOutcome), result
+    assert result.code == "NOT_FOUND" and result.step_id == "review.submit"
+    assert any("outside its declared scope" in w for w in result.warnings), result.warnings
+    # The app answered, but the confirm was pressed and nothing proves what it did.
+    assert result.side_effect == "unknown"
+
+
+NOTICE_WITHOUT_OK = """
+- heading "System notice" [level=3]
+- paragraph: Batch posting is running. Try again later.
+"""
+
+
+def test_a_recovery_that_fails_is_still_in_the_result_and_named_by_the_failure(
+    tmp_path: Path,
+) -> None:
+    cap = with_detector(
+        confirm_only(),
+        {
+            "code": "INTERSTITIAL",
+            "class": "recoverable",
+            "match": {"kind": "region_present", "name": "System notice"},
+            "recover": {"run": "dismiss_notice", "then": "continue"},
+        },
+        recoverers={
+            "dismiss_notice": {
+                "steps": [
+                    {
+                        "action": "click",
+                        "target": [{"strategy": "role_name", "role": "button", "name": "OK"}],
+                    }
+                ]
+            }
+        },
+    )
+    notice = signed_in(NOTICE_WITHOUT_OK, f"{BASE}/notice")
+    run, _ = engine(tmp_path, [review(), notice], capability=cap)
+    result = run.run()
+    assert isinstance(result, Failure), result
+    assert result.code == "RECOVERY_EXHAUSTED"
+    assert result.during_recovery == "INTERSTITIAL at review.submit"
+    assert result.message.startswith("during recovery (INTERSTITIAL at review.submit):")
+    (attempt,) = result.recoveries
+    assert (attempt.code, attempt.action, attempt.outcome) == (
+        "INTERSTITIAL",
+        "dismiss_notice",
+        "failed",
+    )
+    # The confirm was pressed before the notice appeared; nothing says what it did.
+    assert result.side_effect == "unknown"
+
+
+def test_the_ledger_lists_a_recovery_as_failed_until_it_is_finished() -> None:
+    cap = goal1()
+    step = next(s for s in cap.steps if s.id == "search.submit")
+    notice = next(d for d in cap.outcome_detectors if d.code == "INTERSTITIAL")
+    ledger = RecoveryLedger(cap.recovery_limits, max_recoveries=3)
+    attempt = ledger.start(step, notice, "dismiss_notice")
+    assert [r.outcome for r in ledger.made] == ["failed"]
+    ledger.finish(attempt)
+    assert [r.outcome for r in ledger.made] == ["succeeded"]
+    assert ledger.refusal(step, notice) is not None, "the attempt counted whether or not it worked"
+
+
+def test_an_escalated_result_is_never_served_from_the_cache(tmp_path: Path) -> None:
+    cache = IdempotencyCache(tmp_path)
+    request = fingerprint("c", 1, {"member_id": "10003"})
+    cache.put(
+        "k",
+        request,
+        Escalated(
+            reason="STUCK", request_id="r", resume_token="t", capability="c", capability_version=1
+        ),
+    )
+    assert cache.get("k", request) is None

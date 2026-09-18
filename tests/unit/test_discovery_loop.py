@@ -510,3 +510,24 @@ def test_run_files_are_written_with_lf_line_endings_on_every_platform(tmp_path: 
     for path in log.dir.rglob("*"):
         if path.is_file() and path.suffix != ".png":
             assert b"\r\n" not in path.read_bytes(), path
+
+
+def test_a_field_a_credential_was_typed_into_is_masked_from_then_on(tmp_path: Path) -> None:
+    """The tree scrubs the value; the picture has to agree. The policy masks
+    the password field up front; the user id field is masked the moment a
+    credential placeholder is typed into it, for the rest of the run."""
+    surface = FakeSurface(happy_screens())
+    outcome, log, _ = run(tmp_path, HAPPY, surface)
+    assert outcome.kind == "done"
+
+    def labels(masks) -> set[str]:
+        return {rung.text for ladder in masks for rung in ladder if isinstance(rung, NearText)}
+
+    first, after_username, *_, last = surface.observed_masks
+    assert labels(first) == {"Password"}, "before anything is typed: the policy's mask only"
+    assert labels(after_username) == {"Password", "User ID"}
+    assert labels(last) == {"Password", "User ID"}
+    assert [e["target"] for e in named(log, "screenshot.mask_added")] == [
+        "textbox (near 'User ID')",
+        "textbox (near 'Password')",
+    ]

@@ -47,6 +47,31 @@ class RecoveryLedger:
             return f"{detector.code} has been recovered {detector.recover.max} time(s) at {step.id}"
         return None
 
+    def start(self, step: Step, detector: Detector, action: str) -> Recovery:
+        """Count the recovery and list it as ``failed`` until ``finish`` says
+        otherwise. A recovery that dies half way is then still in the result,
+        which is where whoever debugs the run will look for it."""
+        self._by_step[step.id] += 1
+        self._by_detector[(step.id, detector.code)] += 1
+        recovery = Recovery(
+            step_id=step.id,
+            code=detector.code,
+            action=action,
+            attempts=self._by_detector[(step.id, detector.code)],
+            outcome="failed",
+        )
+        self.made.append(recovery)
+        return recovery
+
+    def finish(
+        self, recovery: Recovery, *, resumed_after_checkpoint: str | None = None
+    ) -> Recovery:
+        done = recovery.model_copy(
+            update={"outcome": "succeeded", "resumed_after_checkpoint": resumed_after_checkpoint}
+        )
+        self.made[self.made.index(recovery)] = done
+        return done
+
     def record(
         self,
         step: Step,
@@ -55,14 +80,7 @@ class RecoveryLedger:
         *,
         resumed_after_checkpoint: str | None = None,
     ) -> Recovery:
-        self._by_step[step.id] += 1
-        self._by_detector[(step.id, detector.code)] += 1
-        recovery = Recovery(
-            step_id=step.id,
-            code=detector.code,
-            action=action,
-            attempts=self._by_detector[(step.id, detector.code)],
-            resumed_after_checkpoint=resumed_after_checkpoint,
+        """A recovery with nothing to run (a plain retry): started and finished."""
+        return self.finish(
+            self.start(step, detector, action), resumed_after_checkpoint=resumed_after_checkpoint
         )
-        self.made.append(recovery)
-        return recovery

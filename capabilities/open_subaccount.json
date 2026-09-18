@@ -2,11 +2,9 @@
   "schema_version": "1.1",
   "id": "cap_01M2TMXZ2QK22AEHTVPG6FENDY",
   "name": "open_subaccount",
-  "version": 1,
-  "approval_state": "approved",
-  "approved_by": "anil",
-  "approved_at": "2026-09-18T16:51:49Z",
-  "content_sha256": "e4a078c9d3a460cdeffc263fb88495ac7ca9215b70785aae59d00634802ae835",
+  "version": 2,
+  "approval_state": "draft",
+  "content_sha256": "2838f8edf1ccc74d98d4d15c3117abe8714b5552b4ada7d57cf736b1a034f9eb",
   "description": "Open a savings sub-account for a member with an initial deposit",
   "target": {
     "app_family": "legacy-core",
@@ -692,6 +690,17 @@
       "match": {
         "kind": "error_banner_present",
         "text": "Internal Server Error"
+      }
+    },
+    {
+      "code": "AUTH_FAILED",
+      "class": "hard",
+      "scope": {
+        "after_step": "login.submit"
+      },
+      "match": {
+        "kind": "text_present",
+        "text": "Invalid user id or password"
       }
     },
     {

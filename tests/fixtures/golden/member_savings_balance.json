@@ -414,6 +414,17 @@
       }
     },
     {
+      "code": "AUTH_FAILED",
+      "class": "hard",
+      "scope": {
+        "after_step": "login.submit"
+      },
+      "match": {
+        "kind": "text_present",
+        "text": "Invalid user id or password"
+      }
+    },
+    {
       "code": "NOT_FOUND",
       "class": "business",
       "scope": {

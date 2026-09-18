@@ -2,11 +2,11 @@
   "schema_version": "1.1",
   "id": "cap_01M2TEFQZ16QEA602CSCCY8GJX",
   "name": "member_savings_balance",
-  "version": 1,
+  "version": 2,
   "approval_state": "approved",
   "approved_by": "anil",
-  "approved_at": "2026-09-18T15:07:51Z",
-  "content_sha256": "ca2c0f8c26528d48a26aa8691a91e24bf4684e3a41227404d8eb4d0a20d17113",
+  "approved_at": "2026-09-18T18:04:33Z",
+  "content_sha256": "0bb09f01bbb2a7ebff41fa968224bece172384f072562489ef6024d2d8e860d1",
   "description": "Look up a member by id and return the current savings balance",
   "target": {
     "app_family": "legacy-core",
@@ -414,6 +414,17 @@
       "match": {
         "kind": "error_banner_present",
         "text": "Internal Server Error"
+      }
+    },
+    {
+      "code": "AUTH_FAILED",
+      "class": "hard",
+      "scope": {
+        "after_step": "login.submit"
+      },
+      "match": {
+        "kind": "text_present",
+        "text": "Invalid user id or password"
       }
     },
     {

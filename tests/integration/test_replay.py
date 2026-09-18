@@ -92,6 +92,7 @@ class Harness:
         key: str | None = None,
         budget: Budget | None = None,
         screenshots: bool = False,
+        environ: dict[str, str] | None = None,
     ) -> ReplayResult:
         return replay(
             self.approved(capability),
@@ -107,7 +108,7 @@ class Harness:
             runs_dir=self.runs,
             config=ReplayConfig(screenshots=screenshots),
             surface=self._surface,
-            environ=ENV,
+            environ=environ or ENV,
         )
 
     def debug(self) -> dict[str, Any]:
@@ -399,3 +400,49 @@ def test_the_budget_bounds_the_whole_run(harness: Harness) -> None:
     )
     assert isinstance(result, Failure), result
     assert result.code == "TIMEOUT"
+
+
+# -- states the plan did not enumerate ---------------------------------------------
+
+
+def test_a_rotated_password_is_auth_failed_not_a_timeout(harness: Harness) -> None:
+    """The most common way a working capability stops working in production."""
+    result = harness.run(
+        GOAL1,
+        inputs={"member_id": "10003"},
+        environ={"CUA_TEST_OPERATOR": "operator:no-longer-the-password"},
+    )
+    assert isinstance(result, Failure), result
+    assert result.code == "AUTH_FAILED"
+    assert result.step_id == "login.submit"
+    assert result.side_effect == "none"
+    assert "Invalid user id or password" in result.observed
+    assert result.evidence.run_dir is not None
+    for path in Path(result.evidence.run_dir).rglob("*"):
+        if path.is_file() and path.suffix not in (".png", ".zip"):
+            assert b"no-longer-the-password" not in path.read_bytes(), path
+
+
+def test_three_replays_take_the_same_path_by_the_same_rungs(harness: Harness) -> None:
+    """Determinism as evidence rather than as a sentence: the same artifact,
+    replayed three times, passes the same steps in the same order, names every
+    control by the same rung, and returns the same outputs."""
+    traces = []
+    for _ in range(3):
+        result = harness.run(GOAL1, inputs={"member_id": "10003"})
+        assert isinstance(result, Success), result
+        passed = [e["step"] for e in harness.events(result) if e["event"] == "step.passed"]
+        traces.append((passed, result.locator_rungs_used, result.outputs, result.recoveries))
+    assert traces[0] == traces[1] == traces[2]
+    assert traces[0][0] == [s.id for s in load(GOAL1).steps]
+    assert harness.launches == 3
+
+
+def test_the_field_a_credential_was_typed_into_is_masked_in_every_later_screenshot(
+    harness: Harness,
+) -> None:
+    result = harness.run(GOAL1, inputs={"member_id": "10003"}, screenshots=True)
+    assert isinstance(result, Success), result
+    added = [e for e in harness.events(result) if e["event"] == "screenshot.mask_added"]
+    assert [e["step"] for e in added] == ["login.username", "login.password"]
+    assert any("User ID" in e["target"] for e in added)

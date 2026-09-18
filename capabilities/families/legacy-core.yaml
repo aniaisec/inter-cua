@@ -35,6 +35,15 @@ outcome_detectors:
     class: hard
     match: {kind: error_banner_present, text: Internal Server Error}
 
+  # The sign-on was refused. Hard, not business: no caller can act on it, and
+  # it is not the application failing either. A rotated password is the most
+  # common way a working capability stops working, so it gets its own code,
+  # and it is listened for on a relogin as much as on the first sign-on.
+  - code: AUTH_FAILED
+    class: hard
+    scope: {after_step: login.submit}
+    match: {kind: text_present, text: Invalid user id or password}
+
   - code: NOT_FOUND
     class: business
     scope: {after_step: search.submit}
