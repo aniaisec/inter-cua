@@ -12,11 +12,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pytest
 from google.genai import types
 
 from cua.agent.goal import OutputSpec
 from cua.agent.llm import (
+    GEMINI_ATTEMPTS,
     AnthropicMessagesClient,
     DecisionRequest,
     GeminiClient,
@@ -282,3 +284,44 @@ def test_naming_a_provider_without_its_key_is_refused_before_anything_starts(
 def test_an_unknown_provider_is_refused(no_keys: pytest.MonkeyPatch) -> None:
     with pytest.raises(NoProviderError, match="unknown model provider 'openai'"):
         select_client("openai")
+
+
+class Flaky:
+    """generate_content that drops the connection ``drops`` times, then answers."""
+
+    def __init__(self, drops: int, reply: types.GenerateContentResponse) -> None:
+        self.drops = drops
+        self.reply = reply
+        self.calls = 0
+
+    def __call__(self, **kwargs: Any) -> types.GenerateContentResponse:
+        self.calls += 1
+        if self.calls <= self.drops:
+            raise httpx.RemoteProtocolError("Server disconnected without sending a response.")
+        return self.reply
+
+
+def flaky_gemini(drops: int) -> tuple[GeminiClient, Flaky, list[float]]:
+    flaky = Flaky(drops, gemini_reply(call_part(None, "stuck", {"reason": "r"})))
+    waits: list[float] = []
+    fake = SimpleNamespace(models=SimpleNamespace(generate_content=flaky))
+    return GeminiClient("gemini-x", client=fake, sleep=waits.append), flaky, waits
+
+
+def test_a_dropped_connection_is_retried_with_backoff() -> None:
+    client, flaky, waits = flaky_gemini(drops=2)
+
+    decision = client.decide(request([UserTurn(text="screen")]))
+
+    assert decision.tool_call is not None
+    assert flaky.calls == 3
+    assert waits == [2.0, 4.0]
+
+
+def test_a_connection_that_keeps_dropping_fails_the_call_after_the_last_attempt() -> None:
+    client, flaky, waits = flaky_gemini(drops=99)
+
+    with pytest.raises(httpx.RemoteProtocolError):
+        client.decide(request([UserTurn(text="screen")]))
+    assert flaky.calls == GEMINI_ATTEMPTS
+    assert len(waits) == GEMINI_ATTEMPTS - 1

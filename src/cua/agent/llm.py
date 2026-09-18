@@ -22,6 +22,8 @@ from one turn to the next.
 from __future__ import annotations
 
 import os
+import time
+from collections.abc import Callable
 from typing import Any, Literal, Protocol, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -296,16 +298,19 @@ class GeminiClient:
         *,
         max_tokens: int = MAX_TOKENS,
         client: Any | None = None,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         from google import genai  # only discovery needs a model SDK
         from google.genai import types
 
         self._model = model
         self._max_tokens = max_tokens
+        self._sleep = sleep
         # Reads GEMINI_API_KEY / GOOGLE_API_KEY. Unlike the Anthropic SDK, this
         # one does not retry by default, and a busy model answers 503 — so
         # overload and rate limits are retried with backoff, as they are for
-        # Claude. Anything else fails the call at once.
+        # Claude. A dropped connection has no status code and is retried in
+        # _generate. Anything else fails the call at once.
         self._client: Any = client or genai.Client(
             http_options=types.HttpOptions(
                 retry_options=types.HttpRetryOptions(
@@ -354,7 +359,7 @@ class GeminiClient:
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             max_output_tokens=self._max_tokens,
         )
-        response = self._client.models.generate_content(
+        response = self._generate(
             model=self._model, contents=_gemini_contents(request.transcript), config=config
         )
 
@@ -391,6 +396,25 @@ class GeminiClient:
                 "cache_read_input_tokens": (usage.cached_content_token_count or 0) if usage else 0,
             },
         )
+
+    def _generate(self, **kwargs: Any) -> Any:
+        """One generate_content call, retried when the connection itself fails.
+
+        Measured under load: the server can drop the connection after a
+        minute without answering (``RemoteProtocolError``). That is the same
+        overload as a 503, arriving with no status code for the SDK's own
+        retry to match, so it gets the same backoff here.
+        """
+        import httpx
+
+        for attempt in range(1, GEMINI_ATTEMPTS + 1):
+            try:
+                return self._client.models.generate_content(**kwargs)
+            except httpx.TransportError:
+                if attempt == GEMINI_ATTEMPTS:
+                    raise
+                self._sleep(min(2.0 * 2 ** (attempt - 1), 30.0))
+        raise AssertionError("unreachable")  # pragma: no cover
 
 
 def _gemini_contents(transcript: list[Turn]) -> list[Any]:
