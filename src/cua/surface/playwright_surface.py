@@ -93,6 +93,9 @@ READ_ATTEMPTS = 3
 ACTION_TIMEOUT_MS = 10_000
 FRAME_SETTLE_S = 5.0
 SETTLE_TIMEOUT_S = 10.0
+NAVIGATION_GRACE_S = 0.5
+"""How long after a click or key press a navigation may take to be requested."""
+NAVIGATION_POLL_S = 0.02
 POLL_INTERVAL_S = 0.15
 
 GEOMETRY_ROLES: frozenset[str] = INTERACTIVE_ROLES | ANCHOR_ROLES
@@ -134,6 +137,9 @@ class PlaywrightSurface:
         self._expected_dialog: ExpectDialog | None = None
         self._dialogs: list[DialogEvent] = []
         self._pending_documents: set[PlaywrightRequest] = set()
+        self._documents_requested = 0
+        self._documents_before_act = 0
+        self._may_navigate = False
         page.on("request", self._document_requested)
         page.on("requestfinished", self._document_done)
         page.on("requestfailed", self._document_done)
@@ -405,6 +411,10 @@ class PlaywrightSurface:
         started = _now()
 
         raised_before = len(self._dialogs)
+        # Only these can submit a form or follow a link; settle() waits a
+        # moment for the navigation they may have started.
+        self._may_navigate = isinstance(action, (Click, Press))
+        self._documents_before_act = self._documents_requested
 
         if isinstance(action, Navigate):
             self._page.goto(action.url)
@@ -558,11 +568,21 @@ class PlaywrightSurface:
         A document request in flight is the signal, not a quiet period: a
         server that takes four seconds to answer is perfectly quiet for all
         four, and a loop that observed during them would decide its next move
-        against the screen it just left. Playwright's click already waits for
-        a navigation it triggered to *start*, so by the time this runs the
-        request is visible here.
+        against the screen it just left.
+
+        A click or key press may be followed by a navigation that has not been
+        *requested* yet when the action returns — a form submission in a frame
+        is dispatched a moment later (measured: about one run in four on the
+        ``slow_load`` search). So after one of those, this first waits up to
+        ``NAVIGATION_GRACE_S`` for a document request to appear, and only then
+        concludes that nothing is loading.
         """
         deadline = _deadline(timeout_s)
+        if self._may_navigate:
+            grace = _deadline(NAVIGATION_GRACE_S)
+            while self._documents_requested == self._documents_before_act and _now() < grace:
+                self._page.wait_for_timeout(NAVIGATION_POLL_S * 1000)
+            self._may_navigate = False
         while self._pending_documents:
             if _now() >= deadline:
                 return False
@@ -633,6 +653,7 @@ class PlaywrightSurface:
     def _document_requested(self, request: PlaywrightRequest) -> None:
         if request.is_navigation_request():
             self._pending_documents.add(request)
+            self._documents_requested += 1
 
     def _document_done(self, request: PlaywrightRequest) -> None:
         self._pending_documents.discard(request)
