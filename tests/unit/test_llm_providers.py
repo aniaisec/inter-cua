@@ -225,6 +225,7 @@ def test_an_error_result_is_reported_to_gemini_as_an_error() -> None:
 def no_keys(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
     for var in (
         "ANTHROPIC_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN",
         "GEMINI_API_KEY",
         "GOOGLE_API_KEY",
         "CUA_LLM",
@@ -265,3 +266,19 @@ def test_each_provider_reads_its_own_model_variable(no_keys: pytest.MonkeyPatch)
 def test_no_key_at_all_says_what_to_do(no_keys: pytest.MonkeyPatch) -> None:
     with pytest.raises(NoProviderError, match="GEMINI_API_KEY"):
         select_client("auto")
+
+
+def test_naming_a_provider_without_its_key_is_refused_before_anything_starts(
+    no_keys: pytest.MonkeyPatch,
+) -> None:
+    no_keys.setenv("GEMINI_API_KEY", "test-not-a-key")
+    with pytest.raises(NoProviderError, match="--llm anthropic needs ANTHROPIC_API_KEY"):
+        select_client("anthropic")
+    no_keys.setenv("CUA_LLM", "anthropic")
+    with pytest.raises(NoProviderError, match="ANTHROPIC_API_KEY"):
+        select_client("auto")
+
+
+def test_an_unknown_provider_is_refused(no_keys: pytest.MonkeyPatch) -> None:
+    with pytest.raises(NoProviderError, match="unknown model provider 'openai'"):
+        select_client("openai")

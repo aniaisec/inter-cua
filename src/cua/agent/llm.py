@@ -142,22 +142,37 @@ def select_client(choice: str = "auto", model: str | None = None) -> LLMClient:
     sent to the other.
     """
     if choice == "auto":
-        choice = os.environ.get("CUA_LLM", "auto")
+        choice = os.environ.get("CUA_LLM") or "auto"
     if choice == "auto":
-        if os.environ.get("ANTHROPIC_API_KEY"):
-            choice = "anthropic"
-        elif os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
-            choice = "gemini"
-        else:
+        choice = next((p for p, keys in PROVIDER_KEYS.items() if _has_key(keys)), "auto")
+        if choice == "auto":
             raise NoProviderError(
                 "no model API key found: set ANTHROPIC_API_KEY or GEMINI_API_KEY in .env, "
                 "or run with --llm scripted --script <file>"
             )
+    if choice not in PROVIDER_KEYS:
+        raise NoProviderError(f"unknown model provider {choice!r}; use anthropic, gemini or auto")
+    # Checked here, before a browser is launched: without it the run starts,
+    # and fails only at the first model call, as an opaque SDK error.
+    if not _has_key(PROVIDER_KEYS[choice]):
+        raise NoProviderError(
+            f"--llm {choice} needs {' or '.join(PROVIDER_KEYS[choice])} set in .env"
+        )
     if choice == "anthropic":
         return AnthropicMessagesClient(model or os.environ.get("CUA_MODEL") or ANTHROPIC_MODEL)
-    if choice == "gemini":
-        return GeminiClient(model or os.environ.get("CUA_GEMINI_MODEL") or GEMINI_MODEL)
-    raise NoProviderError(f"unknown model provider {choice!r}; use anthropic, gemini or auto")
+    return GeminiClient(model or os.environ.get("CUA_GEMINI_MODEL") or GEMINI_MODEL)
+
+
+PROVIDER_KEYS: dict[str, tuple[str, ...]] = {
+    "anthropic": ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"),
+    "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+}
+"""The variables each SDK reads its credential from. Order is preference for
+``auto``: Claude first, as planned."""
+
+
+def _has_key(names: tuple[str, ...]) -> bool:
+    return any(os.environ.get(n) for n in names)
 
 
 # --------------------------------------------------------------------------
