@@ -32,6 +32,7 @@ from playwright.sync_api import Response as PlaywrightResponse
 from cua.surface import a11y
 from cua.surface import conditions as cond
 from cua.surface import locators as loc
+from cua.surface.evaluators import WebEvaluator
 from cua.surface.protocol import (
     ANCHOR_ROLES,
     CONTROL_ROLES,
@@ -42,7 +43,9 @@ from cua.surface.protocol import (
     ActionResult,
     Click,
     ConditionTimeout,
+    Drag,
     FrameInfo,
+    Hover,
     Navigate,
     Node,
     Observation,
@@ -56,6 +59,7 @@ from cua.surface.protocol import (
     StaleRefError,
     Surface,
     SurfaceError,
+    SurfaceConfig,
     TypeText,
     Viewport,
 )
@@ -90,11 +94,13 @@ class PlaywrightSurface:
         cdp_url: str | None = None,
         viewport: Viewport | None = None,
         owns: tuple[Browser, Playwright] | None = None,
+        config: SurfaceConfig | None = None,
     ) -> None:
         self._page = page
         self._cdp_url = cdp_url
         self._viewport = viewport or _viewport_of(page)
         self._owns = owns
+        self._config = config or SurfaceConfig()
         self._observation: Observation | None = None
         self._next_ref = 1
         self._statuses: dict[str, int] = {}
@@ -226,7 +232,7 @@ class PlaywrightSurface:
         nodes = a11y.flatten(
             a11y.parse_snapshot(snapshot), frame=frame.name, start_index=start_index
         )
-        return a11y.with_geometry(nodes, self._measure(frame, nodes))
+        return a11y.with_geometry(nodes, self._measure(frame, nodes), self._config)
 
     def _measure(self, frame: Frame, nodes: list[Node]) -> dict[str, Rect | None]:
         boxes: dict[str, Rect | None] = {}
@@ -276,7 +282,7 @@ class PlaywrightSurface:
         recording_env: RecordingEnv | None = None,
     ) -> loc.LadderOutcome:
         target = observation or self._observation or self.observe()
-        return loc.resolve_ladder(ladder, target, recording_env=recording_env)
+        return loc.resolve_ladder(ladder, target, recording_env=recording_env, config=self._config)
 
     def _frame(self, name: str) -> Frame:
         if name == TOP_FRAME:
@@ -335,6 +341,12 @@ class PlaywrightSurface:
         try:
             if isinstance(action, Click):
                 element.click(timeout=ACTION_TIMEOUT_MS)
+            elif isinstance(action, Hover):
+                element.hover(timeout=ACTION_TIMEOUT_MS)
+            elif isinstance(action, Drag):
+                target_node = self._node_for(action.target_ref)
+                target_element = self._element_for(target_node)
+                element.drag_to(target_element, timeout=ACTION_TIMEOUT_MS)
             elif isinstance(action, TypeText):
                 if action.clear:
                     element.fill(action.text, timeout=ACTION_TIMEOUT_MS)
@@ -393,7 +405,7 @@ class PlaywrightSurface:
         origin = self._observation
         observation = self.observe()
         here = self._carry(target, observation, origin)
-        return cond.evaluate(condition, observation, outputs=outputs, target=here)
+        return WebEvaluator(self._config).evaluate(condition, observation, outputs=outputs, target=here)
 
     def wait_for(
         self,
@@ -408,7 +420,7 @@ class PlaywrightSurface:
         observation = self.observe()
         while True:
             here = self._carry(target, observation, origin)
-            if cond.evaluate(condition, observation, outputs=outputs, target=here):
+            if WebEvaluator(self._config).evaluate(condition, observation, outputs=outputs, target=here):
                 return observation
             if _now() >= deadline:
                 raise ConditionTimeout(condition, timeout_s, observation)

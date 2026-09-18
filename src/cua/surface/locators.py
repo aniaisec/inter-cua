@@ -35,8 +35,6 @@ from typing import Annotated, Literal, TypeAlias
 from pydantic import BaseModel, ConfigDict, Field
 
 from cua.surface.a11y import (
-    NEAR_TEXT_MAX_PX,
-    NEAR_TEXT_TOLERANCE_PX,
     normalize,
     shares_column,
     shares_row,
@@ -48,6 +46,7 @@ from cua.surface.protocol import (
     Observation,
     RecordingEnv,
     Rect,
+    SurfaceConfig,
 )
 
 # The rung and the ``near_text`` annotation on a node have to agree about what
@@ -97,6 +96,7 @@ class NearText(BaseModel):
     text: str
     role: str | None = None
     direction: Direction | None = None
+    exact: bool = False
     within: Within | None = None
 
 
@@ -112,6 +112,7 @@ class TableCell(BaseModel):
     strategy: Literal["table_cell"] = "table_cell"
     row_contains: str
     column_header: str
+    exact: bool = False
     within: Within | None = None
 
 
@@ -213,6 +214,7 @@ def resolve_ladder(
     observation: Observation,
     *,
     recording_env: RecordingEnv | None = None,
+    config: SurfaceConfig = SurfaceConfig(),
 ) -> LadderOutcome:
     """Try each rung in order; the first to match exactly one node wins."""
     attempts: list[RungAttempt] = []
@@ -223,7 +225,7 @@ def resolve_ladder(
             attempts.append(RungAttempt(rung=strategy.strategy, refused=refusal))
             continue
 
-        matches = match(strategy, observation)
+        matches = match(strategy, observation, config=config)
         attempts.append(
             RungAttempt(
                 rung=strategy.strategy,
@@ -265,13 +267,14 @@ def _refusal(
 def match(
     strategy: RoleName | NearText | TableCell | BBox,
     observation: Observation,
+    config: SurfaceConfig = SurfaceConfig(),
 ) -> list[Node]:
     """Every node one rung matches. The ladder, not the rung, decides what to
     do with a count other than one."""
     if isinstance(strategy, RoleName):
         return _match_role_name(strategy, observation)
     if isinstance(strategy, NearText):
-        return _match_near_text(strategy, observation)
+        return _match_near_text(strategy, observation, config)
     if isinstance(strategy, TableCell):
         return _match_table_cell(strategy, observation)
     return _match_bbox(strategy, observation)
@@ -296,12 +299,12 @@ def _match_role_name(strategy: RoleName, observation: Observation) -> list[Node]
     return out
 
 
-def _match_near_text(strategy: NearText, observation: Observation) -> list[Node]:
+def _match_near_text(strategy: NearText, observation: Observation, config: SurfaceConfig) -> list[Node]:
     wanted = normalize(strategy.text)
     anchors = [
         n
         for n in _scope(observation, strategy.within)
-        if n.role in ANCHOR_ROLES and n.bbox is not None and normalize(n.name) == wanted
+        if n.role in ANCHOR_ROLES and n.bbox is not None and (normalize(n.name) == wanted if strategy.exact else wanted in normalize(n.name))
     ]
     if not anchors:
         return []
@@ -311,7 +314,7 @@ def _match_near_text(strategy: NearText, observation: Observation) -> list[Node]
         found: dict[str, Node] = {}
         for anchor in anchors:
             for candidate in _candidates_for(strategy, observation, anchor):
-                if _distance(anchor, candidate, direction) is not None:
+                if _distance(anchor, candidate, direction, config) is not None:
                     found[candidate.ref] = candidate
         if found:
             return [n for n in observation.nodes if n.ref in found]
@@ -341,22 +344,22 @@ def _candidates_for(strategy: NearText, observation: Observation, anchor: Node) 
     return out
 
 
-def _distance(anchor: Node, candidate: Node, direction: Direction) -> float | None:
+def _distance(anchor: Node, candidate: Node, direction: Direction, config: SurfaceConfig) -> float | None:
     """Gap between a label and a candidate in one direction, or None if the
     candidate is not in that direction, or is too far away to be related."""
     assert anchor.bbox is not None and candidate.bbox is not None
     a, c = anchor.bbox, candidate.bbox
 
     if direction in ("right", "left"):
-        if not shares_row(a, c):
+        if not shares_row(a, c, config):
             return None
         gap = c.x - a.right if direction == "right" else a.x - c.right
     else:
-        if not shares_column(a, c):
+        if not shares_column(a, c, config):
             return None
         gap = c.y - a.bottom if direction == "below" else a.y - c.bottom
 
-    if gap < -NEAR_TEXT_TOLERANCE_PX or gap > NEAR_TEXT_MAX_PX:
+    if gap < -config.near_text_tolerance_px or gap > config.near_text_max_px:
         return None
     return gap
 
@@ -383,7 +386,7 @@ def _match_table_cell(strategy: TableCell, observation: Observation) -> list[Nod
             cells = _cells_of(observation, row)
             if column >= len(cells):
                 continue
-            if any(wanted_row in normalize(cell.name) for cell in cells):
+            if any((normalize(cell.name) == wanted_row if strategy.exact else wanted_row in normalize(cell.name)) for cell in cells):
                 out.append(cells[column])
     return out
 

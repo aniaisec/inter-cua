@@ -42,6 +42,7 @@ from cua.surface.protocol import (
     TOP_FRAME,
     Node,
     Rect,
+    SurfaceConfig,
 )
 
 
@@ -82,13 +83,7 @@ _ATTR = re.compile(r"\[([^\]=]+)(?:=([^\]]*))?\]")
 # Sub-entries that describe the parent rather than being nodes of their own.
 _PROPERTY_KEYS = frozenset({"/url"})
 
-NEAR_TEXT_MAX_PX = 320.0
-"""How far from a control a label may sit and still be read as its label. Wide
-enough for a table cell pair on a legacy form, narrow enough that the next
-column's heading does not get adopted."""
-
-NEAR_TEXT_TOLERANCE_PX = 6.0
-"""Slack when deciding whether two boxes share a row or a column."""
+# Constants removed, now passed via SurfaceConfig
 
 
 class SnapshotParseError(ValueError):
@@ -275,13 +270,13 @@ def _value_of(node: ParsedNode) -> str | None:
     return None
 
 
-def with_geometry(nodes: list[Node], boxes: dict[str, Rect | None]) -> list[Node]:
+def with_geometry(nodes: list[Node], boxes: dict[str, Rect | None], config: SurfaceConfig = SurfaceConfig()) -> list[Node]:
     """Attach measured boxes, then label the controls that have no name."""
     placed = [n.model_copy(update={"bbox": boxes.get(n.ref)}) for n in nodes]
-    return annotate_near_text(placed)
+    return annotate_near_text(placed, config)
 
 
-def annotate_near_text(nodes: list[Node]) -> list[Node]:
+def annotate_near_text(nodes: list[Node], config: SurfaceConfig = SurfaceConfig()) -> list[Node]:
     """Record, for each unnamed control, the text a human would read as its label.
 
     Legacy forms label a field with a plain table cell to its left (or a line
@@ -295,17 +290,17 @@ def annotate_near_text(nodes: list[Node]) -> list[Node]:
         if node.name or not node.interactive or node.bbox is None:
             out.append(node)
             continue
-        label = _nearest_label(node, [a for a in anchors if a.frame == node.frame])
+        label = _nearest_label(node, [a for a in anchors if a.frame == node.frame], config)
         out.append(node.model_copy(update={"near_text": label}))
     return out
 
 
-def _nearest_label(node: Node, anchors: list[Node]) -> str | None:
+def _nearest_label(node: Node, anchors: list[Node], config: SurfaceConfig) -> str | None:
     assert node.bbox is not None
     best: tuple[float, str] | None = None
     for anchor in anchors:
         assert anchor.bbox is not None
-        distance = _label_distance(anchor.bbox, node.bbox)
+        distance = _label_distance(anchor.bbox, node.bbox, config)
         if distance is None:
             continue
         if best is None or distance < best[0]:
@@ -313,7 +308,7 @@ def _nearest_label(node: Node, anchors: list[Node]) -> str | None:
     return best[1] if best else None
 
 
-def _label_distance(anchor: Rect, control: Rect) -> float | None:
+def _label_distance(anchor: Rect, control: Rect, config: SurfaceConfig) -> float | None:
     """Distance from a label to the control it plausibly labels, or None.
 
     Only two arrangements count, because only two are conventional: the label
@@ -321,18 +316,18 @@ def _label_distance(anchor: Rect, control: Rect) -> float | None:
     is a coincidence of layout, and adopting it would invent a relationship the
     page does not express.
     """
-    if shares_row(anchor, control) and control.x >= anchor.right - NEAR_TEXT_TOLERANCE_PX:
+    if shares_row(anchor, control, config) and control.x >= anchor.right - config.near_text_tolerance_px:
         gap = control.x - anchor.right
-        return gap if gap <= NEAR_TEXT_MAX_PX else None
-    if shares_column(anchor, control) and control.y >= anchor.bottom - NEAR_TEXT_TOLERANCE_PX:
+        return gap if gap <= config.near_text_max_px else None
+    if shares_column(anchor, control, config) and control.y >= anchor.bottom - config.near_text_tolerance_px:
         gap = control.y - anchor.bottom
         # A label above is the weaker convention; bias against it so a cell on
         # the same line always wins.
-        return gap + NEAR_TEXT_MAX_PX if gap <= NEAR_TEXT_MAX_PX else None
+        return gap + config.near_text_max_px if gap <= config.near_text_max_px else None
     return None
 
 
-def shares_row(a: Rect, b: Rect) -> bool:
+def shares_row(a: Rect, b: Rect, config: SurfaceConfig) -> bool:
     """Are these two boxes on the same line of the screen?
 
     Centre-in-span rather than plain rectangle overlap: on a dense legacy form
@@ -340,16 +335,16 @@ def shares_row(a: Rect, b: Rect) -> bool:
     would call two stacked fields neighbours on the same line.
     """
     return (
-        a.y - NEAR_TEXT_TOLERANCE_PX <= b.center[1] <= a.bottom + NEAR_TEXT_TOLERANCE_PX
-        or b.y - NEAR_TEXT_TOLERANCE_PX <= a.center[1] <= b.bottom + NEAR_TEXT_TOLERANCE_PX
+        a.y - config.near_text_tolerance_px <= b.center[1] <= a.bottom + config.near_text_tolerance_px
+        or b.y - config.near_text_tolerance_px <= a.center[1] <= b.bottom + config.near_text_tolerance_px
     )
 
 
-def shares_column(a: Rect, b: Rect) -> bool:
+def shares_column(a: Rect, b: Rect, config: SurfaceConfig) -> bool:
     """Are these two boxes in the same column of the screen?"""
     return (
-        a.x - NEAR_TEXT_TOLERANCE_PX <= b.center[0] <= a.right + NEAR_TEXT_TOLERANCE_PX
-        or b.x - NEAR_TEXT_TOLERANCE_PX <= a.center[0] <= b.right + NEAR_TEXT_TOLERANCE_PX
+        a.x - config.near_text_tolerance_px <= b.center[0] <= a.right + config.near_text_tolerance_px
+        or b.x - config.near_text_tolerance_px <= a.center[0] <= b.right + config.near_text_tolerance_px
     )
 
 

@@ -115,6 +115,14 @@ class Viewport(BaseModel):
     h: int
 
 
+class SurfaceConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    near_text_max_px: float = 320.0
+    near_text_tolerance_px: float = 6.0
+    validation_proximity_px: float = 200.0
+
+
 class RecordingEnv(BaseModel):
     """The environment a capability was recorded in.
 
@@ -303,8 +311,21 @@ class Navigate(BaseModel):
     url: str
 
 
+class Hover(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    action: Literal["hover"] = "hover"
+    ref: str
+
+
+class Drag(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    action: Literal["drag"] = "drag"
+    source_ref: str
+    target_ref: str
+
+
 Action = Annotated[
-    Click | TypeText | Press | SelectOption | ReadText | Navigate,
+    Click | TypeText | Press | SelectOption | ReadText | Navigate | Hover | Drag,
     Field(discriminator="action"),
 ]
 

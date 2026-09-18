@@ -19,10 +19,12 @@ from cua.surface.conditions import (
     ValueSet,
     Visible,
     describe,
-    evaluate,
-    validation_message,
 )
+from cua.surface.evaluators import WebEvaluator
 from cua.surface.locators import Within
+
+evaluate = WebEvaluator().evaluate
+validation_message = WebEvaluator().validation_message
 from tests.unit import screens
 
 SHELL = "http://127.0.0.1:8000/"

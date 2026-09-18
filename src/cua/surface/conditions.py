@@ -30,27 +30,16 @@ plus ``all_of`` / ``any_of``, which is all the logic a capability needs.
 
 from __future__ import annotations
 
-import re
-from collections.abc import Mapping
 from typing import Annotated, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cua.surface.a11y import normalize
 from cua.surface.locators import Within
-from cua.surface.protocol import CONTROL_ROLES, Node, Observation
 
 SELF = "self"
 """``{target: self}`` means the node the step is acting on."""
 
-VALIDATION_PROXIMITY_PX = 200.0
-"""How close a message must sit to a control to read as being about that
-control rather than about the screen."""
-
-ERROR_STATUS_FROM = 500
-"""Which HTTP statuses count as the app failing rather than the app answering.
-A 4xx is usually the app saying no in a way the capability should classify as
-a business outcome; a 5xx is the app falling over."""
+"""``{target: self}`` means the node the step is acting on."""
 
 
 class Visible(BaseModel):
@@ -203,62 +192,6 @@ no desktop adapter ships in this milestone.
 """
 
 
-def evaluate(
-    condition: Condition,
-    observation: Observation,
-    *,
-    outputs: Mapping[str, object] | None = None,
-    target: str | None = None,
-) -> bool:
-    """Is the condition true of this observation?
-
-    ``target`` is the ref a ``{target: self}`` condition refers to — the node
-    the current step is acting on.
-    """
-    if isinstance(condition, AllOf):
-        return all(
-            evaluate(c, observation, outputs=outputs, target=target) for c in condition.all_of
-        )
-    if isinstance(condition, AnyOf):
-        return any(
-            evaluate(c, observation, outputs=outputs, target=target) for c in condition.any_of
-        )
-    if isinstance(condition, Visible):
-        node = _target_node(condition.target, observation, target)
-        return node is not None and node.bbox is not None and not node.bbox.empty
-    if isinstance(condition, LocationMatches):
-        return _location_matches(condition, observation)
-    if isinstance(condition, TextPresent):
-        return _text_present(condition.text, _scope(observation, condition.within))
-    if isinstance(condition, RegionPresent):
-        wanted = normalize(condition.name)
-        return any(
-            n.role in ("heading", "region", "banner", "main", "form")
-            and normalize(n.name) == wanted
-            for n in _scope(observation, condition.within)
-        )
-    if isinstance(condition, ErrorBannerPresent):
-        return _error_banner_present(condition, observation)
-    if isinstance(condition, ValidationMessagePresent):
-        return _validation_message_present(condition, observation) is not None
-    if isinstance(condition, ValueSet):
-        node = _target_node(condition.target, observation, target)
-        if node is None or not node.value:
-            return False
-        return condition.value is None or normalize(node.value) == normalize(condition.value)
-    return bool((outputs or {}).get(condition.name) is not None)
-
-
-def validation_message(condition: ValidationMessagePresent, observation: Observation) -> str | None:
-    """The message text itself, for a detector that reports it as a payload.
-
-    Separate from ``evaluate`` so the condition vocabulary keeps its boolean
-    contract while a detector can still say *what* the app complained about.
-    """
-    node = _validation_message_present(condition, observation)
-    return node.text if node else None
-
-
 def describe(condition: Condition) -> str:
     """One line naming what was expected, for a failure report."""
     if isinstance(condition, AllOf):
@@ -282,76 +215,3 @@ def describe(condition: Condition) -> str:
     if isinstance(condition, ErrorBannerPresent):
         return "error banner present"
     return "validation message present"
-
-
-# --------------------------------------------------------------------------
-
-
-def _scope(observation: Observation, within: Within | None) -> list[Node]:
-    if within is None or within.frame is None:
-        return list(observation.nodes)
-    return observation.in_frame(within.frame)
-
-
-def _target_node(target: str, observation: Observation, acting_on: str | None) -> Node | None:
-    ref = acting_on if target == SELF else target
-    return observation.find(ref) if ref else None
-
-
-def _location_matches(condition: LocationMatches, observation: Observation) -> bool:
-    pattern = re.compile(condition.pattern)
-    frames = observation.frames
-    if condition.within is not None and condition.within.frame is not None:
-        frames = [f for f in frames if f.name == condition.within.frame]
-    urls = [f.url for f in frames]
-    if condition.within is None:
-        urls.append(observation.location)
-    return any(pattern.search(url) for url in urls)
-
-
-def _text_present(text: str, nodes: list[Node]) -> bool:
-    wanted = normalize(text)
-    return any(wanted in normalize(n.text) for n in nodes)
-
-
-def _error_banner_present(condition: ErrorBannerPresent, observation: Observation) -> bool:
-    frames = observation.frames
-    if condition.within is not None and condition.within.frame is not None:
-        frames = [f for f in frames if f.name == condition.within.frame]
-    if any(f.status is not None and f.status >= ERROR_STATUS_FROM for f in frames):
-        return True
-    nodes = _scope(observation, condition.within)
-    if any(n.role == "alert" for n in nodes):
-        return True
-    return condition.text is not None and _text_present(condition.text, nodes)
-
-
-def _validation_message_present(
-    condition: ValidationMessagePresent, observation: Observation
-) -> Node | None:
-    nodes = _scope(observation, condition.within)
-    controls = [n for n in nodes if n.role in CONTROL_ROLES and n.bbox is not None]
-    if condition.near is not None:
-        wanted = normalize(condition.near)
-        controls = [c for c in controls if c.near_text and normalize(c.near_text) == wanted]
-
-    for node in nodes:
-        if node.role == "alert" and node.text:
-            return node
-        if not node.text or node.interactive or node.bbox is None:
-            continue
-        if condition.text is not None and normalize(condition.text) not in normalize(node.text):
-            continue
-        if condition.text is None and node.role not in ("text", "paragraph", "cell"):
-            continue
-        if any(_near_control(node, control) for control in controls if control.frame == node.frame):
-            return node
-    return None
-
-
-def _near_control(message: Node, control: Node) -> bool:
-    assert message.bbox is not None and control.bbox is not None
-    m, c = message.bbox, control.bbox
-    vertical = min(abs(c.y - m.bottom), abs(m.y - c.bottom), abs(c.y - m.y))
-    horizontal = min(abs(c.x - m.right), abs(m.x - c.right), abs(c.x - m.x))
-    return vertical <= VALIDATION_PROXIMITY_PX and horizontal <= VALIDATION_PROXIMITY_PX
