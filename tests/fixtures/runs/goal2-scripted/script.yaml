@@ -1,0 +1,194 @@
+goal: Open a savings sub-account for a member with an initial deposit
+steps:
+- tool: type
+  target:
+  - strategy: near_text
+    text: User ID
+    role: textbox
+    exact: true
+    within:
+      frame: ''
+  - strategy: bbox
+    x: 83.671875
+    y: 64.0
+    w: 154.0
+    h: 20.0
+    role: textbox
+    confidence: low
+    within:
+      frame: ''
+  text: ${credentials.app_login.username}
+  reason: The sign-on screen asks for a user id first.
+- tool: type
+  target:
+  - strategy: near_text
+    text: Password
+    role: textbox
+    exact: true
+    within:
+      frame: ''
+  - strategy: bbox
+    x: 83.671875
+    y: 90.0
+    w: 154.0
+    h: 20.0
+    role: textbox
+    confidence: low
+    within:
+      frame: ''
+  text: ${credentials.app_login.password}
+  reason: Then the password.
+- tool: click
+  target:
+  - strategy: role_name
+    role: button
+    name: Sign On
+    exact: true
+    within:
+      frame: ''
+  - strategy: bbox
+    x: 83.671875
+    y: 116.0
+    w: 67.84375
+    h: 19.0
+    role: button
+    confidence: low
+    within:
+      frame: ''
+  reason: Submit the sign-on form.
+- tool: type
+  target:
+  - strategy: near_text
+    text: Member ID
+    role: textbox
+    exact: true
+    within:
+      frame: main
+  - strategy: bbox
+    x: 274.609375
+    y: 64.0
+    w: 68.0
+    h: 20.0
+    role: textbox
+    confidence: low
+    within:
+      frame: main
+  text: '10003'
+  reason: Find the member first.
+- tool: click
+  target:
+  - strategy: role_name
+    role: button
+    name: Search
+    exact: true
+    within:
+      frame: main
+  - strategy: bbox
+    x: 354.609375
+    y: 64.5
+    w: 62.078125
+    h: 19.0
+    role: button
+    confidence: low
+    within:
+      frame: main
+  reason: Run the search.
+- tool: click
+  target:
+  - strategy: role_name
+    role: link
+    name: Open Sub-account
+    exact: true
+    within:
+      frame: main
+  - strategy: bbox
+    x: 201.0
+    y: 240.0
+    w: 102.125
+    h: 13.0
+    role: link
+    confidence: low
+    within:
+      frame: main
+  reason: The member detail screen links to the sub-account form.
+- tool: type
+  target:
+  - strategy: near_text
+    text: Initial Deposit
+    role: textbox
+    exact: true
+    within:
+      frame: main
+  - strategy: bbox
+    x: 290.109375
+    y: 143.0
+    w: 97.0
+    h: 20.0
+    role: textbox
+    confidence: low
+    within:
+      frame: main
+  text: '250.00'
+  reason: The account type defaults to Savings; the deposit is required.
+- tool: click
+  target:
+  - strategy: role_name
+    role: button
+    name: Continue
+    exact: true
+    within:
+      frame: main
+  - strategy: bbox
+    x: 290.109375
+    y: 169.0
+    w: 73.15625
+    h: 19.0
+    role: button
+    confidence: low
+    within:
+      frame: main
+  reason: Submit the application for review.
+- tool: click
+  target:
+  - strategy: role_name
+    role: button
+    name: Confirm
+    exact: true
+    within:
+      frame: main
+  - strategy: bbox
+    x: 201.0
+    y: 207.0
+    w: 67.609375
+    h: 19.0
+    role: button
+    confidence: low
+    within:
+      frame: main
+  reason: Confirm opens the account; this is the step that commits.
+- tool: done
+  outputs:
+    reference_number:
+    - strategy: table_cell
+      row_contains: Reference number
+      column_header: Value
+      exact: true
+      within:
+        frame: main
+    - strategy: near_text
+      text: Reference number
+      role: cell
+      direction: right
+      exact: true
+      within:
+        frame: main
+    - strategy: bbox
+      x: 318.9375
+      y: 82.5
+      w: 115.359375
+      h: 20.0
+      role: cell
+      confidence: low
+      within:
+        frame: main
+  reason: The confirmation screen shows the new account's reference number.

@@ -14,6 +14,11 @@ Persistence matters:
   transient conditions. If they persisted, no recovery could ever succeed and
   the recovery tests would prove nothing.
 
+``interstitial_persistent`` is the notice that will not go away: it follows
+sign-on and every return to the signed-in shell, so dismissing it only brings
+it back. It exists to prove recovery is capped — a run that dismissed it
+forever would never end.
+
 ``native_confirm`` is persistent for that reason and not by oversight: an
 application that asks before committing an irreversible action asks *every*
 time. It is not a transient condition to be waited out, it is a step the
@@ -30,6 +35,7 @@ class Inject(StrEnum):
     VALIDATION_ERROR = "validation_error"
     PERMISSION_DENIED = "permission_denied"
     INTERSTITIAL_DIALOG = "interstitial_dialog"
+    INTERSTITIAL_PERSISTENT = "interstitial_persistent"
     SLOW_LOAD = "slow_load"
     SESSION_EXPIRED = "session_expired"
     SERVER_ERROR = "server_error"

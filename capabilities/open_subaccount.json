@@ -1,0 +1,841 @@
+{
+  "schema_version": "1.1",
+  "id": "cap_01M2TMXZ2QK22AEHTVPG6FENDY",
+  "name": "open_subaccount",
+  "version": 1,
+  "approval_state": "approved",
+  "approved_by": "anil",
+  "approved_at": "2026-09-18T16:51:49Z",
+  "content_sha256": "e4a078c9d3a460cdeffc263fb88495ac7ca9215b70785aae59d00634802ae835",
+  "description": "Open a savings sub-account for a member with an initial deposit",
+  "target": {
+    "app_family": "legacy-core",
+    "vendor": "MockCore",
+    "version_hint": "1.0",
+    "surface": "web",
+    "entry": {
+      "kind": "location",
+      "pattern": "{tenant.base_url}/login"
+    }
+  },
+  "contract": {
+    "side_effects": "modifies_record",
+    "idempotent": false,
+    "may_escalate": true,
+    "preconditions": {
+      "session": "fresh"
+    },
+    "outcomes": {
+      "NOT_FOUND": {
+        "payload": {}
+      },
+      "PERMISSION_DENIED": {
+        "payload": {}
+      },
+      "VALIDATION_ERROR": {
+        "payload": {
+          "message": {
+            "type": "string",
+            "optional": false
+          },
+          "field": {
+            "type": "string",
+            "optional": true
+          }
+        }
+      }
+    }
+  },
+  "credentials": {
+    "app_login": {
+      "ref": "secret://{tenant.id}/mockcore/operator",
+      "fields": [
+        "username",
+        "password"
+      ]
+    }
+  },
+  "inputs": {
+    "member_id": {
+      "type": "string",
+      "required": true,
+      "pattern": "^[0-9]+$",
+      "sensitive": false,
+      "description": ""
+    },
+    "initial_deposit": {
+      "type": "decimal",
+      "required": true,
+      "sensitive": false,
+      "description": ""
+    }
+  },
+  "outputs": {
+    "reference_number": {
+      "type": "string",
+      "optional": false,
+      "description": "",
+      "extract": {
+        "target": [
+          {
+            "strategy": "table_cell",
+            "row_contains": "Reference number",
+            "column_header": "Value",
+            "exact": true,
+            "within": {
+              "frame": "main"
+            }
+          },
+          {
+            "strategy": "near_text",
+            "text": "Reference number",
+            "role": "cell",
+            "direction": "right",
+            "exact": true,
+            "within": {
+              "frame": "main"
+            }
+          },
+          {
+            "strategy": "bbox",
+            "x": 318.9375,
+            "y": 82.5,
+            "w": 115.359375,
+            "h": 20.0,
+            "role": "cell",
+            "confidence": "low",
+            "within": {
+              "frame": "main"
+            }
+          }
+        ],
+        "parse": "text"
+      }
+    }
+  },
+  "recording_env": {
+    "viewport": {
+      "w": 1280,
+      "h": 800
+    },
+    "dpr": 1.0
+  },
+  "steps": [
+    {
+      "id": "login.username",
+      "action": "type",
+      "target": [
+        {
+          "strategy": "near_text",
+          "text": "User ID",
+          "role": "textbox",
+          "exact": true,
+          "within": {
+            "frame": ""
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 83.671875,
+          "y": 64.0,
+          "w": 154.0,
+          "h": 20.0,
+          "role": "textbox",
+          "confidence": "low",
+          "within": {
+            "frame": ""
+          }
+        }
+      ],
+      "value": "${credentials.app_login.username}",
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "value_set",
+        "target": "self"
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate"
+    },
+    {
+      "id": "login.password",
+      "action": "type",
+      "target": [
+        {
+          "strategy": "near_text",
+          "text": "Password",
+          "role": "textbox",
+          "exact": true,
+          "within": {
+            "frame": ""
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 83.671875,
+          "y": 90.0,
+          "w": 154.0,
+          "h": 20.0,
+          "role": "textbox",
+          "confidence": "low",
+          "within": {
+            "frame": ""
+          }
+        }
+      ],
+      "value": "${credentials.app_login.password}",
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "value_set",
+        "target": "self"
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate"
+    },
+    {
+      "id": "login.submit",
+      "action": "click",
+      "target": [
+        {
+          "strategy": "role_name",
+          "role": "button",
+          "name": "Sign On",
+          "exact": true,
+          "within": {
+            "frame": ""
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 83.671875,
+          "y": 116.0,
+          "w": 67.84375,
+          "h": 19.0,
+          "role": "button",
+          "confidence": "low",
+          "within": {
+            "frame": ""
+          }
+        }
+      ],
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "location_matches",
+        "pattern": "/search$",
+        "within": {
+          "frame": "main"
+        }
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate"
+    },
+    {
+      "id": "search.member_id",
+      "action": "type",
+      "target": [
+        {
+          "strategy": "near_text",
+          "text": "Member ID",
+          "role": "textbox",
+          "exact": true,
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 274.609375,
+          "y": 64.0,
+          "w": 68.0,
+          "h": 20.0,
+          "role": "textbox",
+          "confidence": "low",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ],
+      "value": "${member_id}",
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "value_set",
+        "target": "self",
+        "value": "${member_id}"
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate"
+    },
+    {
+      "id": "search.submit",
+      "action": "click",
+      "target": [
+        {
+          "strategy": "role_name",
+          "role": "button",
+          "name": "Search",
+          "exact": true,
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 354.609375,
+          "y": 64.5,
+          "w": 62.078125,
+          "h": 19.0,
+          "role": "button",
+          "confidence": "low",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ],
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "location_matches",
+        "pattern": "/member/[0-9]+$",
+        "within": {
+          "frame": "main"
+        }
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate"
+    },
+    {
+      "id": "member.open_sub_account",
+      "action": "click",
+      "target": [
+        {
+          "strategy": "role_name",
+          "role": "link",
+          "name": "Open Sub-account",
+          "exact": true,
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 201.0,
+          "y": 240.0,
+          "w": 102.125,
+          "h": 13.0,
+          "role": "link",
+          "confidence": "low",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ],
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "location_matches",
+        "pattern": "/subaccount/[0-9]+$",
+        "within": {
+          "frame": "main"
+        }
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate"
+    },
+    {
+      "id": "subaccount.initial_deposit",
+      "action": "type",
+      "target": [
+        {
+          "strategy": "near_text",
+          "text": "Initial Deposit",
+          "role": "textbox",
+          "exact": true,
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 290.109375,
+          "y": 143.0,
+          "w": 97.0,
+          "h": 20.0,
+          "role": "textbox",
+          "confidence": "low",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ],
+      "value": "${initial_deposit}",
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "value_set",
+        "target": "self",
+        "value": "${initial_deposit}"
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate"
+    },
+    {
+      "id": "subaccount.submit",
+      "action": "click",
+      "target": [
+        {
+          "strategy": "role_name",
+          "role": "button",
+          "name": "Continue",
+          "exact": true,
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 290.109375,
+          "y": 169.0,
+          "w": 73.15625,
+          "h": 19.0,
+          "role": "button",
+          "confidence": "low",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ],
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "location_matches",
+        "pattern": "/review/[0-9]+$",
+        "within": {
+          "frame": "main"
+        }
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate"
+    },
+    {
+      "id": "review.submit",
+      "action": "click",
+      "target": [
+        {
+          "strategy": "role_name",
+          "role": "button",
+          "name": "Confirm",
+          "exact": true,
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 201.0,
+          "y": 207.0,
+          "w": 67.609375,
+          "h": 19.0,
+          "role": "button",
+          "confidence": "low",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ],
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "all_of",
+        "all_of": [
+          {
+            "kind": "location_matches",
+            "pattern": "/review/[0-9]+$",
+            "within": {
+              "frame": "main"
+            }
+          },
+          {
+            "kind": "region_present",
+            "name": "Sub-account Opened",
+            "within": {
+              "frame": "main"
+            }
+          }
+        ]
+      },
+      "risk": "irreversible",
+      "approval": "required",
+      "retry": {
+        "allowed": false
+      },
+      "side_effect_marker": {
+        "kind": "region_present",
+        "name": "Sub-account Opened",
+        "within": {
+          "frame": "main"
+        }
+      },
+      "on_fail": "escalate"
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "cp.logged_in",
+      "after_step": "login.submit",
+      "all_of": [
+        {
+          "kind": "location_matches",
+          "pattern": "/search$",
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "kind": "region_present",
+          "name": "Member Search",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cp.member_detail",
+      "after_step": "search.submit",
+      "all_of": [
+        {
+          "kind": "location_matches",
+          "pattern": "/member/[0-9]+$",
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "kind": "region_present",
+          "name": "Member Detail",
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "kind": "text_present",
+          "text": "${member_id}",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cp.open_sub_account",
+      "after_step": "member.open_sub_account",
+      "all_of": [
+        {
+          "kind": "location_matches",
+          "pattern": "/subaccount/[0-9]+$",
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "kind": "region_present",
+          "name": "Open Sub-account",
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "kind": "text_present",
+          "text": "${member_id}",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cp.review_sub_account",
+      "after_step": "subaccount.submit",
+      "all_of": [
+        {
+          "kind": "location_matches",
+          "pattern": "/review/[0-9]+$",
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "kind": "region_present",
+          "name": "Review Sub-account",
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "kind": "text_present",
+          "text": "${member_id}",
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "kind": "text_present",
+          "text": "${initial_deposit}",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cp.sub_account_opened",
+      "after_step": "review.submit",
+      "all_of": [
+        {
+          "kind": "location_matches",
+          "pattern": "/review/[0-9]+$",
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "kind": "region_present",
+          "name": "Sub-account Opened",
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "kind": "text_present",
+          "text": "${member_id}",
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "kind": "text_present",
+          "text": "${initial_deposit}",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cp.done",
+      "after_step": "done",
+      "all_of": [
+        {
+          "kind": "output_extracted",
+          "name": "reference_number"
+        }
+      ]
+    }
+  ],
+  "outcome_detectors": [
+    {
+      "code": "APP_ERROR",
+      "class": "hard",
+      "match": {
+        "kind": "error_banner_present",
+        "text": "Internal Server Error"
+      }
+    },
+    {
+      "code": "NOT_FOUND",
+      "class": "business",
+      "scope": {
+        "after_step": "search.submit"
+      },
+      "match": {
+        "kind": "text_present",
+        "text": "No matching member",
+        "within": {
+          "frame": "main"
+        }
+      }
+    },
+    {
+      "code": "PERMISSION_DENIED",
+      "class": "business",
+      "scope": {
+        "after_step": "search.submit"
+      },
+      "match": {
+        "kind": "text_present",
+        "text": "not authorized to view this record"
+      }
+    },
+    {
+      "code": "VALIDATION_ERROR",
+      "class": "business",
+      "scope": {
+        "after_step": "subaccount.submit"
+      },
+      "match": {
+        "kind": "validation_message_present"
+      },
+      "payload_from": "validation_message"
+    },
+    {
+      "code": "INTERSTITIAL",
+      "class": "recoverable",
+      "scope": {
+        "after_checkpoint": "cp.logged_in"
+      },
+      "match": {
+        "kind": "region_present",
+        "name": "System notice"
+      },
+      "recover": {
+        "run": "dismiss_notice",
+        "then": "continue",
+        "max": 1,
+        "backoff_s": 0.0
+      }
+    },
+    {
+      "code": "SESSION_EXPIRED",
+      "class": "recoverable",
+      "scope": {
+        "after_checkpoint": "cp.logged_in"
+      },
+      "match": {
+        "kind": "location_matches",
+        "pattern": "/login$"
+      },
+      "recover": {
+        "run": "relogin",
+        "then": "restart_from_last_checkpoint",
+        "max": 1,
+        "backoff_s": 0.0
+      }
+    },
+    {
+      "code": "SLOW_LOAD",
+      "class": "recoverable",
+      "match": {
+        "kind": "timeout"
+      },
+      "recover": {
+        "then": "retry_step",
+        "max": 2,
+        "backoff_s": 2.0
+      }
+    }
+  ],
+  "recovery_limits": {
+    "per_step": 1,
+    "per_run": 3
+  },
+  "recoverers": {
+    "dismiss_notice": {
+      "steps": [
+        {
+          "action": "click",
+          "target": [
+            {
+              "strategy": "role_name",
+              "role": "button",
+              "name": "OK",
+              "exact": true
+            }
+          ]
+        }
+      ],
+      "sub_flow": []
+    },
+    "relogin": {
+      "steps": [],
+      "sub_flow": [
+        "login.username",
+        "login.password",
+        "login.submit"
+      ]
+    }
+  },
+  "redaction": {
+    "screenshot_masks": [
+      [
+        {
+          "strategy": "near_text",
+          "text": "Password",
+          "role": "textbox",
+          "exact": true
+        }
+      ]
+    ]
+  },
+  "provenance": {
+    "discovery_run_id": "run_01M2TMW56XREVW4F1V9PGAETYD",
+    "provider": "scripted",
+    "model": "scripted",
+    "transcript_sha256": "e2dd891abea5acbf6a6a4f42c64474cbd5666af635e4f3ced2425c5b94fc2f18",
+    "recorded_at": "2026-09-18T16:16:31.180Z",
+    "locator_rungs_used": {
+      "login.username": "near_text",
+      "login.password": "near_text",
+      "login.submit": "role_name",
+      "search.member_id": "near_text",
+      "search.submit": "role_name",
+      "member.open_sub_account": "role_name",
+      "subaccount.initial_deposit": "near_text",
+      "subaccount.submit": "role_name",
+      "review.submit": "role_name",
+      "outputs.reference_number": "table_cell"
+    }
+  }
+}

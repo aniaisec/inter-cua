@@ -17,7 +17,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 PENDING: dict[str, str] = {
-    "replay": "M4 - deterministic replay engine",
     "resume": "M6 - escalation and handoff",
     "operator": "M6 - escalation and handoff",
     "catalog": "M9 - stretch",
@@ -36,6 +35,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     _add_discover(sub)
     _add_artifact_commands(sub)
+    _add_replay(sub)
 
     for name, milestone in PENDING.items():
         sub.add_parser(name, help=f"(not yet implemented: {milestone})")
@@ -111,6 +111,50 @@ def _add_discover(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
     d.add_argument("--no-record", action="store_true", help="Keep the run; record nothing")
 
 
+def _add_replay(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    r = sub.add_parser(
+        "replay",
+        help="Run an approved capability deterministically, with no model",
+        description="Replay a capability against a tenant and print a JSON ReplayResult. "
+        "Exit 0 success, 2 business outcome, 1 failure, 3 escalated.",
+    )
+    r.add_argument("capability", type=Path)
+    r.add_argument("--tenant", default="local", help="tenants/<id>.yaml, or a path to one")
+    r.add_argument(
+        "--input",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="An input the capability declares, e.g. member_id=10003",
+    )
+    r.add_argument("--policy", default="policies/default.yaml", type=Path)
+    r.add_argument(
+        "--approval-token",
+        help="Consent for the capability's risky steps, for this invocation only",
+    )
+    r.add_argument("--approved-by", default="caller", help="Who holds that consent")
+    r.add_argument(
+        "--idempotency-key",
+        help="Same key and inputs again returns the stored result instead of running",
+    )
+    r.add_argument(
+        "--budget",
+        default="",
+        metavar="timeout_s=120,max_recoveries=3,allow_escalation=true",
+        help="Invocation limits",
+    )
+    r.add_argument("--step-timeout", type=float, default=3.0, help="Seconds one step may take")
+    r.add_argument("--inject", help="Arm a mock-app failure mode for this run (demo)")
+    r.add_argument(
+        "--allow-draft",
+        action="store_true",
+        help="Operator override: replay a capability nobody has approved. Logged loudly.",
+    )
+    r.add_argument("--no-screenshots", action="store_true")
+    r.add_argument("--headed", action="store_true", help="Show the browser window")
+    r.add_argument("--runs-dir", type=Path, default=Path("evidence/runs"))
+
+
 def _add_artifact_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     r = sub.add_parser(
         "record",
@@ -155,6 +199,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "discover":
         load_dotenv(Path(".env"))
         return _discover(args)
+    if args.command == "replay":
+        load_dotenv(Path(".env"))
+        return _replay(args)
     if args.command == "record":
         return _record(args)
     if args.command == "describe":
@@ -279,6 +326,67 @@ def _discover(args: argparse.Namespace) -> int:
             print(f"cua discover: the run could not be recorded: {exc}", file=sys.stderr)
     print(json.dumps(summary, indent=2))
     return outcome.exit_code
+
+
+def _replay(args: argparse.Namespace) -> int:
+    from pydantic import ValidationError
+
+    from cua.policy.allowlist import load_policy
+    from cua.replay.engine import ReplayConfig
+    from cua.replay.invocation import ApprovalGrant, Budget, Invocation
+    from cua.replay.result import exit_code, to_json
+    from cua.replay.runner import InvocationError, launched, replay
+    from cua.tenant import load_tenant
+
+    try:
+        tenant = load_tenant(args.tenant)
+        policy = load_policy(args.policy, tenant)
+        inputs = dict(_pair(i, "--input") for i in args.input)
+        budget = Budget.model_validate(
+            dict(_pair(b, "--budget") for b in args.budget.split(",") if b.strip())
+        )
+        invocation = Invocation(
+            inputs=inputs,
+            idempotency_key=args.idempotency_key,
+            approval=ApprovalGrant(token=args.approval_token, approved_by=args.approved_by)
+            if args.approval_token
+            else None,
+            budget=budget,
+            inject=args.inject,
+        )
+        result = replay(
+            args.capability,
+            tenant=tenant,
+            policy=policy,
+            invocation=invocation,
+            runs_dir=args.runs_dir,
+            allow_draft=args.allow_draft,
+            config=ReplayConfig(
+                step_timeout_s=args.step_timeout, screenshots=not args.no_screenshots
+            ),
+            surface=lambda: launched(headed=args.headed or None),
+        )
+    except (InvocationError, OSError, ValueError, ValidationError) as exc:
+        print(f"cua replay: {exc}", file=sys.stderr)
+        return EX_USAGE
+    except KeyboardInterrupt:
+        import logging
+
+        logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+        print("cua replay: interrupted", file=sys.stderr)
+        return 130
+
+    if result.evidence.run_dir:
+        print(f"cua replay: {result.kind} -> {result.evidence.run_dir}", file=sys.stderr)
+    print(to_json(result), end="")
+    return exit_code(result)
+
+
+def _pair(text: str, flag: str) -> tuple[str, str]:
+    name, sep, value = text.partition("=")
+    if not sep or not name.strip():
+        raise ValueError(f"{flag} takes NAME=VALUE, got {text!r}")
+    return name.strip(), value.strip()
 
 
 def _record_run(

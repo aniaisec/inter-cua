@@ -24,6 +24,9 @@ outcomes:
   VALIDATION_ERROR:
     payload:
       message: {type: string}
+      # The input the message is about, when the engine can tell: the field
+      # whose label the message names, and the step that types into it.
+      field: {type: string, optional: true}
 
 outcome_detectors:
   # A 5xx response is caught whatever it says; the wording catches a failure

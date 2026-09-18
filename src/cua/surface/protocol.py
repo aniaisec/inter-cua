@@ -24,14 +24,14 @@ Two rules the rest of the design leans on:
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:  # locators and conditions are built on these types
-    from cua.surface.conditions import Condition
+    from cua.surface.conditions import Condition, ValidationMessagePresent
     from cua.surface.locators import Ladder, LadderOutcome
 
 TOP_FRAME = ""
@@ -455,8 +455,39 @@ class ActionFailed(SurfaceError):
 # --------------------------------------------------------------------------
 
 
+class ConditionEvaluator(Protocol):
+    """What a condition means on one kind of surface, as a pure function of an
+    observation.
+
+    Separate from ``Surface.evaluate`` because replay asks many questions of
+    *one* screen — every in-scope detector, then the step's expectation, then
+    its checkpoint — and the answers are only consistent if they are all about
+    the same look at the target.
+    """
+
+    def evaluate(
+        self,
+        condition: Condition,
+        observation: Observation,
+        *,
+        outputs: Mapping[str, object] | None = None,
+        target: str | None = None,
+    ) -> bool: ...
+
+    def validation_message(
+        self, condition: ValidationMessagePresent, observation: Observation
+    ) -> Node | None:
+        """The node carrying the message, for a detector that reports it."""
+        ...
+
+
 class Surface(Protocol):
     """The only way anything above this package touches a target."""
+
+    @property
+    def evaluator(self) -> ConditionEvaluator:
+        """How this surface reads conditions off its observations."""
+        ...
 
     def observe(self, *, screenshot: bool = False, masks: Sequence[Ladder] = ()) -> Observation:
         """Look at the target.
@@ -496,6 +527,15 @@ class Surface(Protocol):
         Web: no document request in flight and every frame loaded. Desktop: the
         application reports idle (UIA has no single signal; a busy cursor and
         pending window creation are the usual proxies).
+        """
+        ...
+
+    def idle(self, seconds: float) -> None:
+        """Let time pass without acting.
+
+        The target keeps running, and whatever it raises meanwhile (a dialog, a
+        navigation) is handled as it happens. A plain ``sleep`` would hold the
+        surface's own event handling still for the duration.
         """
         ...
 

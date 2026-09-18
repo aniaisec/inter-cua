@@ -186,7 +186,8 @@ def test_a_validation_message_is_one_that_sits_next_to_the_form() -> None:
     observation = screens.build({"main": screens.SUBACCOUNT_WITH_VALIDATION})
     condition = ValidationMessagePresent(text="Initial deposit is required")
     assert evaluate(condition, observation)
-    assert validation_message(condition, observation) == "Initial deposit is required"
+    message = validation_message(condition, observation)
+    assert message is not None and message.text == "Initial deposit is required"
 
 
 def test_a_screen_with_no_complaint_has_no_validation_message() -> None:

@@ -138,6 +138,12 @@ def check(policy: Policy, action: Action, observation: Observation) -> Decision:
     return Allow()
 
 
+def origin_allowed(policy: Policy, url: str) -> bool:
+    """Is this URL on an allowed origin? For navigation the engine does itself
+    (going to a capability's entry), which is not an action anyone chose."""
+    return _allowed(policy, url)
+
+
 def _allowed(policy: Policy, url: str) -> bool:
     parts = urlsplit(url)
     origin = f"{parts.scheme}://{parts.netloc}"

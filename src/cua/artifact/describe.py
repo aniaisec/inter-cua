@@ -164,7 +164,11 @@ def _steps(cap: Capability, out: list[str]) -> None:
         )
     for n, step in enumerate(cap.steps, start=1):
         head = f"  {n}. {step.id}"
-        out.append(f"{head:<22}{_action(step)}")
+        if len(head) >= len(_INDENT):
+            # A long id gets its own line rather than running into the text.
+            out.extend([head, f"{_INDENT}{_action(step)}"])
+        else:
+            out.append(f"{head:<22}{_action(step)}")
         if step.intent:
             out.append(f"{_INDENT}why: {step.intent}")
         if step.target:

@@ -213,6 +213,15 @@ class PlaywrightSurface:
         self.close(interrupted=exc_type is not None and issubclass(exc_type, KeyboardInterrupt))
 
     @property
+    def evaluator(self) -> WebEvaluator:
+        return self._evaluator
+
+    def idle(self, seconds: float) -> None:
+        # The sync API dispatches browser events only while a Playwright call
+        # is in progress; waiting through one keeps dialogs answered on time.
+        self._page.wait_for_timeout(max(0.0, seconds) * 1000)
+
+    @property
     def page(self) -> Page:
         """The live page, for the handoff and evidence layers. Not for locating."""
         return self._page

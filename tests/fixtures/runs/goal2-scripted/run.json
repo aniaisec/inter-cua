@@ -1,0 +1,63 @@
+{
+  "run_id": "run_01M2TMW56XREVW4F1V9PGAETYD",
+  "started_at": "2026-09-18T16:16:29.030Z",
+  "goal": {
+    "goal": "Open a savings sub-account for a member with an initial deposit",
+    "name": "open_subaccount",
+    "entry": "/login",
+    "params": [
+      {
+        "name": "member_id",
+        "type": "string",
+        "value": "10003"
+      },
+      {
+        "name": "initial_deposit",
+        "type": "decimal",
+        "value": "250.00"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "reference_number",
+        "type": "string",
+        "optional": false,
+        "description": ""
+      }
+    ],
+    "credentials": {
+      "app_login": "secret://local/mockcore/operator"
+    }
+  },
+  "entry_url": "http://127.0.0.1:8000/login",
+  "tenant": {
+    "id": "local",
+    "app_family": "legacy-core",
+    "base_url": "http://127.0.0.1:8000"
+  },
+  "credentials": {
+    "app_login": {
+      "ref": "secret://local/mockcore/operator",
+      "fields": [
+        "username",
+        "password"
+      ]
+    }
+  },
+  "provider": "scripted",
+  "model": "scripted",
+  "limits": {
+    "max_steps": 30,
+    "timeout_s": 600.0,
+    "dead_end_repeats": 3
+  },
+  "screenshots": false,
+  "auto_approve_risky": true,
+  "recording_env": {
+    "viewport": {
+      "w": 1280,
+      "h": 800
+    },
+    "dpr": 1.0
+  }
+}

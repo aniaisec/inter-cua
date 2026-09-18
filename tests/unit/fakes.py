@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from cua.surface.conditions import Condition
+from cua.surface.evaluators import WebEvaluator
 from cua.surface.locators import Ladder, LadderOutcome, resolve_ladder
 from cua.surface.protocol import (
     Action,
@@ -32,6 +33,7 @@ class FakeSurface:
         self.index = 0
         self.actions: list[Action] = []
         self.observed_masks: list[Sequence[Ladder]] = []
+        self.idled: list[float] = []
 
     @property
     def current(self) -> Observation:
@@ -61,6 +63,13 @@ class FakeSurface:
 
     def evaluate(self, condition: Condition) -> bool:
         raise NotImplementedError
+
+    @property
+    def evaluator(self) -> WebEvaluator:
+        return WebEvaluator()
+
+    def idle(self, seconds: float) -> None:
+        self.idled.append(seconds)
 
     def settle(self, timeout_s: float) -> bool:
         return True

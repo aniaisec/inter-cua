@@ -76,6 +76,7 @@ from cua.policy.redaction import MASK
 from cua.surface.a11y import normalize
 from cua.surface.conditions import (
     SELF,
+    AllOf,
     Condition,
     LocationMatches,
     OutputExtracted,
@@ -444,6 +445,7 @@ def _step(act: _Acted, params: dict[str, str], policy: Policy, used: set[str], i
     self_target = act.node is not None
 
     expect: Condition | None = None
+    marker: Condition | None = None
     if act.tool in ("type", "select"):
         # A credential is compared by nobody: its field reads back masked.
         shown = value if value and "${credentials." not in value else None
@@ -452,6 +454,18 @@ def _step(act: _Acted, params: dict[str, str], policy: Policy, used: set[str], i
         changed = _changed_frame(act.before, act.after)
         if changed is not None:
             expect = _location(act.after, changed, params)
+            heading = _heading(act.after, changed)
+            if heading is not None and _frames(act.before).get(changed) == _frames(act.after).get(
+                changed
+            ):
+                # Posted back to its own address: only the screen's title says
+                # the step happened. The location alone is already true before.
+                expect = AllOf(
+                    all_of=[expect, RegionPresent(name=heading, within=_within(changed))]
+                )
+            if risky and heading is not None:
+                # The screen a commit leads to is the proof that it happened.
+                marker = RegionPresent(name=heading, within=_within(changed))
 
     return Step(
         id=step_id,
@@ -464,6 +478,7 @@ def _step(act: _Acted, params: dict[str, str], policy: Policy, used: set[str], i
         risk="irreversible" if risky else "safe",
         approval="required" if risky else "none",
         retry=Retry(allowed=not risky),
+        side_effect_marker=marker,
         on_fail="escalate",
     )
 
@@ -539,13 +554,26 @@ def _frames(obs: Observation) -> dict[str, str]:
 
 def _changed_frame(before: Observation, after: Observation) -> str | None:
     """The frame a step navigated: the first new or re-addressed frame that
-    carries a heading, else the first that carries anything."""
+    carries a heading, else the first that carries anything, else a frame that
+    kept its address but now shows a different screen title (a form that posts
+    back to its own URL)."""
     old = _frames(before)
     changed = [name for name, url in _frames(after).items() if old.get(name) != url]
     for name in changed:
         if any(n.role == "heading" for n in after.in_frame(name)):
             return name
-    return next((name for name in changed if after.in_frame(name)), None)
+    moved = next((name for name in changed if after.in_frame(name)), None)
+    if moved is not None:
+        return moved
+    for name in _frames(after):
+        heading = _heading(after, name)
+        if heading is not None and heading != _heading(before, name):
+            return name
+    return None
+
+
+def _heading(obs: Observation, frame: str) -> str | None:
+    return next((n.name for n in obs.in_frame(frame) if n.role == "heading" and n.name), None)
 
 
 def _location(obs: Observation, frame: str, params: dict[str, str]) -> LocationMatches:
@@ -564,14 +592,19 @@ def _location(obs: Observation, frame: str, params: dict[str, str]) -> LocationM
 def _checkpoint_after(
     step: Step, act: _Acted, params: dict[str, str], used: set[str]
 ) -> Checkpoint | None:
-    if act.after is None or not isinstance(step.expect_after, LocationMatches):
+    expect = step.expect_after
+    if isinstance(expect, AllOf):
+        location = next((c for c in expect.all_of if isinstance(c, LocationMatches)), None)
+    else:
+        location = expect if isinstance(expect, LocationMatches) else None
+    if act.after is None or location is None:
         return None
     frame = _changed_frame(act.before, act.after)
     if frame is None:
         return None
     nodes = act.after.in_frame(frame)
     headings = [n.name for n in nodes if n.role == "heading" and n.name]
-    conditions: list[Condition] = [step.expect_after]
+    conditions: list[Condition] = [location]
     if headings:
         conditions.append(RegionPresent(name=headings[0], within=_within(frame)))
     texts = {normalize(n.text) for n in nodes if n.text}

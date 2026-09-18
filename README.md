@@ -3,12 +3,13 @@
 Goal-driven UI discovery → a reviewable capability artifact → deterministic
 replay with no model in the loop → human handoff on the live session.
 
-**Status: M2 in progress.** Scaffold, the mock target app, the Surface layer
-(perception, the locator ladder, the condition vocabulary) and the goal-driven
-discovery loop (`cua discover`) are in. The remaining `src/cua` packages are
-placeholders, each landing in a later
-milestone; `cua --help` names the milestone for every subcommand that is not
-wired up yet. `README.md` gets its real treatment at M8.
+**Status: M4.** The mock target app, the Surface layer (perception, the
+locator ladder, the condition vocabulary), goal-driven discovery
+(`cua discover`), the capability artifact (`cua record`, `cua describe`,
+`cua approve`) and deterministic replay (`cua replay`) are in. Handoff to a
+human (`cua resume`, `cua operator`) lands in M6; `cua --help` names the
+milestone for every subcommand that is not wired up yet. `README.md` gets its
+real treatment at M8.
 
 ## Setup
 
@@ -126,6 +127,7 @@ the request that armed it. `?inject=none` disarms.
 | `validation_error` | sub-account submit | persistent | `BusinessOutcome VALIDATION_ERROR` |
 | `permission_denied` | member detail | persistent | `BusinessOutcome PERMISSION_DENIED` |
 | `interstitial_dialog` | after sign on | one-shot | recovery: dismiss notice |
+| `interstitial_persistent` | after sign on, and on every return to the shell | persistent | recovery is capped: `Failure RECOVERY_EXHAUSTED` |
 | `slow_load` | member detail (4 s) | one-shot | recovery: bounded retry |
 | `session_expired` | member detail | one-shot | recovery: re-login from last checkpoint |
 | `server_error` | member detail (HTTP 500) | persistent | `Failure APP_ERROR` |
@@ -217,6 +219,34 @@ The pydantic model in `src/cua/artifact/schema.py` is the source of truth;
   records what it showed; `cua approve` refuses unless the capability is
   exactly that. Any change bumps the version and resets it to draft, including
   a hand edit, which is caught by the content seal written on every save.
+
+## Replay
+
+`cua replay` runs an approved capability with no model anywhere in the
+process (a test imports all of `cua.replay` in a clean interpreter and checks).
+
+```bash
+cua replay capabilities/member_savings_balance.json --input member_id=10003
+cua replay capabilities/member_savings_balance.json --input member_id=10003 --inject not_found
+cua replay capabilities/open_subaccount.json --input member_id=10003   --input initial_deposit=250.00 --approval-token demo --inject slow_confirm
+```
+
+It prints one JSON `ReplayResult` and exits 0 `success`, 2 `business_outcome`,
+1 `failure`, 3 `escalated`. Before any browser starts it refuses a draft
+(`POLICY_BLOCKED`), checks the inputs (`INPUT_INVALID`), and answers a repeated
+`--idempotency-key` from its cache. Then, per step: find the control (exactly
+one node, on a rung it trusts — a control found only by pixels is not clicked
+unattended), check the policy (a risky step needs `--approval-token`), act,
+and wait by condition until an in-scope detector fires (hard, then business,
+then recoverable) or the step's expectation and checkpoint hold.
+
+Recovery is bounded per step and per run: a system notice is dismissed, a slow
+screen is looked at again before the step is repeated (and only if the step is
+retryable), an expired session signs on again and the resume-state search
+picks the newest checkpoint that holds. An irreversible step is never repeated;
+if it does not land, its marker decides between `side_effect: committed` and
+`unknown`. A failed run keeps a Playwright `trace.zip`, scrubbed of secrets,
+next to its log and masked screenshots under `evidence/runs/<run_id>/`.
 
 ## License
 

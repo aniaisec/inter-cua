@@ -90,10 +90,11 @@ class WebEvaluator:
 
     def validation_message(
         self, condition: ValidationMessagePresent, observation: Observation
-    ) -> str | None:
-        """The message text itself, for a detector that reports it as a payload."""
-        node = self._validation_message_present(condition, observation)
-        return node.text if node else None
+    ) -> Node | None:
+        """The node carrying the message, for a detector that reports it as a
+        payload — the node rather than its text, because which field the
+        message is about is read off where it sits."""
+        return self._validation_message_present(condition, observation)
 
     def _scope(self, observation: Observation, within: Within | None) -> list[Node]:
         if within is None or within.frame is None:
@@ -149,7 +150,7 @@ class WebEvaluator:
                 continue
             if condition.text is not None and normalize(condition.text) not in normalize(node.text):
                 continue
-            if condition.text is None and node.role not in ("text", "paragraph", "cell"):
+            if condition.text is None and not self._names_a_field(node, controls):
                 continue
             if any(
                 self._near_control(node, control)
@@ -158,6 +159,21 @@ class WebEvaluator:
             ):
                 return node
         return None
+
+    def _names_a_field(self, node: Node, controls: list[Node]) -> bool:
+        """Does this text read as a complaint about one of the form's fields?
+
+        With no wording to look for, "text near a form" is not enough: a
+        title bar, the member's name, the field labels themselves all sit near
+        the form on every visit, error or not. A validation message names the
+        field it is about ("Initial deposit is required"), and is not merely
+        that field's label.
+        """
+        if node.role not in ("text", "paragraph", "cell"):
+            return False
+        text = normalize(node.text)
+        labels = {normalize(c.near_text) for c in controls if c.near_text}
+        return text not in labels and any(label in text for label in labels)
 
     def _near_control(self, message: Node, control: Node) -> bool:
         assert message.bbox is not None and control.bbox is not None

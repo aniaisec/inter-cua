@@ -40,8 +40,6 @@ from cua.surface.locators import Within
 SELF = "self"
 """``{target: self}`` means the node the step is acting on."""
 
-"""``{target: self}`` means the node the step is acting on."""
-
 
 class Visible(BaseModel):
     """Web: the node is in the tree with a non-empty box. Desktop: the control

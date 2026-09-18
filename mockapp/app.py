@@ -157,7 +157,7 @@ async def login_submit(
         return _render(request, "login.html", error="Invalid user id or password.")
 
     session["authed"] = True
-    if _fire(session, Inject.INTERSTITIAL_DIALOG):
+    if _fire(session, Inject.INTERSTITIAL_DIALOG) or _fire(session, Inject.INTERSTITIAL_PERSISTENT):
         return RedirectResponse("/notice", status_code=303)
     # Signing on inside a frame re-enters the main pane only; from the top
     # document it builds the full shell. See _is_framed.
@@ -184,8 +184,11 @@ async def logoff(request: Request) -> Response:
 
 @app.get("/", response_class=HTMLResponse)
 async def shell(request: Request) -> Response:
-    if not _session(request)["authed"]:
+    session = _session(request)
+    if not session["authed"]:
         return _login_redirect()
+    if _fire(session, Inject.INTERSTITIAL_PERSISTENT):
+        return RedirectResponse("/notice", status_code=303)
     return _render(request, "frameset.html")
 
 
@@ -417,6 +420,9 @@ async def debug_session(request: Request) -> dict[str, Any]:
         "inject": inject.value if inject else None,
         "fired": list(session["fired"]),
         "pending": session["pending"],
+        # How many times the irreversible step reached the server: the one
+        # number that proves a timed-out confirm was not clicked twice.
+        "confirms": session["confirm_seq"],
     }
 
 
