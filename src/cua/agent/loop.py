@@ -23,7 +23,6 @@ the browser only at the moment of typing.
 
 from __future__ import annotations
 
-import base64
 import re
 import sys
 import time
@@ -34,7 +33,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from cua.agent import prompts
 from cua.agent.goal import Goal, OutputSpec
-from cua.agent.llm import Decision, DecisionRequest, LLMClient
+from cua.agent.llm import (
+    Decision,
+    DecisionRequest,
+    LLMClient,
+    ToolResultTurn,
+    Turn,
+    UserTurn,
+)
 from cua.agent.script import Script, ScriptStep, dump_script
 from cua.agent.stopping import StopLimits, Stopwatch
 from cua.agent.tools import (
@@ -164,7 +170,9 @@ class DiscoveryLoop:
             goal, tenant, policy, {name: c.field_names for name, c in credentials.items()}
         )
         self.tools = tool_definitions(goal.outputs)
-        self.messages: list[dict[str, Any]] = []
+        self.transcript: list[Turn] = []
+        self._calls: dict[str, str] = {}
+        """Tool call id → tool name; a Gemini function response is keyed by name."""
         self.screen: Observation | None = None
         self.script: list[ScriptStep] = []
         self.outputs: dict[str, ExtractedOutput] = {}
@@ -173,15 +181,21 @@ class DiscoveryLoop:
 
     def run(self) -> DiscoveryOutcome:
         started = time.monotonic()
-        self.log.event("run.start", goal=self.goal.goal, entry=self.entry_url, model=self.llm.model)
+        self.log.event(
+            "run.start",
+            goal=self.goal.goal,
+            entry=self.entry_url,
+            provider=self.llm.provider,
+            model=self.llm.model,
+        )
 
         try:
             self.surface.act(Navigate(url=self.entry_url))
             self.surface.settle(self.config.settle_timeout_s)
             screen = self._look()
             self._write_run_json(screen)
-            self.messages.append(
-                {"role": "user", "content": self._content(prompts.kickoff(screen), screen)}
+            self.transcript.append(
+                UserTurn(text=prompts.kickoff(screen), png=screen.screenshot_png)
             )
             while True:
                 self._turn()
@@ -217,21 +231,15 @@ class DiscoveryLoop:
 
         assert self.screen is not None
         decision = self._decide()
-        self.messages.append(
-            {
-                "role": "assistant",
-                "content": decision.assistant_content or [{"type": "text", "text": "(no output)"}],
-            }
-        )
+        self.transcript.append(decision)
 
         if decision.tool_call is None:
             self.log.event("agent.no_tool", turn=self.watch.steps, text=decision.text)
-            self.messages.append(
-                {"role": "user", "content": "Call exactly one tool to take the next step."}
-            )
+            self.transcript.append(UserTurn(text="Call exactly one tool to take the next step."))
             return
 
         call_id = decision.tool_call.id
+        self._calls[call_id] = decision.tool_call.name
         try:
             call = parse_call(decision.tool_call.name, decision.tool_call.input)
         except ToolInputError as exc:
@@ -253,7 +261,10 @@ class DiscoveryLoop:
     def _decide(self) -> Decision:
         assert self.screen is not None
         request = DecisionRequest(
-            system=self.system, tools=self.tools, messages=self.messages, observation=self.screen
+            system=self.system,
+            tools=self.tools,
+            transcript=list(self.transcript),
+            observation=self.screen,
         )
         try:
             decision = self.llm.decide(request)
@@ -264,6 +275,7 @@ class DiscoveryLoop:
             raise _End("error", "LLM_ERROR", f"model call failed: {type(exc).__name__}") from exc
         self.log.model_call(
             turn=self.watch.steps,
+            provider=self.llm.provider,
             response_id=decision.response_id,
             model=decision.model,
             stop_reason=decision.stop_reason,
@@ -463,32 +475,18 @@ class DiscoveryLoop:
         screen = self._look()
         self.watch.screen_after_action(screen)
         text = prompts.after_action(note, screen, self.watch.remaining)
-        self._tool_result(call_id, self._content(text, screen), error=error)
+        self._tool_result(call_id, text, screen.screenshot_png, error=error)
 
     def _reply(self, call_id: str, note: str, *, error: bool = False) -> None:
         text = prompts.after_action(note, None, self.watch.remaining)
-        self._tool_result(call_id, [{"type": "text", "text": text}], error=error)
+        self._tool_result(call_id, text, None, error=error)
 
-    def _tool_result(self, call_id: str, content: list[dict[str, Any]], *, error: bool) -> None:
-        block: dict[str, Any] = {"type": "tool_result", "tool_use_id": call_id, "content": content}
-        if error:
-            block["is_error"] = True
-        self.messages.append({"role": "user", "content": [block]})
-
-    def _content(self, text: str, screen: Observation) -> list[dict[str, Any]]:
-        blocks: list[dict[str, Any]] = [{"type": "text", "text": text}]
-        if screen.screenshot_png:
-            blocks.append(
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": "image/png",
-                        "data": base64.standard_b64encode(screen.screenshot_png).decode("ascii"),
-                    },
-                }
+    def _tool_result(self, call_id: str, text: str, png: bytes | None, *, error: bool) -> None:
+        self.transcript.append(
+            ToolResultTurn(
+                call_id=call_id, tool=self._calls[call_id], text=text, png=png, is_error=error
             )
-        return blocks
+        )
 
     # -- helpers -------------------------------------------------------------
 
@@ -564,6 +562,7 @@ class DiscoveryLoop:
                     name: {"ref": c.ref, "fields": c.field_names}
                     for name, c in self.credentials.items()
                 },
+                "provider": self.llm.provider,
                 "model": self.llm.model,
                 "limits": self.config.limits.model_dump(),
                 "screenshots": self.config.screenshots,

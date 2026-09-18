@@ -78,9 +78,19 @@ def _add_discover(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
         "secret, as app_login)",
     )
     d.add_argument("--policy", default="policies/default.yaml", type=Path)
-    d.add_argument("--llm", choices=("anthropic", "scripted"), default="anthropic")
+    d.add_argument(
+        "--llm",
+        choices=("auto", "anthropic", "gemini", "scripted"),
+        default="auto",
+        help="Model provider. auto (default) uses $CUA_LLM if set, else whichever of "
+        "ANTHROPIC_API_KEY / GEMINI_API_KEY is present, Claude first",
+    )
     d.add_argument("--script", type=Path, help="Tool-call script for --llm scripted")
-    d.add_argument("--model", help="Model id (default: $CUA_MODEL, else claude-sonnet-5)")
+    d.add_argument(
+        "--model",
+        help="Model id for the chosen provider (default: $CUA_MODEL for Claude, "
+        "$CUA_GEMINI_MODEL for Gemini)",
+    )
     d.add_argument("--max-steps", type=int, default=30)
     d.add_argument("--timeout-s", type=float, default=600.0)
     d.add_argument("--no-screenshots", action="store_true", help="Send the tree only")
@@ -118,7 +128,7 @@ def _discover(args: argparse.Namespace) -> int:
     # Imported here so that `cua --help` and the pending subcommands do not
     # pay for Playwright, or for the model SDK.
     from cua.agent.goal import Goal, SpecError, parse_credential, parse_output, parse_param
-    from cua.agent.llm import AnthropicMessagesClient, LLMClient, ScriptedClient
+    from cua.agent.llm import LLMClient, NoProviderError, ScriptedClient, select_client
     from cua.agent.loop import DiscoveryConfig, DiscoveryLoop
     from cua.agent.script import load_script
     from cua.agent.stopping import StopLimits
@@ -155,14 +165,21 @@ def _discover(args: argparse.Namespace) -> int:
             return EX_USAGE
         llm = ScriptedClient(load_script(args.script))
     else:
-        llm = AnthropicMessagesClient(args.model)
+        try:
+            llm = select_client(args.llm, args.model)
+        except NoProviderError as exc:
+            print(f"cua discover: {exc}", file=sys.stderr)
+            return EX_USAGE
 
     entry_url = tenant.url(goal.entry)
     if args.inject:
         entry_url += ("&" if "?" in entry_url else "?") + f"inject={args.inject}"
 
     log = RunLog.create(args.runs_dir)
-    print(f"cua discover: run {log.run_id} -> {log.dir.as_posix()}", file=sys.stderr)
+    print(
+        f"cua discover: run {log.run_id} ({llm.provider}: {llm.model}) -> {log.dir.as_posix()}",
+        file=sys.stderr,
+    )
     config = DiscoveryConfig(
         limits=StopLimits(max_steps=args.max_steps, timeout_s=args.timeout_s),
         screenshots=not args.no_screenshots,

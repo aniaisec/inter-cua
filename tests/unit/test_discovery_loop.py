@@ -12,7 +12,14 @@ from pathlib import Path
 import pytest
 
 from cua.agent.goal import Goal, OutputSpec, ParamSpec
-from cua.agent.llm import Decision, DecisionRequest, ScriptedClient, ToolCall
+from cua.agent.llm import (
+    Decision,
+    DecisionRequest,
+    Provider,
+    ScriptedClient,
+    ToolCall,
+    ToolResultTurn,
+)
 from cua.agent.loop import DiscoveryConfig, DiscoveryLoop, DiscoveryOutcome
 from cua.agent.script import Script, ScriptStep, load_script
 from cua.agent.stopping import StopLimits
@@ -124,19 +131,22 @@ class Recorder:
         self.requests: list[DecisionRequest] = []
 
     @property
+    def provider(self) -> Provider:
+        return self.inner.provider
+
+    @property
     def model(self) -> str:
         return self.inner.model
 
     def decide(self, request: DecisionRequest) -> Decision:
-        # The loop keeps appending to the same list; snapshot it as sent.
-        self.requests.append(request.model_copy(update={"messages": list(request.messages)}))
+        self.requests.append(request)
         return self.inner.decide(request)
 
     @property
     def seen(self) -> str:
         """Everything that went to the model, as one string."""
         last = self.requests[-1]
-        return last.system + json.dumps(last.messages)
+        return last.system + "".join(t.model_dump_json(exclude={"png"}) for t in last.transcript)
 
 
 def run(
@@ -275,9 +285,10 @@ def test_done_missing_a_declared_output_is_rejected_and_the_agent_told_why(
     rejected = named(log, "agent.done_rejected")
     assert len(rejected) == 1
     assert rejected[0]["problems"] == ["'savings_balance' is missing"]
-    second = llm.requests[1].messages[-1]["content"][0]
-    assert second["is_error"] is True
-    assert "savings_balance' is missing" in second["content"][0]["text"]
+    told = llm.requests[1].transcript[-1]
+    assert isinstance(told, ToolResultTurn)
+    assert told.is_error
+    assert "savings_balance' is missing" in told.text
     assert outcome.kind == "done"
     assert set(outcome.outputs) == {"savings_balance"}
 
@@ -397,6 +408,7 @@ class Sloppy:
     """A model that first calls a tool with the wrong arguments, then says
     nothing, then gives up properly."""
 
+    provider = "scripted"
     model = "sloppy"
 
     def __init__(self) -> None:
@@ -406,14 +418,11 @@ class Sloppy:
         self.turn += 1
         if self.turn == 1:
             call = ToolCall(id="t1", name="click", input={"reason": "no ref"})
-            content = [{"type": "tool_use", "id": "t1", "name": "click", "input": call.input}]
-            return Decision(tool_call=call, assistant_content=content, response_id="r1", model="m")
+            return Decision(tool_call=call, response_id="r1", model="m")
         if self.turn == 2:
-            content = [{"type": "text", "text": "Thinking about it."}]
-            return Decision(tool_call=None, assistant_content=content, response_id="r2", model="m")
+            return Decision(tool_call=None, text="Thinking about it.", response_id="r2", model="m")
         call = ToolCall(id="t3", name="stuck", input={"reason": "giving up"})
-        content = [{"type": "tool_use", "id": "t3", "name": "stuck", "input": call.input}]
-        return Decision(tool_call=call, assistant_content=content, response_id="r3", model="m")
+        return Decision(tool_call=call, response_id="r3", model="m")
 
 
 def test_a_malformed_call_and_a_turn_without_a_call_are_answered_not_fatal(

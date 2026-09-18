@@ -16,7 +16,7 @@ wired up yet. `README.md` gets its real treatment at M8.
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 playwright install chromium        # required for the browser tests
-cp .env.example .env               # only `cua discover` needs an API key
+cp .env.example .env               # only `cua discover` needs an API key (Claude or Gemini)
 ```
 
 ## What runs today
@@ -31,7 +31,8 @@ python -m cua.surface --url http://127.0.0.1:8000/login
 python -m cua.surface --url http://127.0.0.1:8000/login --signed-in
 
 # Goal-driven discovery. Needs `make mockapp` running; writes evidence/runs/<run_id>/.
-# With a model (needs ANTHROPIC_API_KEY in .env):
+# With a model: needs ANTHROPIC_API_KEY or GEMINI_API_KEY in .env (--llm auto picks
+# whichever is set, Claude first; --llm anthropic|gemini or CUA_LLM chooses):
 cua discover --goal "Look up a member by id and return the current savings balance" \
   --name member_savings_balance --entry /login \
   --param member_id:string=10003 \

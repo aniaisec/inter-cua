@@ -17,6 +17,7 @@ from typing import Annotated, Any, Literal, TypeAlias
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from cua.agent.goal import OutputSpec
+from cua.agent.llm import ToolSpec
 
 
 class _Call(BaseModel):
@@ -87,8 +88,8 @@ _REASON = {
 _REF = {"type": "string", "description": "A ref from the latest screen, e.g. n42."}
 
 
-def tool_definitions(outputs: list[OutputSpec]) -> list[dict[str, Any]]:
-    """Tool schemas in the Messages API shape.
+def tool_definitions(outputs: list[OutputSpec]) -> list[ToolSpec]:
+    """The tools as JSON Schema, for whichever provider is asked.
 
     ``done`` is built per run, with one property per declared output, so the
     model is shown exactly what it has to hand back.
@@ -101,11 +102,11 @@ def tool_definitions(outputs: list[OutputSpec]) -> list[dict[str, Any]]:
         }
         for o in outputs
     }
-    return [
+    specs: list[dict[str, Any]] = [
         {
             "name": "click",
             "description": "Click a link, button or other control on the current screen.",
-            "input_schema": {
+            "parameters": {
                 "type": "object",
                 "properties": {"ref": _REF, "reason": _REASON},
                 "required": ["ref", "reason"],
@@ -117,7 +118,7 @@ def tool_definitions(outputs: list[OutputSpec]) -> list[dict[str, Any]]:
                 "Replace the contents of a text field. For a credential, type its placeholder "
                 "(e.g. ${credentials.app_login.password}); the runner substitutes the value."
             ),
-            "input_schema": {
+            "parameters": {
                 "type": "object",
                 "properties": {"ref": _REF, "text": {"type": "string"}, "reason": _REASON},
                 "required": ["ref", "text", "reason"],
@@ -126,7 +127,7 @@ def tool_definitions(outputs: list[OutputSpec]) -> list[dict[str, Any]]:
         {
             "name": "press",
             "description": "Press a key (e.g. Enter, Tab), in a field if ref is given.",
-            "input_schema": {
+            "parameters": {
                 "type": "object",
                 "properties": {"key": {"type": "string"}, "ref": _REF, "reason": _REASON},
                 "required": ["key", "reason"],
@@ -135,7 +136,7 @@ def tool_definitions(outputs: list[OutputSpec]) -> list[dict[str, Any]]:
         {
             "name": "read",
             "description": "Read the current text of a node, live from the screen.",
-            "input_schema": {
+            "parameters": {
                 "type": "object",
                 "properties": {"ref": _REF, "reason": _REASON},
                 "required": ["ref", "reason"],
@@ -147,7 +148,7 @@ def tool_definitions(outputs: list[OutputSpec]) -> list[dict[str, Any]]:
                 "The goal is reached. Name, for every declared output, the ref on the current "
                 "screen that holds its value. The runner reads each one itself."
             ),
-            "input_schema": {
+            "parameters": {
                 "type": "object",
                 "properties": {
                     "outputs": {
@@ -166,10 +167,11 @@ def tool_definitions(outputs: list[OutputSpec]) -> list[dict[str, Any]]:
                 "You cannot make progress without guessing. Say what blocks you; a human "
                 "takes over. Always better than inventing an id, a value or a screen."
             ),
-            "input_schema": {
+            "parameters": {
                 "type": "object",
                 "properties": {"reason": _REASON},
                 "required": ["reason"],
             },
         },
     ]
+    return [ToolSpec.model_validate(spec) for spec in specs]

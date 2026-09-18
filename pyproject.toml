@@ -12,6 +12,7 @@ license = { text = "MIT" }
 dependencies = [
   "anthropic>=0.40,<1.0",
   "fastapi>=0.115,<1.0",
+  "google-genai>=2.0,<3.0",
   "jinja2>=3.1,<4.0",
   "playwright>=1.48,<2.0",
   "pydantic>=2.9,<3.0",
@@ -40,6 +41,10 @@ packages = ["src/cua", "mockapp"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"
+filterwarnings = [
+  # Raised inside google-genai on Python 3.14, not by this code.
+  "ignore:.*_UnionGenericAlias.*:DeprecationWarning:google.genai",
+]
 markers = [
   "browser: requires a Playwright Chromium install",
 ]
