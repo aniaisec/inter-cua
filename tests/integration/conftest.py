@@ -77,7 +77,9 @@ def browser_session(playwright_instance: Playwright) -> Iterator[BrowserSession]
 
 @pytest.fixture
 def context(browser_session: BrowserSession) -> Iterator[BrowserContext]:
-    ctx = browser_session.browser.new_context(viewport=VIEWPORT, ignore_https_errors=True)
+    ctx = browser_session.browser.new_context(
+        viewport=VIEWPORT, ignore_https_errors=True, accept_downloads=False
+    )
     try:
         yield ctx
     finally:

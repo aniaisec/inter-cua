@@ -21,6 +21,7 @@ from cua.artifact.schema import Capability
 from cua.artifact.store import load
 from cua.evidence.logger import RunLog
 from cua.policy.allowlist import load_policy
+from cua.policy.tokens import Approval
 from cua.replay import detectors
 from cua.replay.engine import ReplayConfig, ReplayEngine
 from cua.replay.extract import ParseError, parse
@@ -441,6 +442,17 @@ def confirm_only() -> Capability:
     return Capability.model_validate(data)
 
 
+CONSENT = Approval(
+    capability="open_subaccount",
+    version=2,
+    tenant="local",
+    approved_by="ops",
+    expires_at=2_000_000_000,
+    token_sha256="0" * 64,
+)
+"""Consent as the runner hands it over once a token has verified."""
+
+
 def engine(
     tmp_path: Path,
     screens_: list,
@@ -455,10 +467,8 @@ def engine(
         surface=surface,
         tenant=TENANT,
         policy=POLICY,
-        invocation=Invocation(
-            inputs={"member_id": "10003", "initial_deposit": "250.00"},
-            approval=ApprovalGrant(token="t") if token else None,
-        ),
+        invocation=Invocation(inputs={"member_id": "10003", "initial_deposit": "250.00"}),
+        approval=CONSENT if token else None,
         credentials={
             "app_login": Credential(
                 "secret://local/x", {"username": "opuser", "password": "hunter2pw"}

@@ -5,14 +5,21 @@ id: local
 app_family: legacy-core
 base_url: http://127.0.0.1:8000
 
-# secret:// refs are resolved at invoke time by cua.secrets.resolver (M5).
+# secret:// refs are resolved at invoke time by cua.secrets.resolver.
 # Values live only in process memory and are never written to an artifact,
-# a log, or an intervention request.
+# a log, or an intervention request. A binding reads an environment variable
+# (provider: env) or a file (provider: file).
 secrets:
   mockcore/operator:
     provider: env
     var: CUA_SECRET_MOCKCORE_OPERATOR
     format: "username:password"
+  # Signs approval tokens (`cua approval-token`). Whoever can read it can
+  # consent on this tenant's behalf. Locally a file under the gitignored .cua/,
+  # created on first use; a real tenant would mount it from its secret manager.
+  cua/approval-signing-key:
+    provider: file
+    path: .cua/approval-signing.key
 
 # Overlay that adapts a shared capability to this tenant's wording and layout.
 # None needed locally: the mock app is the reference deployment.

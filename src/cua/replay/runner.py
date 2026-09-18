@@ -6,10 +6,17 @@ In order, and each check before anything more expensive:
 2. **approval gate** — unattended replay runs only an ``approved`` capability.
    A draft is ``POLICY_BLOCKED`` unless the operator overrides it explicitly;
 3. **input shape** — ``INPUT_INVALID`` with no browser started;
-4. **idempotency** — the same key and request returns the stored result;
-5. credentials resolved from the tenant binding (held in memory only);
-6. a fresh browser session, traced; the engine runs; a failed run keeps its
-   trace, scrubbed of secrets.
+4. **approval token**, if one came — signature, expiry, and that it covers
+   this capability, content, tenant and inputs. Any mismatch is
+   ``POLICY_BLOCKED``: consent for something else is not consent;
+5. **idempotency** — the same key and request returns the stored result;
+6. **spent token** — a token that already went into a commit is refused, so
+   one consent is one commit (a caller retrying after a lost answer retries
+   with its idempotency key, and step 5 answers it);
+7. credentials resolved from the tenant binding (held in memory only);
+8. a fresh browser session, traced; the engine runs; a failed run keeps its
+   trace, scrubbed of secrets. If the run reached a risky step, its token is
+   spent, whatever the result.
 
 Returns a ``ReplayResult`` for every outcome a caller can act on. Raises
 ``InvocationError`` only for mistakes in how it was called — a missing file, an
@@ -30,8 +37,10 @@ from cua.artifact.schema import Capability
 from cua.artifact.store import ArtifactError, open_capability
 from cua.evidence import trace
 from cua.evidence.logger import RUNS_DIR, RunLog, utc_now
+from cua.policy import tokens
 from cua.policy.allowlist import Policy
 from cua.policy.redaction import Redactor
+from cua.policy.tokens import Approval, SpentTokens, TokenRefused
 from cua.replay.engine import ReplayConfig, ReplayEngine
 from cua.replay.invocation import Invocation, request_summary, validate_inputs
 from cua.replay.result import (
@@ -99,6 +108,13 @@ def replay(
     if problems:
         return _refused(cap, invocation, "INPUT_INVALID", "; ".join(problems))
 
+    approval: Approval | None = None
+    if invocation.approval is not None:
+        try:
+            approval = _verified(cap, tenant, invocation, environ)
+        except TokenRefused as exc:
+            return _refused(cap, invocation, "POLICY_BLOCKED", f"approval refused: {exc}")
+
     cache = IdempotencyCache(runs_dir) if invocation.idempotency_key else None
     request = fingerprint(cap.name, cap.version, invocation.inputs)
     if cache is not None and invocation.idempotency_key is not None:
@@ -109,12 +125,27 @@ def replay(
         if cached is not None:
             return cached
 
+    spent = SpentTokens(runs_dir)
+    if approval is not None:
+        used_by = spent.spent_by(approval)
+        if used_by is not None:
+            return _refused(
+                cap,
+                invocation,
+                "POLICY_BLOCKED",
+                f"approval refused: this token was already used by {used_by}; one consent "
+                "covers one commit. Retry with the same --idempotency-key to get that run's "
+                "result, or ask for new consent.",
+            )
+
     credentials = _credentials(cap, tenant, environ)
     result = _run(
         cap,
         tenant=tenant,
         policy=policy,
         invocation=invocation,
+        approval=approval,
+        spent=spent,
         credentials=credentials,
         runs_dir=runs_dir,
         allow_draft=allow_draft,
@@ -132,6 +163,8 @@ def _run(
     tenant: Tenant,
     policy: Policy,
     invocation: Invocation,
+    approval: Approval | None,
+    spent: SpentTokens,
     credentials: dict[str, Credential],
     runs_dir: Path,
     allow_draft: bool,
@@ -182,14 +215,22 @@ def _run(
             invocation=invocation,
             credentials=credentials,
             log=log,
+            approval=approval,
             config=config,
         )
         # An interruption (Ctrl+C, a crash) is written by the engine as a
         # ``Failure INTERRUPTED`` with the side effect it can vouch for, and
         # then re-raised; the browser is closed on the way out.
-        result = engine.run()
+        try:
+            result = engine.run()
+        finally:
+            if approval is not None and engine.side_effect_so_far() != "none":
+                spent.spend(approval, log.run_id)
+                log.event("approval.spent", token_sha256=approval.token_sha256[:12])
         keep = log.dir / trace.TRACE_NAME if result.kind == "failure" else None
-        kept = trace.stop(context, keep_as=keep, redactor=Redactor(_encodings(secrets)))
+        kept = trace.stop(
+            context, keep_as=keep, redactor=Redactor.for_policy(policy, _encodings(secrets))
+        )
 
     if kept is not None:
         evidence = result.evidence.model_copy(
@@ -198,6 +239,25 @@ def _run(
         result = result.model_copy(update={"evidence": evidence})
         log.write_json("result.json", result)
     return result
+
+
+def _verified(
+    cap: Capability, tenant: Tenant, invocation: Invocation, environ: dict[str, str] | None
+) -> Approval:
+    assert invocation.approval is not None
+    grant = invocation.approval
+    approval = tokens.verify(
+        grant.token,
+        cap,
+        tenant,
+        invocation.inputs,
+        key=tokens.signing_key(tenant, environ=environ),
+    )
+    if grant.approved_by is not None and grant.approved_by != approval.approved_by:
+        raise TokenRefused(
+            f"the token was signed for {approval.approved_by!r}, not {grant.approved_by!r}"
+        )
+    return approval
 
 
 def _credentials(

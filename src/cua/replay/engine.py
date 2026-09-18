@@ -50,8 +50,9 @@ from cua.artifact.schema import (
     StepTimedOut,
 )
 from cua.evidence.logger import RunLog
-from cua.policy.allowlist import Block, NeedsApproval, Policy, check, origin_allowed
+from cua.policy.allowlist import Allow, Block, NeedsApproval, Policy, check, origin_allowed
 from cua.policy.redaction import Redactor
+from cua.policy.tokens import Approval
 from cua.replay import detectors as det_rules
 from cua.replay.extract import ParseError, parse
 from cua.replay.invocation import Invocation, bind, credential_field, fill
@@ -185,14 +186,20 @@ class ReplayEngine:
         invocation: Invocation,
         credentials: Mapping[str, Credential],
         log: RunLog,
+        approval: Approval | None = None,
         config: ReplayConfig | None = None,
         clock: Clock | None = None,
     ) -> None:
+        """``approval``: consent the runner has already checked against this
+        capability, tenant and inputs (``cua.policy.tokens.verify``). It is the
+        only thing that lets a risky step run unattended; the raw token on the
+        invocation is never trusted here."""
         self.cap = capability
         self.surface = surface
         self.tenant = tenant
         self.policy = policy
         self.invocation = invocation
+        self.approval = approval
         self.inputs = dict(invocation.inputs)
         self.credentials = dict(credentials)
         self.log = log
@@ -205,10 +212,10 @@ class ReplayEngine:
             for n, v in self.inputs.items()
             if n in capability.inputs and capability.inputs[n].sensitive
         ]
-        self.redactor = Redactor(
-            [*(v for c in self.credentials.values() for v in c.values()), *sensitive],
-            sensitive_labels=policy.sensitive_labels,
+        self.redactor = Redactor.for_policy(
+            policy, [*(v for c in self.credentials.values() for v in c.values()), *sensitive]
         )
+        log.scrub_with(self.redactor.text)
         self.masks: list[Ladder] = [
             *capability.redaction.screenshot_masks,
             *policy.screenshot_masks,
@@ -284,14 +291,15 @@ class ReplayEngine:
             code=code,
             step_id=self._current_step,
             message=self.redactor.text(text),
-            side_effect=self._side_effect_so_far(),
+            side_effect=self.side_effect_so_far(),
             outputs=dict(self.outputs),
             during_recovery=self._during_recovery(),
             capability=self.cap.name,
             capability_version=self.cap.version,
         )
 
-    def _side_effect_so_far(self) -> SideEffect:
+    def side_effect_so_far(self) -> SideEffect:
+        """What the run may have committed up to now, whatever it returns."""
         if self.committed_through is not None:
             return "committed"
         return "unknown" if self._in_flight is not None else "none"
@@ -492,7 +500,7 @@ class ReplayEngine:
         return re.sub(r"\$\{([^}]*)\}", credential, fill(value, self.inputs))
 
     def _permit(self, step: Step, action: Action, screen: Observation) -> None:
-        decision = check(self.policy, action, screen)
+        decision = check(self.policy, action, screen, approval=self.approval)
         if isinstance(decision, Block):
             self.log.event("policy.block", step=step.id, reason=decision.reason)
             self._fail(
@@ -502,11 +510,16 @@ class ReplayEngine:
                 message=decision.reason,
                 observation=screen,
             )
-        needs = step.approval == "required" or isinstance(decision, NeedsApproval)
-        if not needs:
+        approved_rule = decision.approved_rule if isinstance(decision, Allow) else None
+        if isinstance(decision, NeedsApproval):
+            rule = decision.rule
+        elif approved_rule is not None:
+            rule = approved_rule
+        elif step.approval == "required":
+            rule = "step.approval"
+        else:
             return
-        rule = decision.rule if isinstance(decision, NeedsApproval) else "step.approval"
-        grant = self.invocation.approval
+        grant = self.approval
         if grant is None:
             self.log.event("policy.needs_approval", step=step.id, rule=rule)
             self._fail(
@@ -523,6 +536,7 @@ class ReplayEngine:
             rule=rule,
             approved_by=grant.approved_by,
             token_sha256=grant.token_sha256[:12],
+            expires_at=grant.expires_at,
         )
 
     def _act(self, step: Step, action: Action) -> None:

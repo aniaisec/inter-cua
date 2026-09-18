@@ -376,7 +376,7 @@ def test_auto_approve_lets_a_risky_action_through_and_says_so(
 
 
 def test_the_same_button_elsewhere_is_not_risky(tmp_path: Path) -> None:
-    elsewhere = framed(REVIEW, "/help/confirming")
+    elsewhere = framed(REVIEW, "/search")
     steps = [
         ScriptStep(tool="click", target=[RoleName(role="button", name="Confirm")]),
         ScriptStep(tool="stuck"),

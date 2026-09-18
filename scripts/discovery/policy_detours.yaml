@@ -1,0 +1,40 @@
+# Goal 1 with two detours the policy must refuse, for a live demo of the
+# allowlist: the vendor's support site (another origin) from the nav, and the
+# statement download on the member detail screen. Both are blocked from the
+# link's destination before anything is clicked; the agent is told why and
+# still reaches the goal.
+#
+#   cua discover --llm scripted --script scripts/discovery/policy_detours.yaml #     --goal "Look up a member by id and return the current savings balance" #     --name member_savings_balance --entry /login --no-record #     --param member_id:string=10003 #     --output savings_balance:decimal --output "member_name:string?"
+goal: Look up a member by id and return the current savings balance
+steps:
+  - tool: type
+    target: [{strategy: near_text, text: User ID, role: textbox}]
+    text: ${credentials.app_login.username}
+    reason: The sign-on screen asks for a user id first.
+  - tool: type
+    target: [{strategy: near_text, text: Password, role: textbox}]
+    text: ${credentials.app_login.password}
+    reason: Then the password.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Sign On}]
+    reason: Submit the sign-on form.
+  - tool: type
+    target: [{strategy: near_text, text: Member ID, role: textbox, within: {frame: main}}]
+    text: "10003"
+    reason: Member Search takes the five digit member id.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Search, within: {frame: main}}]
+    reason: Run the search.
+  - tool: click
+    target: [{strategy: role_name, role: link, name: Vendor Support, within: {frame: nav}}]
+    reason: Check the vendor knowledge base first.
+  - tool: click
+    target: [{strategy: role_name, role: link, name: Download Statement, within: {frame: main}}]
+    reason: Get the statement file.
+  - tool: done
+    outputs:
+      savings_balance:
+        - {strategy: table_cell, row_contains: Savings, column_header: Balance, within: {frame: main}}
+      member_name:
+        - {strategy: near_text, text: Name, role: cell, within: {frame: main}}
+    reason: The member detail screen shows the Savings row of the Balances table.

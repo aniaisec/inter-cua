@@ -1,5 +1,8 @@
 """Resolve ``secret://<tenant>/<key>`` references into values held in memory.
 
+The tenant binding says where each value lives: an environment variable, or a
+file. Either way it is read at the moment it is needed and kept in memory only.
+
 A capability names its credentials by reference so that it can be committed,
 reviewed and shared across tenants without carrying anything secret. The
 reference is resolved at run time through the tenant binding, and the value
@@ -13,8 +16,9 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterator, Mapping
+from pathlib import Path
 
-from cua.tenant import Tenant
+from cua.tenant import SecretBinding, Tenant
 
 SCHEME = "secret://"
 
@@ -59,22 +63,60 @@ def parse_ref(ref: str) -> tuple[str, str]:
     return tenant, key
 
 
-def resolve(ref: str, tenant: Tenant, *, environ: Mapping[str, str] | None = None) -> Credential:
-    """Look the reference up in the tenant binding and read its value."""
+def binding_for(ref: str, tenant: Tenant) -> SecretBinding:
+    """The tenant's binding for a reference: where its value lives."""
     tenant_id, key = parse_ref(ref)
     if tenant_id != tenant.id:
         raise SecretError(f"{ref} belongs to tenant {tenant_id!r}, not {tenant.id!r}")
     binding = tenant.secrets.get(key)
     if binding is None:
         raise SecretError(f"tenant {tenant.id!r} binds no secret {key!r}")
+    return binding
 
-    env = os.environ if environ is None else environ
-    raw = env.get(binding.var)
-    if not raw:
-        raise SecretError(f"{ref} is bound to ${binding.var}, which is not set")
+
+def resolve(
+    ref: str,
+    tenant: Tenant,
+    *,
+    environ: Mapping[str, str] | None = None,
+    root: Path | None = None,
+) -> Credential:
+    """Look the reference up in the tenant binding and read its value.
+
+    ``root``: what a file binding's relative path is relative to (default:
+    the working directory).
+    """
+    binding = binding_for(ref, tenant)
+    raw = _read(ref, binding, environ, root)
 
     names = binding.fields
     parts = raw.split(":", len(names) - 1)
     if len(parts) != len(names):
-        raise SecretError(f"${binding.var} does not have the shape {binding.format!r}")
+        raise SecretError(f"{binding.source} does not have the shape {binding.format!r}")
     return Credential(ref, dict(zip(names, parts, strict=True)))
+
+
+def _read(
+    ref: str, binding: SecretBinding, environ: Mapping[str, str] | None, root: Path | None
+) -> str:
+    if binding.provider == "file":
+        assert binding.path is not None
+        path = (root or Path.cwd()) / binding.path
+        try:
+            # One trailing newline is how editors save a one-line file; it is
+            # not part of the secret.
+            raw = path.read_text(encoding="utf-8").removesuffix("\n").removesuffix("\r")
+        except FileNotFoundError:
+            raise SecretError(f"{ref} is bound to {binding.source}, which does not exist") from None
+        except OSError as exc:
+            raise SecretError(f"{ref}: {binding.source} cannot be read ({exc.strerror})") from None
+        if not raw:
+            raise SecretError(f"{ref} is bound to {binding.source}, which is empty")
+        return raw
+
+    assert binding.var is not None
+    env = os.environ if environ is None else environ
+    raw = env.get(binding.var, "")
+    if not raw:
+        raise SecretError(f"{ref} is bound to {binding.source}, which is not set")
+    return raw

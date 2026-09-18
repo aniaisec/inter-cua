@@ -181,7 +181,12 @@ class PlaywrightSurface:
                 headless=not (headed if headed is not None else _headed_from_env()),
                 args=[f"--remote-debugging-port={port}"],
             )
-            context = browser.new_context(viewport={"width": view.w, "height": view.h})
+            # Downloads are refused by the browser itself, under the policy's
+            # check of a link's destination: a download reached some other way
+            # (a form post answered with an attachment) still lands nowhere.
+            context = browser.new_context(
+                viewport={"width": view.w, "height": view.h}, accept_downloads=False
+            )
             page = context.new_page()
         except BaseException:
             playwright.stop()

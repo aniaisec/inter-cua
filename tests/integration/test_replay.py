@@ -22,6 +22,7 @@ import pytest
 from playwright.sync_api import Page
 
 from cua.artifact.store import load, save, with_changes
+from cua.policy import tokens
 from cua.policy.allowlist import load_policy
 from cua.replay.engine import ReplayConfig
 from cua.replay.invocation import ApprovalGrant, Budget, Invocation
@@ -38,7 +39,8 @@ REPO = Path(__file__).resolve().parents[2]
 GOAL1 = REPO / "capabilities" / "member_savings_balance.json"
 GOAL2 = REPO / "capabilities" / "open_subaccount.json"
 PASSWORD = "operator"
-ENV = {"CUA_TEST_OPERATOR": f"operator:{PASSWORD}"}
+SIGNING_KEY = "integration-signing-key-0123456789abcdef"
+ENV = {"CUA_TEST_OPERATOR": f"operator:{PASSWORD}", "CUA_TEST_SIGNING_KEY": SIGNING_KEY}
 
 
 class Harness:
@@ -56,7 +58,8 @@ class Harness:
             secrets={
                 "mockcore/operator": SecretBinding(
                     var="CUA_TEST_OPERATOR", format="username:password"
-                )
+                ),
+                "cua/approval-signing-key": SecretBinding(var="CUA_TEST_SIGNING_KEY"),
             },
         )
         self.policy = load_policy(REPO / "policies" / "default.yaml", self.tenant)
@@ -82,6 +85,12 @@ class Harness:
         save(cap, copy)
         return copy
 
+    def consent(self, capability: Path, inputs: dict[str, str], *, by: str = "test") -> str:
+        """A signed approval token for exactly this invocation."""
+        return tokens.mint(
+            load(capability), self.tenant, inputs, approved_by=by, key=SIGNING_KEY.encode()
+        )
+
     def run(
         self,
         capability: Path,
@@ -102,7 +111,7 @@ class Harness:
                 inputs=inputs,
                 inject=inject,
                 idempotency_key=key,
-                approval=ApprovalGrant(token=token, approved_by="test") if token else None,
+                approval=ApprovalGrant(token=token) if token else None,
                 budget=budget or Budget(),
             ),
             runs_dir=self.runs,
@@ -173,7 +182,12 @@ def test_row02_not_found_is_a_business_outcome_at_the_search(harness: Harness) -
 
 
 def test_row03_validation_error_names_the_field(harness: Harness) -> None:
-    result = harness.run(GOAL2, inputs=goal2_inputs(), inject="validation_error", token="tok")
+    result = harness.run(
+        GOAL2,
+        inputs=goal2_inputs(),
+        inject="validation_error",
+        token=harness.consent(GOAL2, goal2_inputs()),
+    )
     assert isinstance(result, BusinessOutcome), result
     assert result.code == "VALIDATION_ERROR"
     assert result.payload == {"message": "Initial deposit is required", "field": "initial_deposit"}
@@ -288,7 +302,12 @@ def test_row10_an_unscoped_rung_falls_through_on_ambiguity(harness: Harness) -> 
 
 
 def test_row11_a_slow_confirm_is_unknown_and_never_clicked_twice(harness: Harness) -> None:
-    result = harness.run(GOAL2, inputs=goal2_inputs(), inject="slow_confirm", token="tok")
+    result = harness.run(
+        GOAL2,
+        inputs=goal2_inputs(),
+        inject="slow_confirm",
+        token=harness.consent(GOAL2, goal2_inputs()),
+    )
     assert isinstance(result, Failure), result
     assert result.code == "TIMEOUT"
     assert result.side_effect == "unknown"
@@ -322,13 +341,38 @@ def test_row13_a_notice_that_keeps_coming_back_exhausts_recovery(harness: Harnes
 
 
 def test_row15_a_valid_token_runs_the_commit_unattended(harness: Harness) -> None:
-    result = harness.run(GOAL2, inputs=goal2_inputs(), token="s3cret-tok-4471")
+    token = harness.consent(GOAL2, goal2_inputs())
+    result = harness.run(GOAL2, inputs=goal2_inputs(), token=token)
     assert isinstance(result, Success), result
     assert result.side_effect == "committed"
     assert str(result.outputs["reference_number"]).startswith("REF-10003-")
     assert harness.confirm_posts == 1
     approved = [e for e in harness.events(result) if e["event"] == "policy.approved"]
-    assert approved and "s3cret-tok-4471" not in json.dumps(approved)
+    assert approved and approved[0]["approved_by"] == "test"
+    assert approved[0]["rule"] == "commit_on_review"
+    run_dir = Path(str(result.evidence.run_dir))
+    for path in run_dir.rglob("*"):
+        if path.is_file():
+            assert token.encode() not in path.read_bytes(), path
+
+
+def test_one_token_is_one_commit(harness: Harness) -> None:
+    token = harness.consent(GOAL2, goal2_inputs())
+    first = harness.run(GOAL2, inputs=goal2_inputs(), token=token)
+    assert isinstance(first, Success), first
+    again = harness.run(GOAL2, inputs=goal2_inputs(), token=token)
+    assert isinstance(again, Failure) and again.code == "POLICY_BLOCKED"
+    assert "already used" in again.message
+    assert harness.launches == 1
+    assert harness.debug()["confirms"] == 1
+
+
+def test_consent_for_other_inputs_commits_nothing(harness: Harness) -> None:
+    token = harness.consent(GOAL2, {"member_id": "10003", "initial_deposit": "5.00"})
+    result = harness.run(GOAL2, inputs=goal2_inputs(), token=token)
+    assert isinstance(result, Failure) and result.code == "POLICY_BLOCKED"
+    assert "other inputs" in result.message
+    assert harness.launches == 0 and harness.confirm_posts == 0
 
 
 def test_row14_without_a_token_the_commit_is_not_made(harness: Harness) -> None:
@@ -345,7 +389,12 @@ def test_row14_without_a_token_the_commit_is_not_made(harness: Harness) -> None:
 
 
 def test_an_unexpected_native_confirm_is_cancelled_and_reported(harness: Harness) -> None:
-    result = harness.run(GOAL2, inputs=goal2_inputs(), inject="native_confirm", token="tok")
+    result = harness.run(
+        GOAL2,
+        inputs=goal2_inputs(),
+        inject="native_confirm",
+        token=harness.consent(GOAL2, goal2_inputs()),
+    )
     assert isinstance(result, Failure), result
     assert result.code == "ACTION_FAILED"
     assert "unexpected confirm" in result.message

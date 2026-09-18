@@ -73,7 +73,7 @@ def _add_discover(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
         action="append",
         default=[],
         metavar="NAME=secret://...",
-        help="Credential the agent may type by placeholder (default: the tenant's only "
+        help="Credential the agent may type by placeholder (default: the tenant's only app "
         "secret, as app_login)",
     )
     d.add_argument("--policy", default="policies/default.yaml", type=Path)
@@ -130,9 +130,12 @@ def _add_replay(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> Non
     r.add_argument("--policy", default="policies/default.yaml", type=Path)
     r.add_argument(
         "--approval-token",
-        help="Consent for the capability's risky steps, for this invocation only",
+        help="Consent for the capability's risky steps, for this invocation only "
+        "(from `cua approval-token`)",
     )
-    r.add_argument("--approved-by", default="caller", help="Who holds that consent")
+    r.add_argument(
+        "--approved-by", help="Who gave that consent; refused if the token names someone else"
+    )
     r.add_argument(
         "--idempotency-key",
         help="Same key and inputs again returns the stored result instead of running",
@@ -182,6 +185,27 @@ def _add_artifact_commands(sub: argparse._SubParsersAction[argparse.ArgumentPars
     a.add_argument("--by", required=True, help="Who is approving")
     a.add_argument("--state-dir", type=Path, default=Path(".cua"), help=argparse.SUPPRESS)
 
+    t = sub.add_parser(
+        "approval-token",
+        help="Sign consent for one invocation of a capability's risky steps",
+        description="Print an approval token for exactly this capability (version and "
+        "content), tenant and inputs, valid for --ttl-s seconds and for one commit. Pass it "
+        "to `cua replay --approval-token`. Signed with the tenant's "
+        "secret://<tenant>/cua/approval-signing-key; a file-bound key that does not exist "
+        "yet is created.",
+    )
+    t.add_argument("capability", type=Path)
+    t.add_argument("--tenant", default="local", help="tenants/<id>.yaml, or a path to one")
+    t.add_argument(
+        "--input",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="Exactly the inputs the replay will be given",
+    )
+    t.add_argument("--by", required=True, help="Who is giving consent")
+    t.add_argument("--ttl-s", type=int, default=900, help="Seconds the token is valid (900)")
+
     s = sub.add_parser("schema", help="Write the capability JSON Schema")
     s.add_argument("--out", type=Path, default=Path("capabilities/schema/capability-1.1.json"))
 
@@ -208,6 +232,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _describe(args)
     if args.command == "approve":
         return _approve(args)
+    if args.command == "approval-token":
+        load_dotenv(Path(".env"))
+        return _approval_token(args)
     if args.command == "schema":
         from cua.artifact.schema import export_json_schema
 
@@ -231,14 +258,17 @@ def _discover(args: argparse.Namespace) -> int:
     from cua.policy.allowlist import load_policy
     from cua.secrets.resolver import SecretError, resolve
     from cua.surface.playwright_surface import PlaywrightSurface
-    from cua.tenant import load_tenant
+    from cua.tenant import SYSTEM_SECRET_PREFIX, load_tenant
 
     try:
         tenant = load_tenant(args.tenant)
         credentials_spec = dict(parse_credential(c) for c in args.credential)
-        if not credentials_spec and len(tenant.secrets) == 1:
-            (key,) = tenant.secrets
+        if not credentials_spec and len(tenant.app_secrets) == 1:
+            (key,) = tenant.app_secrets
             credentials_spec = {"app_login": f"secret://{tenant.id}/{key}"}
+        for name, ref in credentials_spec.items():
+            if ref.partition("://")[2].partition("/")[2].startswith(SYSTEM_SECRET_PREFIX):
+                raise SpecError(f"{name}: {ref} is the system's own secret, never an app login")
         goal = Goal(
             goal=args.goal,
             name=args.name or _slug(args.goal),
@@ -475,6 +505,43 @@ def _approve(args: argparse.Namespace) -> int:
         f"cua approve: {cap.name} version {cap.version} is approved by {cap.approved_by} "
         f"({args.capability.as_posix()})"
     )
+    return 0
+
+
+def _approval_token(args: argparse.Namespace) -> int:
+    from cua.artifact.store import ArtifactError, open_capability
+    from cua.policy import tokens
+    from cua.replay.invocation import validate_inputs
+    from cua.secrets.resolver import SecretError
+    from cua.tenant import load_tenant
+
+    try:
+        tenant = load_tenant(args.tenant)
+        cap = open_capability(args.capability).capability
+        inputs = dict(_pair(i, "--input") for i in args.input)
+        problems = validate_inputs(cap, inputs)
+        if problems:
+            raise ValueError("; ".join(problems))
+        created = tokens.create_signing_key(tenant)
+        if created is not None:
+            print(f"cua approval-token: created a signing key at {created}", file=sys.stderr)
+        token = tokens.mint(
+            cap,
+            tenant,
+            inputs,
+            approved_by=args.by,
+            key=tokens.signing_key(tenant),
+            ttl_s=args.ttl_s,
+        )
+    except (ArtifactError, SecretError, tokens.TokenRefused, OSError, ValueError) as exc:
+        print(f"cua approval-token: {exc}", file=sys.stderr)
+        return 1
+    print(
+        f"cua approval-token: consent by {args.by.strip()} for {cap.name} v{cap.version} on "
+        f"tenant {tenant.id}, these inputs only, one commit, {args.ttl_s} s",
+        file=sys.stderr,
+    )
+    print(token)
     return 0
 
 

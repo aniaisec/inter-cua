@@ -157,7 +157,7 @@ a cancelled irreversible step look like a successful one.
 mockapp/        the automation target
 src/cua/surface/  protocol | a11y | locators | conditions | playwright_surface
 src/cua/        agent | artifact | replay | policy | secrets | escalation | evidence
-policies/       allowlist and risk rules (M5)
+policies/       allowlist, risk rules, masks and scrub patterns
 tenants/        per-deployment binding: base_url, secret refs, overlay
 capabilities/   saved artifacts, git-tracked
 evidence/       discovery, replay and escalation runs (M7)
@@ -228,7 +228,7 @@ process (a test imports all of `cua.replay` in a clean interpreter and checks).
 ```bash
 cua replay capabilities/member_savings_balance.json --input member_id=10003
 cua replay capabilities/member_savings_balance.json --input member_id=10003 --inject not_found
-cua replay capabilities/open_subaccount.json --input member_id=10003   --input initial_deposit=250.00 --approval-token demo --inject slow_confirm
+cua replay capabilities/open_subaccount.json --input member_id=10003 --input initial_deposit=250.00 --inject slow_confirm --approval-token "$(cua approval-token capabilities/open_subaccount.json --input member_id=10003 --input initial_deposit=250.00 --by anil)"
 ```
 
 It prints one JSON `ReplayResult` and exits 0 `success`, 2 `business_outcome`,
@@ -236,7 +236,7 @@ It prints one JSON `ReplayResult` and exits 0 `success`, 2 `business_outcome`,
 (`POLICY_BLOCKED`), checks the inputs (`INPUT_INVALID`), and answers a repeated
 `--idempotency-key` from its cache. Then, per step: find the control (exactly
 one node, on a rung it trusts — a control found only by pixels is not clicked
-unattended), check the policy (a risky step needs `--approval-token`), act,
+unattended), check the policy (a risky step needs a signed `--approval-token`), act,
 and wait by condition until an in-scope detector fires (hard, then business,
 then recoverable) or the step's expectation and checkpoint hold.
 
@@ -247,6 +247,36 @@ picks the newest checkpoint that holds. An irreversible step is never repeated;
 if it does not land, its marker decides between `side_effect: committed` and
 `unknown`. A failed run keeps a Playwright `trace.zip`, scrubbed of secrets,
 next to its log and masked screenshots under `evidence/runs/<run_id>/`.
+
+## Safety
+
+One policy file (`policies/default.yaml`) is checked before every action, by
+the discovery loop and by replay alike (`cua.policy.allowlist.check`):
+
+- **Allowlist.** Allowed origins and URL paths, allowed actions, and
+  `blocked_actions`: a link that leaves the allowed origins
+  (`external_navigation`) or fetches a file (`download`) is refused from its
+  destination before it is clicked, and the browser context refuses downloads
+  as well. A blocked action is never performed; the agent is told why and goes
+  on.
+- **Risk.** `risky_rules` (button name, and where it sits) mark a control that
+  commits something. It needs approval: a signed token for this invocation, or
+  a human (the handoff lands in M6). A block is never lifted by an approval.
+- **Approval tokens.** `cua approval-token` signs consent for exactly one
+  capability version and content, one tenant, one set of inputs, for a limited
+  time (HMAC with the tenant's `secret://<tenant>/cua/approval-signing-key`;
+  locally a gitignored key file created on first use). The runner verifies it
+  before a browser starts: anything else, including a token for other inputs,
+  is `POLICY_BLOCKED` with nothing touched. One token is one commit: once a
+  run has reached the risky step, the token is spent.
+- **Redaction.** Credentials are `secret://` references resolved from an
+  environment variable or a file into memory only. Every resolved value and
+  every sensitive input becomes `***` in what the model sees and in every log
+  line, tree and result; a field labelled like a secret is masked whatever it
+  holds; screenshot masks are painted in when the picture is taken; and text
+  shaped like an SSN or a 9-16 digit account or card number (`scrub_patterns`)
+  is masked everywhere, including a kept trace. The run log applies the same
+  scrub to every line it writes, as a net under the rest.
 
 ## License
 

@@ -164,10 +164,10 @@ class DiscoveryLoop:
         self.log = log
         self.config = config or DiscoveryConfig()
         self.entry_url = entry_url or tenant.url(goal.entry)
-        self.redactor = Redactor(
-            (v for c in credentials.values() for v in c.values()),
-            sensitive_labels=policy.sensitive_labels,
+        self.redactor = Redactor.for_policy(
+            policy, (v for c in credentials.values() for v in c.values())
         )
+        log.scrub_with(self.redactor.text)
         self.watch = Stopwatch(self.config.limits)
         self.system = prompts.system_prompt(
             goal, tenant, policy, {name: c.field_names for name, c in credentials.items()}

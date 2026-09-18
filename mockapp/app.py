@@ -302,6 +302,21 @@ async def member_detail(request: Request, member_id: str) -> Response:
     )
 
 
+@app.get("/member/{member_id}/statement.csv")
+async def member_statement(request: Request, member_id: str) -> Response:
+    """A file download, the kind of thing automation must never fetch."""
+    session = _session(request)
+    member = find_member(member_id)
+    if not session["authed"] or member is None:
+        return _login_redirect()
+    body = f"account,balance\nSavings,{member.savings}\nChecking,{member.checking}\n"
+    return Response(
+        body,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="statement-{member_id}.csv"'},
+    )
+
+
 def _render_error(request: Request) -> HTMLResponse:
     return TEMPLATES.TemplateResponse(
         request=request, name="error500.html", context={}, status_code=500

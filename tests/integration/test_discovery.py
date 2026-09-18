@@ -18,10 +18,11 @@ from playwright.sync_api import Page
 from cua.agent.goal import Goal, OutputSpec, ParamSpec
 from cua.agent.llm import ScriptedClient
 from cua.agent.loop import DiscoveryLoop, DiscoveryOutcome
-from cua.agent.script import load_script
+from cua.agent.script import Script, ScriptStep, load_script
 from cua.evidence.logger import RunLog
 from cua.policy.allowlist import load_policy
 from cua.secrets.resolver import resolve
+from cua.surface.locators import RoleName, Within
 from cua.surface.playwright_surface import PlaywrightSurface
 from cua.tenant import SecretBinding, Tenant
 from mockapp.data import MEMBERS
@@ -33,7 +34,14 @@ REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "scripts" / "discovery" / "member_savings_balance.yaml"
 
 
-def discover(page: Page, mockapp_url: str, run_dir: Path, *, inject: str | None = None):
+def discover(
+    page: Page,
+    mockapp_url: str,
+    run_dir: Path,
+    *,
+    inject: str | None = None,
+    script: Script | None = None,
+):
     tenant = Tenant(
         id="local",
         app_family="legacy-core",
@@ -62,7 +70,7 @@ def discover(page: Page, mockapp_url: str, run_dir: Path, *, inject: str | None 
     log = RunLog(run_dir)
     outcome = DiscoveryLoop(
         surface=PlaywrightSurface(page),
-        llm=ScriptedClient(load_script(SCRIPT)),
+        llm=ScriptedClient(script or load_script(SCRIPT)),
         goal=goal,
         tenant=tenant,
         policy=load_policy(REPO / "policies" / "default.yaml", tenant),
@@ -89,6 +97,40 @@ def test_the_bundled_script_discovers_goal_one_on_the_live_app(
     assert outcome.steps == 6
     assert (log.dir / "script.yaml").exists()
     assert len(list((log.dir / "screenshots").glob("*.png"))) == 6
+
+
+def test_row21_leaving_the_app_or_downloading_is_blocked_and_the_run_goes_on(
+    page: Page, mockapp_url: str, tmp_path: Path
+) -> None:
+    """The agent tries the vendor's support site from the nav, and the
+    statement download on the detail screen. Both are refused from the link's
+    destination before anything is clicked; the agent is told why and still
+    reaches the goal."""
+    fetched: list[str] = []
+    page.on("request", lambda r: fetched.append(r.url))
+    bundled = load_script(SCRIPT).steps
+    detours = [
+        ScriptStep(
+            tool="click",
+            target=[RoleName(role="link", name="Vendor Support", within=Within(frame="nav"))],
+            reason="Check the vendor knowledge base.",
+        ),
+        ScriptStep(
+            tool="click",
+            target=[RoleName(role="link", name="Download Statement", within=Within(frame="main"))],
+            reason="Get the statement file.",
+        ),
+    ]
+    script = Script(steps=[*bundled[:5], *detours, bundled[5]])
+    outcome, log = discover(page, mockapp_url, tmp_path / "run", script=script)
+
+    assert_found_the_seeded_balance(outcome)
+    events = [json.loads(line) for line in (log.dir / "log.jsonl").read_text().splitlines()]
+    blocks = [e["reason"] for e in events if e["event"] == "policy.block"]
+    assert len(blocks) == 2, blocks
+    assert "external navigation is blocked" in blocks[0]
+    assert "downloads are blocked" in blocks[1]
+    assert not [u for u in fetched if "mockcore.example" in u or "statement" in u]
 
 
 def test_the_live_password_field_never_reaches_the_run_directory(

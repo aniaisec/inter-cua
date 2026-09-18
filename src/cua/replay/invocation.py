@@ -43,16 +43,19 @@ class Budget(BaseModel):
 
 
 class ApprovalGrant(BaseModel):
-    """Consent the caller already holds for the capability's risky steps.
+    """Consent the caller says it holds for the capability's risky steps.
 
-    Satisfies ``approval: required`` and the policy's risky rules for this
-    invocation only. The token is logged by hash, never in the clear.
+    Nothing here is trusted as it stands: the runner verifies the token
+    (``cua.policy.tokens``) before a browser starts, and only the consent it
+    proves satisfies ``approval: required`` and the policy's risky rules, for
+    this invocation only. The token is logged by hash, never in the clear.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     token: str = Field(min_length=1)
-    approved_by: str = "caller"
+    approved_by: str | None = None
+    """If given, must be who the token names."""
 
     @property
     def token_sha256(self) -> str:
