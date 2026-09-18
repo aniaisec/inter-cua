@@ -435,7 +435,12 @@ class ConditionTimeout(SurfaceError):
     """
 
     def __init__(self, condition: Condition, timeout_s: float, observation: Observation) -> None:
-        super().__init__(f"condition still false after {timeout_s}s: {condition!r}")
+        from cua.surface.conditions import describe  # conditions builds on this module
+
+        where = ", ".join(f"{f.name or 'top'}={f.url}" for f in observation.frames)
+        super().__init__(
+            f"still false after {timeout_s}s: {describe(condition)}; last seen at {where}"
+        )
         self.condition = condition
         self.timeout_s = timeout_s
         self.observation = observation

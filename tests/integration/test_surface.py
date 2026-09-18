@@ -9,6 +9,8 @@ test that cheated would not be testing the thing that ships.
 
 from __future__ import annotations
 
+import time
+
 import pytest
 from playwright.sync_api import Browser, Page
 
@@ -476,3 +478,47 @@ def test_an_in_page_modal_is_seen_blocks_the_screen_and_can_be_dismissed(
     click(surface, [RoleName(role="button", name="OK")])
     click(surface, OPEN_SUBACCOUNT)
     surface.wait_for(RegionPresent(name="Open Sub-account"), 10.0)
+
+
+def test_every_look_during_a_slow_navigation_is_consistent_and_quick(
+    surface: PlaywrightSurface, mockapp_url: str
+) -> None:
+    """Regression: a read that straddles a navigation must not come back torn.
+
+    The member detail page takes four seconds (``slow_load``), and the frame
+    is observed in a tight loop across the moment it commits. Each look must
+    describe one document — the search screen with all its boxes, or the
+    detail screen — and none may stall. Before the fix, one look took the
+    search tree, lost its geometry to the new document, and waited on every
+    missing box in turn, outliving the whole ``wait_for``.
+    """
+    sign_on(surface, mockapp_url, inject=Inject.SLOW_LOAD)
+    fill(surface, MEMBER_ID, "10003")
+    click(surface, SEARCH_SUBMIT)
+
+    looks = 0
+    deadline = time.monotonic() + 12.0
+    while time.monotonic() < deadline:
+        started = time.monotonic()
+        observation = surface.observe()
+        took = time.monotonic() - started
+        looks += 1
+
+        assert took < 3.0, f"one observation took {took:.1f}s"
+        main = [n for n in observation.nodes if n.frame == "main"]
+        url = next(f.url for f in observation.frames if f.name == "main")
+        if "/member/" in url:
+            assert any(n.role == "heading" and n.name == "Balances" for n in main), url
+            break
+        controls = [n for n in main if n.interactive]
+        assert all(n.bbox is not None for n in controls), "a torn read lost its geometry"
+    else:
+        pytest.fail("the member detail screen never arrived")
+
+    assert looks > 3, "the loop should have straddled the navigation"
+
+
+def test_a_timeout_says_what_it_saw(surface: PlaywrightSurface, mockapp_url: str) -> None:
+    sign_on(surface, mockapp_url)
+    with pytest.raises(ConditionTimeout, match=r"region 'Balances' present.*main=.*/search"):
+        surface.wait_for(RegionPresent(name="Balances"), 0.5)

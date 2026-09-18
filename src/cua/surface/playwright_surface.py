@@ -84,6 +84,11 @@ from cua.surface.protocol import (
 
 DEFAULT_VIEWPORT = Viewport(w=1280, h=800)
 SNAPSHOT_TIMEOUT_MS = 5_000
+MEASURE_TIMEOUT_MS = 1_000
+"""Per-node cap on measuring a box. An element that exists measures at once;
+this only bounds the wait on one that vanished mid-read."""
+READ_ATTEMPTS = 3
+"""How many times a frame is re-read when it navigates while being read."""
 ACTION_TIMEOUT_MS = 10_000
 FRAME_SETTLE_S = 5.0
 POLL_INTERVAL_S = 0.15
@@ -123,9 +128,11 @@ class PlaywrightSurface:
         self._observation: Observation | None = None
         self._next_ref = 1
         self._statuses: dict[str, int] = {}
+        self._navigations: dict[Frame, int] = {}
         self._expected_dialog: ExpectDialog | None = None
         self._dialogs: list[DialogEvent] = []
         page.on("response", self._record_status)
+        page.on("framenavigated", self._count_navigation)
         # Registering a handler is what stops Playwright dismissing dialogs on
         # its own; from here on every dialog passes through _answer_dialog.
         page.on("dialog", self._answer_dialog)
@@ -213,13 +220,12 @@ class PlaywrightSurface:
         nodes: list[Node] = []
         frames: list[FrameInfo] = []
         for frame in self._page.frames:
-            info = FrameInfo(
-                name=frame.name,
-                url=frame.url,
-                status=self._statuses.get(frame.url),
-            )
-            frames.append(info)
             nodes.extend(self._nodes_of(frame, start_index=self._next_ref + len(nodes)))
+            # Read after the frame, so the URL describes the document the
+            # nodes came from rather than the one that was there before.
+            frames.append(
+                FrameInfo(name=frame.name, url=frame.url, status=self._statuses.get(frame.url))
+            )
         self._next_ref += len(nodes)
 
         observation = Observation(
@@ -242,31 +248,58 @@ class PlaywrightSurface:
         return observation
 
     def _nodes_of(self, frame: Frame, *, start_index: int) -> list[Node]:
-        """Snapshot one frame, or nothing if it has no body to snapshot.
+        """Read one frame consistently, or report nothing for it.
+
+        A read is a snapshot followed by one measurement per node, and those
+        are separate round trips. If the frame navigates in between, the result
+        is torn: the old document's tree with the new document's (missing)
+        geometry. That is worse than no reading at all, because every condition
+        evaluated against it answers about a screen that is already gone. So a
+        frame that navigated while being read is read again, and one that is
+        still moving after ``READ_ATTEMPTS`` contributes nothing this time —
+        the caller is almost always ``wait_for``, which simply looks again.
 
         The frameset document itself has no body, and a frame can detach while
-        being read — neither is an error, both mean "this frame contributes no
-        nodes to this observation".
+        being read; neither is an error.
         """
-        try:
-            if frame.is_detached() or frame.locator("body").count() == 0:
-                return []
-            snapshot = frame.locator("body").aria_snapshot(timeout=SNAPSHOT_TIMEOUT_MS)
-        except PlaywrightError:
-            return []
-
-        nodes = a11y.flatten(
-            a11y.parse_snapshot(snapshot), frame=frame.name, start_index=start_index
-        )
-        return a11y.with_geometry(nodes, self._measure(frame, nodes), self._config)
+        for _ in range(READ_ATTEMPTS):
+            before = self._navigations.get(frame, 0)
+            try:
+                if frame.is_detached() or frame.locator("body").count() == 0:
+                    return []
+                snapshot = frame.locator("body").aria_snapshot(timeout=SNAPSHOT_TIMEOUT_MS)
+                nodes = a11y.flatten(
+                    a11y.parse_snapshot(snapshot), frame=frame.name, start_index=start_index
+                )
+                boxes = self._measure(frame, nodes)
+            except PlaywrightError:
+                continue
+            if self._navigations.get(frame, 0) == before:
+                return a11y.with_geometry(nodes, boxes, self._config)
+        return []
 
     def _measure(self, frame: Frame, nodes: list[Node]) -> dict[str, Rect | None]:
+        """Measure every node that needs a box.
+
+        Elements are counted per role first, in one immediate call each. A node
+        whose element is not there any more gets no box straight away, instead
+        of a per-node wait for an element that is never coming back — ten such
+        waits once stretched one observation past a whole ``wait_for``.
+        """
+        present: dict[str, int] = {}
         boxes: dict[str, Rect | None] = {}
         for node in nodes:
             if node.role not in GEOMETRY_ROLES:
                 continue
+            key = f"text:{node.name}" if node.role == "text" else node.role
+            if key not in present:
+                present[key] = _count(_query_for(frame, node))
+            if _index_in(node, nodes) >= present[key]:
+                boxes[node.ref] = None
+                continue
             try:
-                box = self._locator_for(frame, node).bounding_box(timeout=SNAPSHOT_TIMEOUT_MS)
+                locator = self._locator_for(frame, node, nodes)
+                box = locator.bounding_box(timeout=MEASURE_TIMEOUT_MS)
             except PlaywrightError:
                 box = None
             boxes[node.ref] = (
@@ -295,7 +328,11 @@ class PlaywrightSurface:
         for ladder in masks:
             outcome = loc.resolve_ladder(ladder, observation)
             if isinstance(outcome, loc.Resolved):
-                targets.append(self._locator_for(self._frame(outcome.node.frame), outcome.node))
+                targets.append(
+                    self._locator_for(
+                        self._frame(outcome.node.frame), outcome.node, observation.nodes
+                    )
+                )
         return self._page.screenshot(mask=targets, mask_color=MASK_COLOR)
 
     # -- locating ----------------------------------------------------------
@@ -318,7 +355,7 @@ class PlaywrightSurface:
             raise PerceptionDrift(f"frame {name!r} is gone")
         return frame
 
-    def _locator_for(self, frame: Frame, node: Node) -> Locator:
+    def _locator_for(self, frame: Frame, node: Node, nodes: Sequence[Node]) -> Locator:
         """Turn a ref back into something clickable, through the a11y tree.
 
         ``ordinal`` is the node's index among the nodes of its role in its
@@ -326,14 +363,13 @@ class PlaywrightSurface:
         snapshot does, so the two agree. Bare text has no ARIA role of its own,
         so it is addressed by its content instead.
         """
-        if node.role == "text":
-            return frame.get_by_text(node.name, exact=True).nth(node.ordinal)
-        return frame.get_by_role(node.role, include_hidden=False).nth(node.ordinal)  # type: ignore[arg-type]
+        return _query_for(frame, node).nth(_index_in(node, nodes))
 
     def _element_for(self, node: Node) -> Locator:
         """Resolve a ref to an element and prove it is still that node."""
         frame = self._frame(node.frame)
-        locator = self._locator_for(frame, node)
+        assert self._observation is not None
+        locator = self._locator_for(frame, node, self._observation.nodes)
         try:
             actual = locator.aria_snapshot(timeout=ACTION_TIMEOUT_MS)
         except PlaywrightError as exc:
@@ -557,8 +593,13 @@ class PlaywrightSurface:
         return Viewport(w=size["width"], h=size["height"]) if size else self._viewport
 
     def _record_status(self, response: PlaywrightResponse) -> None:
-        if response.request.is_navigation_request():
+        # A redirect is not the status of any document: a POST answered 303
+        # would otherwise overwrite the 200 of the page at the same URL.
+        if response.request.is_navigation_request() and not 300 <= response.status < 400:
             self._statuses[response.url] = response.status
+
+    def _count_navigation(self, frame: Frame) -> None:
+        self._navigations[frame] = self._navigations.get(frame, 0) + 1
 
 
 def _implements_the_protocol(surface: PlaywrightSurface) -> Surface:
@@ -579,6 +620,40 @@ def _dialog_kind(kind: str) -> DialogKind:
     if kind == "beforeunload":
         return "beforeunload"
     return "alert"
+
+
+def _index_in(node: Node, nodes: Sequence[Node]) -> int:
+    """Position of a node among those its locator enumerates.
+
+    Role queries enumerate a whole role, which ``ordinal`` already counts. Bare
+    text is found by its content, so it counts only same-frame text nodes with
+    the same words.
+    """
+    if node.role != "text":
+        return node.ordinal
+    same = [
+        n.ref for n in nodes if n.frame == node.frame and n.role == "text" and n.name == node.name
+    ]
+    return same.index(node.ref) if node.ref in same else 0
+
+
+def _query_for(frame: Frame, node: Node) -> Locator:
+    """Every element of this node's kind in its frame, in document order.
+
+    A role query for nodes with a role; the text itself for bare text, which
+    has no ARIA role to be asked for by.
+    """
+    if node.role == "text":
+        return frame.get_by_text(node.name, exact=True)
+    return frame.get_by_role(node.role)  # type: ignore[arg-type]
+
+
+def _count(query: Locator) -> int:
+    """How many elements a query finds right now. Never waits."""
+    try:
+        return query.count()
+    except PlaywrightError:
+        return 0
 
 
 def _viewport_of(page: Page) -> Viewport:

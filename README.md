@@ -22,7 +22,7 @@ cp .env.example .env               # only `cua discover` needs an API key
 
 ```bash
 make mockapp        # serves the mock legacy credit-union core on :8000
-make test           # ruff + mypy --strict + pytest (129 tests, no API key needed)
+make test           # ruff + mypy --strict + pytest (131 tests, no API key needed)
 python -m pytest -m "not browser"   # skip the tests that need Chromium
 
 # What the automation sees, for a human. Needs `make mockapp` running.
