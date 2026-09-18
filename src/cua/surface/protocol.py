@@ -116,11 +116,27 @@ class Viewport(BaseModel):
 
 
 class SurfaceConfig(BaseModel):
+    """The geometry a surface uses to decide what belongs to what.
+
+    Tunable per deployment because a tenant whose app renders with larger
+    fonts or wider cells puts its labels further from its fields. The defaults
+    are measured against the reference app.
+    """
+
     model_config = ConfigDict(frozen=True)
 
     near_text_max_px: float = 320.0
+    """How far a label may sit from a control and still be read as its label.
+    Wide enough for a cell pair on a legacy form, narrow enough that the next
+    column's heading is not adopted."""
     near_text_tolerance_px: float = 6.0
+    """Slack when deciding whether two boxes share a row or a column."""
     validation_proximity_px: float = 200.0
+    """How close a message must sit to a control to read as being about that
+    control rather than about the screen."""
+
+
+DEFAULT_CONFIG = SurfaceConfig()
 
 
 class RecordingEnv(BaseModel):
@@ -215,6 +231,10 @@ class Observation(BaseModel):
     screenshot_png: bytes | None = Field(default=None, exclude=True, repr=False)
     """Masked PNG, excluded from serialization: evidence stores it as a file
     beside the JSONL record, never inline."""
+    dialogs: list[DialogEvent] = Field(default_factory=list)
+    """Native dialogs raised since the previous observation. They never enter
+    the accessibility tree or a screenshot, so this is the only place
+    perception can report them."""
 
     def node(self, ref: str) -> Node:
         found = self.find(ref)
@@ -311,23 +331,56 @@ class Navigate(BaseModel):
     url: str
 
 
-class Hover(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    action: Literal["hover"] = "hover"
-    ref: str
-
-
-class Drag(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    action: Literal["drag"] = "drag"
-    source_ref: str
-    target_ref: str
-
-
 Action = Annotated[
-    Click | TypeText | Press | SelectOption | ReadText | Navigate | Hover | Drag,
+    Click | TypeText | Press | SelectOption | ReadText | Navigate,
     Field(discriminator="action"),
 ]
+
+
+# --------------------------------------------------------------------------
+# Dialogs
+# --------------------------------------------------------------------------
+
+DialogKind = Literal["alert", "confirm", "prompt", "beforeunload"]
+
+
+class ExpectDialog(BaseModel):
+    """A dialog the capability knows about, and the answer it has decided on.
+
+    Declared before the action that raises it. A native dialog cannot be left
+    open for someone to decide about later — it blocks every instruction to the
+    browser, including the screenshot an intervention request needs — so the
+    decision has to exist before the dialog does.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    accept: bool
+    message_contains: str | None = None
+    """Only answer a dialog whose text says this. A different dialog is not the
+    one the capability decided about, and gets the conservative answer."""
+    prompt_text: str | None = None
+
+
+class DialogEvent(BaseModel):
+    """A dialog that was raised, and what the surface answered.
+
+    Undeclared dialogs are *dismissed*: for a confirm that is "Cancel", which
+    commits nothing, and for an alert it is the only answer there is. The
+    answer is recorded because a dismissed confirm on an irreversible step
+    means the step did not happen, and the run has to say so rather than look
+    like a success.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: DialogKind
+    message: str
+    answer: Literal["accepted", "dismissed"]
+    expected: bool
+    """Was this dialog declared by the capability? An unexpected one is the
+    signal replay escalates on."""
+    location: str = ""
 
 
 class ActionResult(BaseModel):
@@ -338,6 +391,13 @@ class ActionResult(BaseModel):
     text: str | None = None
     """What ``read`` returned."""
     duration_ms: int = 0
+    dialogs: list[DialogEvent] = Field(default_factory=list)
+    """Dialogs this action raised. Reported on the action as well as on the
+    next observation, because "the click worked" and "the click opened a
+    confirm that was dismissed" must not look the same to the caller."""
+
+
+Observation.model_rebuild()  # it refers forward to DialogEvent
 
 
 # --------------------------------------------------------------------------
@@ -421,6 +481,12 @@ class Surface(Protocol):
 
     def expose(self) -> SessionHandle:
         """Publish the live session so a human can be handed the controls."""
+        ...
+
+    def expect_dialog(self, expectation: ExpectDialog) -> None:
+        """Declare the answer to the next dialog, before the action raising it.
+
+        Any dialog not declared this way is dismissed and reported."""
         ...
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 from cua.surface.conditions import (
     AllOf,
     AnyOf,
+    DialogRaised,
     ErrorBannerPresent,
     LocationMatches,
     OutputExtracted,
@@ -22,10 +23,11 @@ from cua.surface.conditions import (
 )
 from cua.surface.evaluators import WebEvaluator
 from cua.surface.locators import Within
+from cua.surface.protocol import DialogEvent
+from tests.unit import screens
 
 evaluate = WebEvaluator().evaluate
 validation_message = WebEvaluator().validation_message
-from tests.unit import screens
 
 SHELL = "http://127.0.0.1:8000/"
 SIGNED_IN_URLS = {"nav": "http://127.0.0.1:8000/nav", "main": "http://127.0.0.1:8000/search"}
@@ -237,3 +239,41 @@ def test_conditions_can_say_what_they_were_waiting_for() -> None:
     """A failure report is only debuggable if it names the expectation."""
     condition = AllOf(all_of=[LocationMatches(pattern="/member/"), RegionPresent(name="Balances")])
     assert describe(condition) == "location matches '/member/' and region 'Balances' present"
+
+
+# -- native dialogs --------------------------------------------------------
+
+
+def with_dialog(observation, *, expected: bool, answer: str = "dismissed"):
+    event = DialogEvent(
+        kind="confirm",
+        message="Post this sub-account application now?",
+        answer=answer,
+        expected=expected,
+    )
+    return observation.model_copy(update={"dialogs": [event]})
+
+
+def test_a_native_dialog_is_invisible_to_the_tree_but_not_to_the_observation() -> None:
+    """The confirm never enters the accessibility tree; the observation still says so."""
+    quiet = signed_in()
+    raised = with_dialog(quiet, expected=False)
+    assert not evaluate(DialogRaised(), quiet)
+    assert evaluate(DialogRaised(), raised)
+    assert evaluate(DialogRaised(text="sub-account application"), raised)
+    assert not evaluate(DialogRaised(text="wire transfer"), raised)
+
+
+def test_an_unexpected_dialog_is_distinguishable_from_a_declared_one() -> None:
+    """Replay escalates on the first and carries on through the second."""
+    unexpected = with_dialog(signed_in(), expected=False)
+    declared = with_dialog(signed_in(), expected=True, answer="accepted")
+    assert evaluate(DialogRaised(expected=False), unexpected)
+    assert not evaluate(DialogRaised(expected=False), declared)
+    assert evaluate(DialogRaised(expected=True), declared)
+
+
+def test_a_dialog_condition_says_what_it_was_waiting_for() -> None:
+    assert describe(DialogRaised(expected=False, text="Post")) == (
+        "unexpected dialog raised saying 'Post'"
+    )

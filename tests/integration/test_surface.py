@@ -12,12 +12,16 @@ from __future__ import annotations
 import pytest
 from playwright.sync_api import Browser, Page
 
-from cua.surface.conditions import RegionPresent, TextPresent, ValueSet
+from cua.surface import playwright_surface
+from cua.surface.conditions import DialogRaised, RegionPresent, TextPresent, ValueSet
+from cua.surface.evaluators import WebEvaluator
 from cua.surface.locators import BBox, NearText, Resolved, RoleName, TableCell, Unresolved, Within
 from cua.surface.playwright_surface import PlaywrightSurface
 from cua.surface.protocol import (
+    ActionFailed,
     Click,
     ConditionTimeout,
+    ExpectDialog,
     Navigate,
     PerceptionDrift,
     ReadText,
@@ -27,6 +31,7 @@ from cua.surface.protocol import (
     TypeText,
     Viewport,
 )
+from mockapp import injects
 from mockapp.data import MEMBERS, format_currency
 from mockapp.injects import Inject
 
@@ -358,3 +363,116 @@ def test_a_session_with_no_debugging_endpoint_says_so(
 ) -> None:
     with pytest.raises(SurfaceError):
         surface.expose()
+
+
+# -- dialogs ---------------------------------------------------------------
+
+OPEN_SUBACCOUNT = [RoleName(role="link", name="Open Sub-account")]
+INITIAL_DEPOSIT = [NearText(text="Initial Deposit", role="textbox")]
+CONTINUE = [RoleName(role="button", name="Continue")]
+CONFIRM = [RoleName(role="button", name="Confirm")]
+
+
+def reach_review(surface: PlaywrightSurface, base_url: str, *, inject: Inject) -> None:
+    sign_on(surface, base_url, inject=inject)
+    open_member(surface, "10003")
+    click(surface, OPEN_SUBACCOUNT)
+    surface.wait_for(RegionPresent(name="Open Sub-account"), 10.0)
+    fill(surface, INITIAL_DEPOSIT, "25.00")
+    click(surface, CONTINUE)
+    surface.wait_for(RegionPresent(name="Review Sub-account"), 10.0)
+
+
+def test_an_undeclared_confirm_is_dismissed_and_reported_not_silently_swallowed(
+    surface: PlaywrightSurface, mockapp_url: str
+) -> None:
+    """``native_confirm``: a dialog the capability never saw, on the irreversible step.
+
+    It is outside the tree and the screenshot, and it blocks the browser while
+    open, so the surface answers at once — conservatively — and says so. The
+    point is the last assertion: nothing was committed, and the result does
+    not pretend otherwise.
+    """
+    reach_review(surface, mockapp_url, inject=Inject.NATIVE_CONFIRM)
+
+    result = surface.act(Click(ref=_resolved(surface, CONFIRM).ref))
+
+    assert [(d.kind, d.answer, d.expected) for d in result.dialogs] == [
+        ("confirm", "dismissed", False)
+    ]
+    assert "sub-account application" in result.dialogs[0].message
+
+    after = surface.observe()
+    assert WebEvaluator().evaluate(DialogRaised(expected=False), after)
+    assert surface.evaluate(RegionPresent(name="Review Sub-account"))
+    assert not surface.evaluate(TextPresent(text="Reference number"))
+
+
+def test_a_declared_confirm_is_answered_as_the_capability_decided(
+    surface: PlaywrightSurface, mockapp_url: str
+) -> None:
+    reach_review(surface, mockapp_url, inject=Inject.NATIVE_CONFIRM)
+
+    surface.expect_dialog(ExpectDialog(accept=True, message_contains="sub-account application"))
+    result = surface.act(Click(ref=_resolved(surface, CONFIRM).ref))
+
+    assert [(d.answer, d.expected) for d in result.dialogs] == [("accepted", True)]
+    surface.wait_for(TextPresent(text="Reference number"), 10.0)
+
+
+def test_a_declaration_for_a_different_dialog_does_not_answer_this_one(
+    surface: PlaywrightSurface, mockapp_url: str
+) -> None:
+    """An "accept" decided for one question is not an answer to another."""
+    reach_review(surface, mockapp_url, inject=Inject.NATIVE_CONFIRM)
+
+    surface.expect_dialog(ExpectDialog(accept=True, message_contains="wire transfer"))
+    result = surface.act(Click(ref=_resolved(surface, CONFIRM).ref))
+
+    assert [(d.answer, d.expected) for d in result.dialogs] == [("dismissed", False)]
+    assert not surface.evaluate(TextPresent(text="Reference number"))
+
+
+def test_a_declaration_does_not_outlive_its_action(
+    surface: PlaywrightSurface, mockapp_url: str
+) -> None:
+    """Declared for a step that raised nothing, it must not answer a later one."""
+    reach_review(surface, mockapp_url, inject=Inject.NATIVE_CONFIRM)
+
+    surface.expect_dialog(ExpectDialog(accept=True))
+    surface.act(ReadText(ref=_resolved(surface, CONFIRM).ref))  # raises no dialog
+
+    result = surface.act(Click(ref=_resolved(surface, CONFIRM).ref))
+    assert [(d.answer, d.expected) for d in result.dialogs] == [("dismissed", False)]
+
+
+def test_an_ordinary_click_reports_no_dialogs(surface: PlaywrightSurface, mockapp_url: str) -> None:
+    sign_on(surface, mockapp_url)
+    fill(surface, MEMBER_ID, "10003")
+    result = surface.act(Click(ref=_resolved(surface, SEARCH_SUBMIT).ref))
+    assert result.dialogs == []
+
+
+def test_an_in_page_modal_is_seen_blocks_the_screen_and_can_be_dismissed(
+    surface: PlaywrightSurface, mockapp_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``modal_dialog``: an overlay made of ordinary markup.
+
+    Unlike a native dialog, perception sees it — as more page content, with
+    no role to say it is modal. What makes it a dialog is that it covers the
+    screen: a control resolved underneath it cannot be clicked, and that
+    surfaces as a fault rather than a click that silently went nowhere.
+    """
+    monkeypatch.setattr(playwright_surface, "ACTION_TIMEOUT_MS", 1_500)
+    sign_on(surface, mockapp_url, inject=Inject.MODAL_DIALOG)
+    open_member(surface, "10003")
+
+    assert surface.evaluate(TextPresent(text=injects.MODAL_TEXT))
+    assert not surface.observe().dialogs, "an overlay is not a native dialog"
+
+    with pytest.raises(ActionFailed):
+        click(surface, OPEN_SUBACCOUNT)
+
+    click(surface, [RoleName(role="button", name="OK")])
+    click(surface, OPEN_SUBACCOUNT)
+    surface.wait_for(RegionPresent(name="Open Sub-account"), 10.0)

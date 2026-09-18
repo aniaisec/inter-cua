@@ -15,6 +15,14 @@ Three things this module is careful about, each earned from the target app:
   ``PerceptionDrift`` fault rather than a click on whatever moved into place.
 * **Redaction.** Masks are applied by the screenshot call itself, so a password
   field is never captured and then cleaned up afterwards.
+* **Dialogs.** A native ``alert``/``confirm`` is outside the accessibility tree
+  and outside the screenshot, and while it is open every further instruction to
+  the browser blocks — measured: the click that raised it and the next snapshot
+  both time out. It cannot be left for someone to decide later, so it is
+  answered the moment it appears: as the capability declared, or else
+  dismissed, which for a confirm commits nothing. Either way it is recorded.
+  Playwright's own default is to dismiss silently, and a silently cancelled
+  irreversible step looks exactly like a successful one.
 """
 
 from __future__ import annotations
@@ -25,7 +33,15 @@ from datetime import UTC, datetime
 from types import TracebackType
 from typing import Self
 
-from playwright.sync_api import Browser, Frame, Locator, Page, Playwright, sync_playwright
+from playwright.sync_api import (
+    Browser,
+    Dialog,
+    Frame,
+    Locator,
+    Page,
+    Playwright,
+    sync_playwright,
+)
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Response as PlaywrightResponse
 
@@ -36,6 +52,7 @@ from cua.surface.evaluators import WebEvaluator
 from cua.surface.protocol import (
     ANCHOR_ROLES,
     CONTROL_ROLES,
+    DEFAULT_CONFIG,
     INTERACTIVE_ROLES,
     TOP_FRAME,
     Action,
@@ -43,9 +60,10 @@ from cua.surface.protocol import (
     ActionResult,
     Click,
     ConditionTimeout,
-    Drag,
+    DialogEvent,
+    DialogKind,
+    ExpectDialog,
     FrameInfo,
-    Hover,
     Navigate,
     Node,
     Observation,
@@ -58,8 +76,8 @@ from cua.surface.protocol import (
     SessionHandle,
     StaleRefError,
     Surface,
-    SurfaceError,
     SurfaceConfig,
+    SurfaceError,
     TypeText,
     Viewport,
 )
@@ -100,11 +118,17 @@ class PlaywrightSurface:
         self._cdp_url = cdp_url
         self._viewport = viewport or _viewport_of(page)
         self._owns = owns
-        self._config = config or SurfaceConfig()
+        self._config = config or DEFAULT_CONFIG
+        self._evaluator = WebEvaluator(self._config)
         self._observation: Observation | None = None
         self._next_ref = 1
         self._statuses: dict[str, int] = {}
+        self._expected_dialog: ExpectDialog | None = None
+        self._dialogs: list[DialogEvent] = []
         page.on("response", self._record_status)
+        # Registering a handler is what stops Playwright dismissing dialogs on
+        # its own; from here on every dialog passes through _answer_dialog.
+        page.on("dialog", self._answer_dialog)
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -205,7 +229,9 @@ class PlaywrightSurface:
             viewport=self._current_viewport(),
             frames=frames,
             nodes=nodes,
+            dialogs=self._dialogs,
         )
+        self._dialogs = []
         if not screenshot:
             self._observation = observation
             return observation
@@ -322,17 +348,39 @@ class PlaywrightSurface:
     # -- acting ------------------------------------------------------------
 
     def act(self, action: Action) -> ActionResult:
+        """Perform one action.
+
+        A dialog answer declared with ``expect_dialog`` covers this action and
+        no other. Left armed, an "accept" meant for one confirm could answer a
+        different one three steps later.
+        """
+        try:
+            return self._act(action)
+        finally:
+            self._expected_dialog = None
+
+    def _act(self, action: Action) -> ActionResult:
         started = _now()
+
+        raised_before = len(self._dialogs)
 
         if isinstance(action, Navigate):
             self._page.goto(action.url)
             self._observation = None
-            return ActionResult(action="navigate", duration_ms=_ms_since(started))
+            return ActionResult(
+                action="navigate",
+                duration_ms=_ms_since(started),
+                dialogs=self._dialogs[raised_before:],
+            )
 
         if isinstance(action, Press) and action.ref is None:
             self._page.keyboard.press(action.key)
             self._observation = None
-            return ActionResult(action="press", duration_ms=_ms_since(started))
+            return ActionResult(
+                action="press",
+                duration_ms=_ms_since(started),
+                dialogs=self._dialogs[raised_before:],
+            )
 
         node = self._node_for(action.ref)
         element = self._element_for(node)
@@ -341,12 +389,6 @@ class PlaywrightSurface:
         try:
             if isinstance(action, Click):
                 element.click(timeout=ACTION_TIMEOUT_MS)
-            elif isinstance(action, Hover):
-                element.hover(timeout=ACTION_TIMEOUT_MS)
-            elif isinstance(action, Drag):
-                target_node = self._node_for(action.target_ref)
-                target_element = self._element_for(target_node)
-                element.drag_to(target_element, timeout=ACTION_TIMEOUT_MS)
             elif isinstance(action, TypeText):
                 if action.clear:
                     element.fill(action.text, timeout=ACTION_TIMEOUT_MS)
@@ -369,7 +411,48 @@ class PlaywrightSurface:
             self._observation = None
 
         return ActionResult(
-            action=action.action, ref=node.ref, text=text, duration_ms=_ms_since(started)
+            action=action.action,
+            ref=node.ref,
+            text=text,
+            duration_ms=_ms_since(started),
+            dialogs=self._dialogs[raised_before:],
+        )
+
+    # -- dialogs -----------------------------------------------------------
+
+    def expect_dialog(self, expectation: ExpectDialog) -> None:
+        self._expected_dialog = expectation
+
+    def _answer_dialog(self, dialog: Dialog) -> None:
+        """Answer a native dialog the moment it opens, and record the answer.
+
+        A declaration answers exactly one dialog, the next one. A dialog whose
+        text does not match is not the one the capability decided about: it
+        gets the conservative answer, is reported as unexpected, and uses up
+        the declaration all the same.
+        """
+        expected = self._expected_dialog
+        matches = expected is not None and (
+            expected.message_contains is None
+            or a11y.normalize(expected.message_contains) in a11y.normalize(dialog.message)
+        )
+        accept = expected is not None and matches and expected.accept
+        try:
+            if accept and expected is not None:
+                dialog.accept(expected.prompt_text or "")
+            else:
+                dialog.dismiss()
+        except PlaywrightError:  # pragma: no cover - page closed under the dialog
+            pass
+        self._expected_dialog = None
+        self._dialogs.append(
+            DialogEvent(
+                kind=_dialog_kind(dialog.type),
+                message=dialog.message,
+                answer="accepted" if accept else "dismissed",
+                expected=matches,
+                location=self._page.url,
+            )
         )
 
     def _read(self, node: Node, element: Locator) -> str:
@@ -405,7 +488,7 @@ class PlaywrightSurface:
         origin = self._observation
         observation = self.observe()
         here = self._carry(target, observation, origin)
-        return WebEvaluator(self._config).evaluate(condition, observation, outputs=outputs, target=here)
+        return self._evaluator.evaluate(condition, observation, outputs=outputs, target=here)
 
     def wait_for(
         self,
@@ -420,7 +503,7 @@ class PlaywrightSurface:
         observation = self.observe()
         while True:
             here = self._carry(target, observation, origin)
-            if WebEvaluator(self._config).evaluate(condition, observation, outputs=outputs, target=here):
+            if self._evaluator.evaluate(condition, observation, outputs=outputs, target=here):
                 return observation
             if _now() >= deadline:
                 raise ConditionTimeout(condition, timeout_s, observation)
@@ -486,6 +569,16 @@ def _implements_the_protocol(surface: PlaywrightSurface) -> Surface:
     rather than fail at the one moment a run needs the method.
     """
     return surface
+
+
+def _dialog_kind(kind: str) -> DialogKind:
+    if kind == "confirm":
+        return "confirm"
+    if kind == "prompt":
+        return "prompt"
+    if kind == "beforeunload":
+        return "beforeunload"
+    return "alert"
 
 
 def _viewport_of(page: Page) -> Viewport:

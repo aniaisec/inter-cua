@@ -42,6 +42,7 @@ from cua.surface.a11y import (
 from cua.surface.protocol import (
     ANCHOR_ROLES,
     CONTAINER_ROLES,
+    DEFAULT_CONFIG,
     Node,
     Observation,
     RecordingEnv,
@@ -96,7 +97,10 @@ class NearText(BaseModel):
     text: str
     role: str | None = None
     direction: Direction | None = None
-    exact: bool = False
+    exact: bool = True
+    """Match the label exactly (after whitespace and case folding). Substring
+    matching is opt-in: a ladder recorded against "Amount" must not start
+    anchoring on "Fee Amount" the day a tenant adds that field."""
     within: Within | None = None
 
 
@@ -113,6 +117,9 @@ class TableCell(BaseModel):
     row_contains: str
     column_header: str
     exact: bool = False
+    """Require a cell of the row to equal ``row_contains`` rather than contain
+    it. Off by default because the rung is defined by containment: "the row
+    that mentions Savings"."""
     within: Within | None = None
 
 
@@ -214,7 +221,7 @@ def resolve_ladder(
     observation: Observation,
     *,
     recording_env: RecordingEnv | None = None,
-    config: SurfaceConfig = SurfaceConfig(),
+    config: SurfaceConfig = DEFAULT_CONFIG,
 ) -> LadderOutcome:
     """Try each rung in order; the first to match exactly one node wins."""
     attempts: list[RungAttempt] = []
@@ -267,7 +274,7 @@ def _refusal(
 def match(
     strategy: RoleName | NearText | TableCell | BBox,
     observation: Observation,
-    config: SurfaceConfig = SurfaceConfig(),
+    config: SurfaceConfig = DEFAULT_CONFIG,
 ) -> list[Node]:
     """Every node one rung matches. The ladder, not the rung, decides what to
     do with a count other than one."""
@@ -299,12 +306,16 @@ def _match_role_name(strategy: RoleName, observation: Observation) -> list[Node]
     return out
 
 
-def _match_near_text(strategy: NearText, observation: Observation, config: SurfaceConfig) -> list[Node]:
+def _match_near_text(
+    strategy: NearText, observation: Observation, config: SurfaceConfig
+) -> list[Node]:
     wanted = normalize(strategy.text)
     anchors = [
         n
         for n in _scope(observation, strategy.within)
-        if n.role in ANCHOR_ROLES and n.bbox is not None and (normalize(n.name) == wanted if strategy.exact else wanted in normalize(n.name))
+        if n.role in ANCHOR_ROLES
+        and n.bbox is not None
+        and _text_matches(n.name, wanted, strategy.exact)
     ]
     if not anchors:
         return []
@@ -319,6 +330,12 @@ def _match_near_text(strategy: NearText, observation: Observation, config: Surfa
         if found:
             return [n for n in observation.nodes if n.ref in found]
     return []
+
+
+def _text_matches(text: str, wanted: str, exact: bool) -> bool:
+    """``wanted`` is already normalized."""
+    found = normalize(text)
+    return found == wanted if exact else wanted in found
 
 
 def _candidates_for(strategy: NearText, observation: Observation, anchor: Node) -> list[Node]:
@@ -344,7 +361,9 @@ def _candidates_for(strategy: NearText, observation: Observation, anchor: Node) 
     return out
 
 
-def _distance(anchor: Node, candidate: Node, direction: Direction, config: SurfaceConfig) -> float | None:
+def _distance(
+    anchor: Node, candidate: Node, direction: Direction, config: SurfaceConfig
+) -> float | None:
     """Gap between a label and a candidate in one direction, or None if the
     candidate is not in that direction, or is too far away to be related."""
     assert anchor.bbox is not None and candidate.bbox is not None
@@ -386,7 +405,7 @@ def _match_table_cell(strategy: TableCell, observation: Observation) -> list[Nod
             cells = _cells_of(observation, row)
             if column >= len(cells):
                 continue
-            if any((normalize(cell.name) == wanted_row if strategy.exact else wanted_row in normalize(cell.name)) for cell in cells):
+            if any(_text_matches(cell.name, wanted_row, strategy.exact) for cell in cells):
                 out.append(cells[column])
     return out
 

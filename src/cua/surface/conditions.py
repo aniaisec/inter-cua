@@ -24,6 +24,7 @@ The vocabulary is the one the capability schema uses:
 ``validation_message_present``  the app rejected the input
 ``value_set``                   a control now holds a value
 ``output_extracted``            the run has captured a declared output
+``dialog_raised``               the target raised a native dialog since the last look
 
 plus ``all_of`` / ``any_of``, which is all the logic a capability needs.
 """
@@ -110,7 +111,7 @@ class ValidationMessagePresent(BaseModel):
     """The app rejected what was entered.
 
     Web: a message sitting next to a control — either an ``alert`` node, or
-    text within ``VALIDATION_PROXIMITY_PX`` of an input, optionally narrowed by
+    text within ``SurfaceConfig.validation_proximity_px`` of an input, optionally narrowed by
     ``text`` and by ``near`` (the label of the field it belongs to). The
     proximity rule is what separates "Initial deposit is required" printed
     above a form from a paragraph of help text elsewhere on the screen.
@@ -146,6 +147,27 @@ class OutputExtracted(BaseModel):
     name: str
 
 
+class DialogRaised(BaseModel):
+    """The target raised a native dialog since the previous observation.
+
+    Web: an ``alert``/``confirm``/``prompt`` the surface intercepted. Desktop: a
+    modal window owned by the application. Asked in the past tense on purpose:
+    a native dialog blocks the whole session while it is open, so by the time
+    anyone can ask, the surface has already answered it — as declared, or by
+    dismissing it. ``expected=False`` narrows to dialogs the capability did not
+    declare, which is the case replay escalates on.
+
+    An in-page overlay is not a native dialog. It is ordinary markup, so it is
+    found the way any screen text is found: ``text_present`` or
+    ``region_present``.
+    """
+
+    model_config = ConfigDict(frozen=True)
+    kind: Literal["dialog_raised"] = "dialog_raised"
+    text: str | None = None
+    expected: bool | None = None
+
+
 class AllOf(BaseModel):
     model_config = ConfigDict(frozen=True)
     kind: Literal["all_of"] = "all_of"
@@ -167,6 +189,7 @@ Condition: TypeAlias = Annotated[
     | ValidationMessagePresent
     | ValueSet
     | OutputExtracted
+    | DialogRaised
     | AllOf
     | AnyOf,
     Field(discriminator="kind"),
@@ -185,6 +208,7 @@ DESKTOP_NOTES: dict[str, str] = {
     "validation_message_present": "a field-level error balloon or status text",
     "value_set": "the control's Value pattern reads back what was entered",
     "output_extracted": "unchanged: a property of the run, not of the surface",
+    "dialog_raised": "a modal window owned by the app, seen via window events",
 }
 """How a desktop adapter would read each condition. Recorded here so the claim
 that the vocabulary is surface-neutral can be checked rather than believed;
@@ -214,4 +238,9 @@ def describe(condition: Condition) -> str:
         return f"output {condition.name!r} extracted"
     if isinstance(condition, ErrorBannerPresent):
         return "error banner present"
+    if isinstance(condition, DialogRaised):
+        qualifier = {None: "", True: "expected ", False: "unexpected "}[condition.expected]
+        return f"{qualifier}dialog raised" + (
+            f" saying {condition.text!r}" if condition.text else ""
+        )
     return "validation message present"

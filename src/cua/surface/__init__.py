@@ -2,14 +2,16 @@
 
 ``protocol`` holds the vocabulary, ``a11y`` turns an accessibility snapshot
 into it, ``locators`` finds a control four increasingly desperate ways,
-``conditions`` says what a step is waiting for, and ``playwright_surface`` is
-the one implementation that touches a browser.
+``conditions`` says what a step is waiting for, ``evaluators`` says what that
+means on the web, and ``playwright_surface`` is the one implementation that
+touches a browser.
 """
 
 from cua.surface.conditions import (
     AllOf,
     AnyOf,
     Condition,
+    DialogRaised,
     ErrorBannerPresent,
     LocationMatches,
     OutputExtracted,
@@ -19,6 +21,7 @@ from cua.surface.conditions import (
     ValueSet,
     Visible,
 )
+from cua.surface.evaluators import WebEvaluator
 from cua.surface.locators import (
     Ambiguous,
     BBox,
@@ -38,6 +41,8 @@ from cua.surface.protocol import (
     ActionResult,
     Click,
     ConditionTimeout,
+    DialogEvent,
+    ExpectDialog,
     FrameInfo,
     Navigate,
     Node,
@@ -51,6 +56,7 @@ from cua.surface.protocol import (
     SessionHandle,
     StaleRefError,
     Surface,
+    SurfaceConfig,
     SurfaceError,
     TypeText,
     Viewport,
@@ -67,7 +73,10 @@ __all__ = [
     "Click",
     "Condition",
     "ConditionTimeout",
+    "DialogEvent",
+    "DialogRaised",
     "ErrorBannerPresent",
+    "ExpectDialog",
     "FrameInfo",
     "Ladder",
     "LadderOutcome",
@@ -89,6 +98,7 @@ __all__ = [
     "SessionHandle",
     "StaleRefError",
     "Surface",
+    "SurfaceConfig",
     "SurfaceError",
     "TableCell",
     "TextPresent",
@@ -98,6 +108,7 @@ __all__ = [
     "ValueSet",
     "Viewport",
     "Visible",
+    "WebEvaluator",
     "Within",
     "resolve_ladder",
 ]

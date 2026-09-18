@@ -209,3 +209,42 @@ def test_a_refused_rung_does_not_stop_the_ladder() -> None:
     assert isinstance(outcome, Resolved)
     assert outcome.rung == "role_name"
     assert outcome.attempts[0].refused is not None
+
+
+# -- label matching is exact unless asked otherwise ------------------------
+
+FEE_FORM = """
+- table:
+  - rowgroup:
+    - row "Amount":
+      - cell "Amount"
+      - cell:
+        - textbox
+    - row "Fee Amount":
+      - cell "Fee Amount"
+      - cell:
+        - textbox
+"""
+
+
+def test_near_text_matches_the_label_exactly_by_default() -> None:
+    """A ladder recorded against "Amount" must not also anchor on "Fee Amount"."""
+    observation = screens.build({"main": FEE_FORM})
+    outcome = resolve_ladder([NearText(text="Amount", role="textbox")], observation)
+    assert isinstance(outcome, Resolved)
+    assert outcome.node.near_text == "Amount"
+
+
+def test_substring_label_matching_is_opt_in_and_honestly_ambiguous() -> None:
+    observation = screens.build({"main": FEE_FORM})
+    outcome = resolve_ladder([NearText(text="Amount", role="textbox", exact=False)], observation)
+    assert isinstance(outcome, Ambiguous)
+    assert outcome.matches == 2
+
+
+def test_table_cell_row_matching_can_be_made_exact() -> None:
+    observation = screens.build({"main": screens.MEMBER_DETAIL})
+    loose = match(TableCell(row_contains="Sav", column_header="Balance"), observation)
+    exact = match(TableCell(row_contains="Sav", column_header="Balance", exact=True), observation)
+    assert [n.name for n in loose] == ["$1,411.21"]
+    assert exact == []

@@ -9,30 +9,31 @@ import re
 from collections.abc import Mapping
 
 from cua.surface.a11y import normalize
-from cua.surface.protocol import CONTROL_ROLES, Node, Observation, SurfaceConfig
 from cua.surface.conditions import (
     SELF,
-    Condition,
-    Visible,
-    LocationMatches,
-    TextPresent,
-    RegionPresent,
-    ErrorBannerPresent,
-    ValidationMessagePresent,
-    ValueSet,
-    OutputExtracted,
     AllOf,
     AnyOf,
+    Condition,
+    DialogRaised,
+    ErrorBannerPresent,
+    LocationMatches,
+    RegionPresent,
+    TextPresent,
+    ValidationMessagePresent,
+    ValueSet,
+    Visible,
 )
 from cua.surface.locators import Within
+from cua.surface.protocol import CONTROL_ROLES, DEFAULT_CONFIG, Node, Observation, SurfaceConfig
 
 ERROR_STATUS_FROM = 500
 """Which HTTP statuses count as the app failing rather than the app answering."""
 
+
 class WebEvaluator:
     """Evaluates conditions against a web accessibility tree observation."""
-    
-    def __init__(self, config: SurfaceConfig = SurfaceConfig()) -> None:
+
+    def __init__(self, config: SurfaceConfig = DEFAULT_CONFIG) -> None:
         self._config = config
 
     def evaluate(
@@ -46,11 +47,13 @@ class WebEvaluator:
         """Is the condition true of this observation?"""
         if isinstance(condition, AllOf):
             return all(
-                self.evaluate(c, observation, outputs=outputs, target=target) for c in condition.all_of
+                self.evaluate(c, observation, outputs=outputs, target=target)
+                for c in condition.all_of
             )
         if isinstance(condition, AnyOf):
             return any(
-                self.evaluate(c, observation, outputs=outputs, target=target) for c in condition.any_of
+                self.evaluate(c, observation, outputs=outputs, target=target)
+                for c in condition.any_of
             )
         if isinstance(condition, Visible):
             node = self._target_node(condition.target, observation, target)
@@ -75,9 +78,19 @@ class WebEvaluator:
             if node is None or not node.value:
                 return False
             return condition.value is None or normalize(node.value) == normalize(condition.value)
+        if isinstance(condition, DialogRaised):
+            return any(
+                (condition.expected is None or event.expected == condition.expected)
+                and (
+                    condition.text is None or normalize(condition.text) in normalize(event.message)
+                )
+                for event in observation.dialogs
+            )
         return bool((outputs or {}).get(condition.name) is not None)
 
-    def validation_message(self, condition: ValidationMessagePresent, observation: Observation) -> str | None:
+    def validation_message(
+        self, condition: ValidationMessagePresent, observation: Observation
+    ) -> str | None:
         """The message text itself, for a detector that reports it as a payload."""
         node = self._validation_message_present(condition, observation)
         return node.text if node else None
@@ -87,7 +100,9 @@ class WebEvaluator:
             return list(observation.nodes)
         return observation.in_frame(within.frame)
 
-    def _target_node(self, target: str, observation: Observation, acting_on: str | None) -> Node | None:
+    def _target_node(
+        self, target: str, observation: Observation, acting_on: str | None
+    ) -> Node | None:
         ref = acting_on if target == SELF else target
         return observation.find(ref) if ref else None
 
@@ -105,7 +120,9 @@ class WebEvaluator:
         wanted = normalize(text)
         return any(wanted in normalize(n.text) for n in nodes)
 
-    def _error_banner_present(self, condition: ErrorBannerPresent, observation: Observation) -> bool:
+    def _error_banner_present(
+        self, condition: ErrorBannerPresent, observation: Observation
+    ) -> bool:
         frames = observation.frames
         if condition.within is not None and condition.within.frame is not None:
             frames = [f for f in frames if f.name == condition.within.frame]
@@ -134,7 +151,11 @@ class WebEvaluator:
                 continue
             if condition.text is None and node.role not in ("text", "paragraph", "cell"):
                 continue
-            if any(self._near_control(node, control) for control in controls if control.frame == node.frame):
+            if any(
+                self._near_control(node, control)
+                for control in controls
+                if control.frame == node.frame
+            ):
                 return node
         return None
 
@@ -143,4 +164,7 @@ class WebEvaluator:
         m, c = message.bbox, control.bbox
         vertical = min(abs(c.y - m.bottom), abs(m.y - c.bottom), abs(c.y - m.y))
         horizontal = min(abs(c.x - m.right), abs(m.x - c.right), abs(c.x - m.x))
-        return vertical <= self._config.validation_proximity_px and horizontal <= self._config.validation_proximity_px
+        return (
+            vertical <= self._config.validation_proximity_px
+            and horizontal <= self._config.validation_proximity_px
+        )

@@ -22,7 +22,7 @@ cp .env.example .env               # only `cua discover` needs an API key
 
 ```bash
 make mockapp        # serves the mock legacy credit-union core on :8000
-make test           # ruff + mypy --strict + pytest (115 tests, no API key needed)
+make test           # ruff + mypy --strict + pytest (129 tests, no API key needed)
 python -m pytest -m "not browser"   # skip the tests that need Chromium
 
 # What the automation sees, for a human. Needs `make mockapp` running.
@@ -96,11 +96,22 @@ the request that armed it. `?inject=none` disarms.
 | `renamed_button` | search page ("Find") | persistent | `Failure LOCATOR_UNRESOLVED`, drift |
 | `ambiguous_button` | search page (two "Search") | persistent | ladder must fall through, not guess |
 | `slow_confirm` | review → confirm (6 s) | one-shot | `Failure TIMEOUT, side_effect: unknown` |
+| `modal_dialog` | member detail (in-page overlay) | one-shot | recovery: dismiss the overlay; a click under it faults instead of going nowhere |
+| `native_confirm` | review → confirm (`window.confirm`) | persistent | undeclared: dismissed and reported, nothing committed → escalate; declared: answered as the capability says |
 
 One-shot modes clear themselves the first time they fire. If they persisted,
 no recovery could ever succeed and the recovery tests would prove nothing.
 Persistent modes model states the app is genuinely in, so replay should report
 an outcome rather than recover.
+
+The two dialog modes are different problems. An in-page overlay is ordinary
+markup, so perception sees it; it just covers the screen. A native
+`confirm()` never enters the accessibility tree or a screenshot, and while it
+is open the browser accepts no further instruction — so the surface answers it
+the moment it appears (as the capability declared, otherwise by dismissing,
+which commits nothing) and records the answer on the action result and the
+next observation. Playwright's default is to dismiss silently, which would make
+a cancelled irreversible step look like a successful one.
 
 ## Repo layout
 

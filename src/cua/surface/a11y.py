@@ -39,6 +39,7 @@ import yaml
 from cua.surface.protocol import (
     ANCHOR_ROLES,
     CONTROL_ROLES,
+    DEFAULT_CONFIG,
     TOP_FRAME,
     Node,
     Rect,
@@ -82,8 +83,6 @@ _ATTR = re.compile(r"\[([^\]=]+)(?:=([^\]]*))?\]")
 
 # Sub-entries that describe the parent rather than being nodes of their own.
 _PROPERTY_KEYS = frozenset({"/url"})
-
-# Constants removed, now passed via SurfaceConfig
 
 
 class SnapshotParseError(ValueError):
@@ -270,13 +269,17 @@ def _value_of(node: ParsedNode) -> str | None:
     return None
 
 
-def with_geometry(nodes: list[Node], boxes: dict[str, Rect | None], config: SurfaceConfig = SurfaceConfig()) -> list[Node]:
+def with_geometry(
+    nodes: list[Node],
+    boxes: dict[str, Rect | None],
+    config: SurfaceConfig = DEFAULT_CONFIG,
+) -> list[Node]:
     """Attach measured boxes, then label the controls that have no name."""
     placed = [n.model_copy(update={"bbox": boxes.get(n.ref)}) for n in nodes]
     return annotate_near_text(placed, config)
 
 
-def annotate_near_text(nodes: list[Node], config: SurfaceConfig = SurfaceConfig()) -> list[Node]:
+def annotate_near_text(nodes: list[Node], config: SurfaceConfig = DEFAULT_CONFIG) -> list[Node]:
     """Record, for each unnamed control, the text a human would read as its label.
 
     Legacy forms label a field with a plain table cell to its left (or a line
@@ -316,14 +319,15 @@ def _label_distance(anchor: Rect, control: Rect, config: SurfaceConfig) -> float
     is a coincidence of layout, and adopting it would invent a relationship the
     page does not express.
     """
-    if shares_row(anchor, control, config) and control.x >= anchor.right - config.near_text_tolerance_px:
+    tol, far = config.near_text_tolerance_px, config.near_text_max_px
+    if shares_row(anchor, control, config) and control.x >= anchor.right - tol:
         gap = control.x - anchor.right
-        return gap if gap <= config.near_text_max_px else None
-    if shares_column(anchor, control, config) and control.y >= anchor.bottom - config.near_text_tolerance_px:
+        return gap if gap <= far else None
+    if shares_column(anchor, control, config) and control.y >= anchor.bottom - tol:
         gap = control.y - anchor.bottom
         # A label above is the weaker convention; bias against it so a cell on
         # the same line always wins.
-        return gap + config.near_text_max_px if gap <= config.near_text_max_px else None
+        return gap + far if gap <= far else None
     return None
 
 
@@ -334,18 +338,14 @@ def shares_row(a: Rect, b: Rect, config: SurfaceConfig) -> bool:
     the next row starts three pixels below this one, and overlap-with-tolerance
     would call two stacked fields neighbours on the same line.
     """
-    return (
-        a.y - config.near_text_tolerance_px <= b.center[1] <= a.bottom + config.near_text_tolerance_px
-        or b.y - config.near_text_tolerance_px <= a.center[1] <= b.bottom + config.near_text_tolerance_px
-    )
+    tol = config.near_text_tolerance_px
+    return a.y - tol <= b.center[1] <= a.bottom + tol or b.y - tol <= a.center[1] <= b.bottom + tol
 
 
 def shares_column(a: Rect, b: Rect, config: SurfaceConfig) -> bool:
     """Are these two boxes in the same column of the screen?"""
-    return (
-        a.x - config.near_text_tolerance_px <= b.center[0] <= a.right + config.near_text_tolerance_px
-        or b.x - config.near_text_tolerance_px <= a.center[0] <= b.right + config.near_text_tolerance_px
-    )
+    tol = config.near_text_tolerance_px
+    return a.x - tol <= b.center[0] <= a.right + tol or b.x - tol <= a.center[0] <= b.right + tol
 
 
 def normalize(text: str) -> str:
