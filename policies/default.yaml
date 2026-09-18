@@ -1,0 +1,27 @@
+# What automation may do on a tenant's deployment. Read by the discovery loop
+# before every action, and by replay from M4.
+#
+# {tenant.base_url} is filled in from tenants/<id>.yaml, so one policy serves
+# every tenant running the same app family.
+
+allowed_origins:
+  - "{tenant.base_url}"
+
+allowed_actions: [click, type, press, read, select]
+
+# An action that commits something on the core system. Matching one does not
+# block the action: it needs an approval (a per-invocation token, else a human).
+risky_rules:
+  - id: commit_on_review
+    role: button
+    name: "^(Confirm|Submit|Approve|Transfer|Post|Delete)$"
+    location: "/review/"
+    reason: commits a change on the core system of record
+
+# Painted out by the screenshot call itself, before the image exists.
+screenshot_masks:
+  - [{strategy: near_text, text: Password, role: textbox}]
+
+# A control labelled like this has its value replaced with *** in every
+# observation the model or the log sees.
+sensitive_labels: "(?i)password|passcode|\\bpin\\b|ssn|social security"

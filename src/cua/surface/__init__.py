@@ -33,6 +33,7 @@ from cua.surface.locators import (
     TableCell,
     Unresolved,
     Within,
+    ladder_for,
     resolve_ladder,
 )
 from cua.surface.protocol import (
@@ -110,5 +111,6 @@ __all__ = [
     "Visible",
     "WebEvaluator",
     "Within",
+    "ladder_for",
     "resolve_ladder",
 ]

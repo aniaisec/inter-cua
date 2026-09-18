@@ -484,6 +484,21 @@ class Surface(Protocol):
         """Evaluate a condition against a fresh observation."""
         ...
 
+    def settle(self, timeout_s: float) -> bool:
+        """Wait for the target to stop changing after an action.
+
+        For callers that do not know what the next screen will be — the agent
+        loop, above all, which must not decide against a screen that is still
+        being replaced. Replay knows what it expects and uses ``wait_for``.
+        Returns False if the target was still busy when time ran out; the
+        caller observes anyway and says so.
+
+        Web: no document request in flight and every frame loaded. Desktop: the
+        application reports idle (UIA has no single signal; a busy cursor and
+        pending window creation are the usual proxies).
+        """
+        ...
+
     def expose(self) -> SessionHandle:
         """Publish the live session so a human can be handed the controls."""
         ...

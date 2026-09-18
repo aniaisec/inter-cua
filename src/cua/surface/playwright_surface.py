@@ -43,6 +43,7 @@ from playwright.sync_api import (
     sync_playwright,
 )
 from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import Request as PlaywrightRequest
 from playwright.sync_api import Response as PlaywrightResponse
 
 from cua.surface import a11y
@@ -91,6 +92,7 @@ READ_ATTEMPTS = 3
 """How many times a frame is re-read when it navigates while being read."""
 ACTION_TIMEOUT_MS = 10_000
 FRAME_SETTLE_S = 5.0
+SETTLE_TIMEOUT_S = 10.0
 POLL_INTERVAL_S = 0.15
 
 GEOMETRY_ROLES: frozenset[str] = INTERACTIVE_ROLES | ANCHOR_ROLES
@@ -131,6 +133,10 @@ class PlaywrightSurface:
         self._navigations: dict[Frame, int] = {}
         self._expected_dialog: ExpectDialog | None = None
         self._dialogs: list[DialogEvent] = []
+        self._pending_documents: set[PlaywrightRequest] = set()
+        page.on("request", self._document_requested)
+        page.on("requestfinished", self._document_done)
+        page.on("requestfailed", self._document_done)
         page.on("response", self._record_status)
         page.on("framenavigated", self._count_navigation)
         # Registering a handler is what stops Playwright dismissing dialogs on
@@ -546,6 +552,32 @@ class PlaywrightSurface:
             self._page.wait_for_timeout(POLL_INTERVAL_S * 1000)
             observation = self.observe()
 
+    def settle(self, timeout_s: float = SETTLE_TIMEOUT_S) -> bool:
+        """Wait until no document is loading, in any frame.
+
+        A document request in flight is the signal, not a quiet period: a
+        server that takes four seconds to answer is perfectly quiet for all
+        four, and a loop that observed during them would decide its next move
+        against the screen it just left. Playwright's click already waits for
+        a navigation it triggered to *start*, so by the time this runs the
+        request is visible here.
+        """
+        deadline = _deadline(timeout_s)
+        while self._pending_documents:
+            if _now() >= deadline:
+                return False
+            self._page.wait_for_timeout(POLL_INTERVAL_S * 1000)
+        for frame in self._page.frames:
+            remaining_ms = max(1.0, (deadline - _now()) * 1000)
+            try:
+                frame.wait_for_load_state("load", timeout=remaining_ms)
+            except PlaywrightError:
+                if frame.is_detached():
+                    continue
+                return False
+        self._settle_frames()
+        return not self._pending_documents
+
     def _carry(self, ref: str | None, fresh: Observation, origin: Observation | None) -> str | None:
         """Follow a ``{target: self}`` ref into the observation just taken.
 
@@ -597,6 +629,13 @@ class PlaywrightSurface:
         # would otherwise overwrite the 200 of the page at the same URL.
         if response.request.is_navigation_request() and not 300 <= response.status < 400:
             self._statuses[response.url] = response.status
+
+    def _document_requested(self, request: PlaywrightRequest) -> None:
+        if request.is_navigation_request():
+            self._pending_documents.add(request)
+
+    def _document_done(self, request: PlaywrightRequest) -> None:
+        self._pending_documents.discard(request)
 
     def _count_navigation(self, frame: Frame) -> None:
         self._navigations[frame] = self._navigations.get(frame, 0) + 1

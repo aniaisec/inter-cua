@@ -3,9 +3,10 @@
 Goal-driven UI discovery → a reviewable capability artifact → deterministic
 replay with no model in the loop → human handoff on the live session.
 
-**Status: M1 complete.** Scaffold, the mock target app, and the Surface
-layer — perception, the locator ladder and the condition vocabulary — are in.
-The remaining `src/cua` packages are placeholders, each landing in a later
+**Status: M2 in progress.** Scaffold, the mock target app, the Surface layer
+(perception, the locator ladder, the condition vocabulary) and the goal-driven
+discovery loop (`cua discover`) are in. The remaining `src/cua` packages are
+placeholders, each landing in a later
 milestone; `cua --help` names the milestone for every subcommand that is not
 wired up yet. `README.md` gets its real treatment at M8.
 
@@ -22,13 +23,39 @@ cp .env.example .env               # only `cua discover` needs an API key
 
 ```bash
 make mockapp        # serves the mock legacy credit-union core on :8000
-make test           # ruff + mypy --strict + pytest (131 tests, no API key needed)
+make test           # ruff + mypy --strict + pytest (181 tests, no API key needed)
 python -m pytest -m "not browser"   # skip the tests that need Chromium
 
 # What the automation sees, for a human. Needs `make mockapp` running.
 python -m cua.surface --url http://127.0.0.1:8000/login
 python -m cua.surface --url http://127.0.0.1:8000/login --signed-in
+
+# Goal-driven discovery. Needs `make mockapp` running; writes evidence/runs/<run_id>/.
+# With a model (needs ANTHROPIC_API_KEY in .env):
+cua discover --goal "Look up a member by id and return the current savings balance" \
+  --name member_savings_balance --entry /login \
+  --param member_id:string=10003 \
+  --output savings_balance:decimal --output "member_name:string?"
+# Same loop with no key: a scripted "model" plays back a recorded tool-call sequence.
+cua discover --llm scripted --script scripts/discovery/member_savings_balance.yaml \
+  --goal "Look up a member by id and return the current savings balance" \
+  --name member_savings_balance --entry /login \
+  --param member_id:string=10003 \
+  --output savings_balance:decimal --output "member_name:string?"
 ```
+
+A discovery run is one model call per action: the model sees the compact tree
+and a masked screenshot, calls one of `click`, `type`, `press`, `read`, `done`
+or `stuck`, and the policy is checked before the action happens. It ends
+`done` (every declared output named by ref and read back by the runner, exit
+0), `escalated` (`stuck`, a dead end of three unchanged screens, or a risky
+action with no approval, exit 3; the human handoff lands in M6), or `stopped`
+(step or time limit, exit 1). Credentials reach the model only as
+`${credentials.app_login.password}` placeholders, and a typed password, which
+the accessibility tree reports back as the field's value, is scrubbed from
+every observation before the model or the log sees it. Each run exports its
+own `script.yaml`, with every target named by locator ladder, and
+`--llm scripted` replays it.
 
 Sign on to the mock app with `operator` / `operator`. Walk
 login → member 10003 → detail → sub-account → review → confirm.

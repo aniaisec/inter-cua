@@ -253,6 +253,110 @@ def resolve_ladder(
     return Unresolved(attempts=attempts)
 
 
+def ladder_for(
+    node: Node,
+    observation: Observation,
+    *,
+    for_value: bool = False,
+    config: SurfaceConfig = DEFAULT_CONFIG,
+) -> Ladder:
+    """Every rung that names this node, and only this node, in this observation.
+
+    The inverse of ``resolve_ladder``: how a ref the agent used once becomes a
+    description that can find the same control on a later visit. Candidates
+    are built strongest first, and each is kept only if it resolves back to
+    exactly this node — a rung that is ambiguous on the very screen it was
+    written from would be a guess from its first use.
+
+    ``for_value`` is for a node that is *read* rather than acted on. Its text
+    is the value, which differs on every visit, so it cannot name the node:
+    a ``role_name`` rung for "$1,411.21" finds nothing for the next member. A
+    value is named by where it sits instead — its row and column, or the label
+    to its left.
+
+    Rungs are scoped to the node's frame, so a control in the main pane cannot
+    later be confused with a namesake in the nav pane.
+    """
+    within = Within(frame=node.frame)
+    candidates: Ladder = []
+    if node.name and not for_value:
+        candidates.append(RoleName(role=node.role, name=node.name, within=within))
+    if node.near_text:
+        candidates.append(NearText(text=node.near_text, role=node.role, within=within))
+    cell = _table_cell_for(node, observation)
+    if cell is not None:
+        candidates.append(cell)
+    key = _row_key_for(node, observation)
+    if key is not None:
+        candidates.append(NearText(text=key, role=node.role, direction="right", within=within))
+    if node.bbox is not None and not node.bbox.empty:
+        box = node.bbox
+        candidates.append(BBox(x=box.x, y=box.y, w=box.w, h=box.h, role=node.role, within=within))
+    return [
+        rung
+        for rung in candidates
+        if [n.ref for n in match(rung, observation, config=config)] == [node.ref]
+    ]
+
+
+def _table_cell_for(node: Node, observation: Observation) -> TableCell | None:
+    """Name a data cell by its row's first cell and its column's header.
+
+    Only a table whose first row is real column headers qualifies. A two
+    column label/value layout has none, and treating its first data row as a
+    header would name a column after one member's id.
+    """
+    if node.role != "cell":
+        return None
+    row = _ancestor(observation, node, "row")
+    table = _ancestor(observation, row, "table") if row is not None else None
+    if row is None or table is None:
+        return None
+
+    rows = [n for n in observation.descendants(table.ref) if n.role == "row"]
+    if len(rows) < 2 or rows[0].ref == row.ref:
+        return None
+    cells = _cells_of(observation, row)
+    headers = _cells_of(observation, rows[0])
+    if not headers or any(h.role != "columnheader" for h in headers):
+        return None
+    column = next((i for i, c in enumerate(cells) if c.ref == node.ref), None)
+    if column is None or column >= len(headers) or not headers[column].name:
+        return None
+    key = next((c.name for c in cells if c.ref != node.ref and c.name), None)
+    if key is None:
+        return None
+    return TableCell(
+        row_contains=key,
+        column_header=headers[column].name,
+        exact=True,
+        within=Within(frame=node.frame),
+    )
+
+
+def _row_key_for(node: Node, observation: Observation) -> str | None:
+    """The label a value cell is read by: the first named cell to its left in
+    its row ("Name" | "Test Member 03")."""
+    if node.role != "cell" or node.bbox is None:
+        return None
+    row = _ancestor(observation, node, "row")
+    if row is None:
+        return None
+    for cell in _cells_of(observation, row):
+        if cell.ref == node.ref:
+            return None
+        if cell.name and cell.bbox is not None and cell.bbox.right <= node.bbox.x + 1:
+            return cell.name
+    return None
+
+
+def _ancestor(observation: Observation, node: Node, role: str) -> Node | None:
+    current = observation.find(node.parent) if node.parent else None
+    while current is not None and current.role != role:
+        current = observation.find(current.parent) if current.parent else None
+    return current
+
+
 def _refusal(
     strategy: RoleName | NearText | TableCell | BBox,
     observation: Observation,
