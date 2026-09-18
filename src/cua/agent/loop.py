@@ -9,12 +9,14 @@ masked screenshot), picks exactly one tool, and the loop:
 2. performs it through the ``Surface``, waiting for the screen to settle;
 3. hands back the result together with the screen it left behind.
 
-It ends in one of four ways. ``done`` — the agent named a ref for every
+It ends in one of five ways. ``done`` — the agent named a ref for every
 declared output and the loop read each one itself. ``escalated`` — the agent
 said it was ``stuck``, the screen stopped changing (dead end), or a risky
 action needed an approval nobody gave; M6 routes these to a human, and until
 then the run ends there with the request logged. ``stopped`` — a step or time
-limit. ``error`` — the model call itself failed.
+limit. ``error`` — the model call itself failed. ``interrupted`` — something
+outside the run's own logic cut it short (Ctrl+C, a crash in the surface);
+the run directory still says so, and the exception carries on upwards.
 
 Everything the model sees and everything the log records has been through
 redaction first. Credentials reach the model only as placeholders and reach
@@ -74,7 +76,7 @@ from cua.surface.protocol import (
 )
 from cua.tenant import Tenant
 
-OutcomeKind = Literal["done", "escalated", "stopped", "error"]
+OutcomeKind = Literal["done", "escalated", "stopped", "error", "interrupted"]
 _PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
 _CREDENTIAL = re.compile(r"^credentials\.([a-z][a-z0-9_]*)\.([a-z][a-z0-9_]*)$")
 
@@ -115,7 +117,8 @@ class DiscoveryOutcome(BaseModel):
     kind: OutcomeKind
     reason: str | None = None
     """``STUCK``, ``DEAD_END``, ``NEEDS_APPROVAL``, ``MAX_STEPS``, ``TIMEOUT``,
-    ``LLM_ERROR``; ``None`` for ``done``."""
+    ``LLM_ERROR``; the exception's type name for ``interrupted``; ``None`` for
+    ``done``."""
     message: str = ""
     outputs: dict[str, ExtractedOutput] = Field(default_factory=dict)
     steps: int = 0
@@ -125,7 +128,7 @@ class DiscoveryOutcome(BaseModel):
 
     @property
     def exit_code(self) -> int:
-        return {"done": 0, "escalated": 3, "stopped": 1, "error": 1}[self.kind]
+        return {"done": 0, "escalated": 3, "stopped": 1, "error": 1, "interrupted": 130}[self.kind]
 
 
 class _End(Exception):
@@ -200,24 +203,40 @@ class DiscoveryLoop:
             while True:
                 self._turn()
         except _End as end:
-            outcome = DiscoveryOutcome(
-                kind=end.kind,
-                reason=end.reason,
-                message=end.message,
-                outputs=self.outputs if end.kind == "done" else {},
-                steps=self.watch.steps,
-                run_id=self.log.run_id,
-                run_dir=self.log.dir.as_posix(),
-                duration_ms=int((time.monotonic() - started) * 1000),
-            )
+            outcome = self._outcome(end.kind, end.reason, end.message, started)
+        except BaseException as exc:
+            # Ctrl+C, or a fault nothing above anticipated. The run is over
+            # either way, and a run directory with no ending cannot be told
+            # apart from one still in progress — so record how it ended, then
+            # let the exception carry on to whoever is waiting for it.
+            message = self.redactor.text(str(exc) or repr(exc))
+            self._finish(self._outcome("interrupted", type(exc).__name__, message, started))
+            raise
 
+        self._finish(outcome)
+        return outcome
+
+    def _outcome(
+        self, kind: OutcomeKind, reason: str | None, message: str, started: float
+    ) -> DiscoveryOutcome:
+        return DiscoveryOutcome(
+            kind=kind,
+            reason=reason,
+            message=message,
+            outputs=self.outputs if kind == "done" else {},
+            steps=self.watch.steps,
+            run_id=self.log.run_id,
+            run_dir=self.log.dir.as_posix(),
+            duration_ms=int((time.monotonic() - started) * 1000),
+        )
+
+    def _finish(self, outcome: DiscoveryOutcome) -> None:
         self.log.write_json("result.json", outcome)
         if outcome.kind == "done":
             dump_script(
                 Script(goal=self.goal.goal, steps=self.script), self.log.dir / "script.yaml"
             )
         self.log.event("run.end", kind=outcome.kind, reason=outcome.reason, message=outcome.message)
-        return outcome
 
     def _turn(self) -> None:
         stop = self.watch.before_call()
@@ -243,17 +262,18 @@ class DiscoveryLoop:
         try:
             call = parse_call(decision.tool_call.name, decision.tool_call.input)
         except ToolInputError as exc:
-            self.log.event("agent.bad_call", turn=self.watch.steps, error=str(exc))
-            self._reply(call_id, f"Rejected: {exc}", error=True)
+            error = self.redactor.text(str(exc))
+            self.log.event("agent.bad_call", turn=self.watch.steps, error=error)
+            self._reply(call_id, f"Rejected: {error}", error=True)
             return
 
         self.log.event(
             "agent.decision",
             turn=self.watch.steps,
             tool=call.tool,
-            input=call.model_dump(exclude={"tool", "reason"}),
-            reason=call.reason,
-            text=decision.text,
+            input=self._scrub(call.model_dump(exclude={"tool", "reason"})),
+            reason=self.redactor.text(call.reason),
+            text=self.redactor.text(decision.text),
             target=self._label(getattr(call, "ref", None)),
         )
         self._handle(call_id, call)
@@ -270,7 +290,9 @@ class DiscoveryLoop:
             decision = self.llm.decide(request)
         except Exception as exc:  # the SDK's error hierarchy is not ours to enumerate
             self.log.event(
-                "model.error", turn=self.watch.steps, error=f"{type(exc).__name__}: {exc}"
+                "model.error",
+                turn=self.watch.steps,
+                error=self.redactor.text(f"{type(exc).__name__}: {exc}"),
             )
             raise _End("error", "LLM_ERROR", f"model call failed: {type(exc).__name__}") from exc
         self.log.model_call(
@@ -311,8 +333,9 @@ class DiscoveryLoop:
         try:
             result = self.surface.act(action)
         except SurfaceError as exc:
-            self.log.event("action.failed", turn=self.watch.steps, error=str(exc))
-            self._reply_with_screen(call_id, f"The action failed: {exc}", error=True)
+            error = self.redactor.text(str(exc))
+            self.log.event("action.failed", turn=self.watch.steps, error=error)
+            self._reply_with_screen(call_id, f"The action failed: {error}", error=True)
             return
 
         self._record_step(call, node, screen)
@@ -521,14 +544,12 @@ class DiscoveryLoop:
         )
         if node is not None and not target:
             self.log.event("script.unnamed_target", turn=self.watch.steps, node=node.label)
+        # A secret the model typed literally, instead of by placeholder, is
+        # masked here like anywhere else; the recorder then refuses the run.
+        text = self.redactor.text(call.text) if isinstance(call, TypeCall) else None
+        key = call.key if isinstance(call, PressCall) else None
         self.script.append(
-            ScriptStep(
-                tool=call.tool,
-                target=target,
-                text=call.text if isinstance(call, TypeCall) else None,
-                key=call.key if isinstance(call, PressCall) else None,
-                reason=call.reason,
-            )
+            ScriptStep(tool=call.tool, target=target, text=text, key=key, reason=call.reason)
         )
         self.log.event(
             "step",
@@ -536,8 +557,19 @@ class DiscoveryLoop:
             tool=call.tool,
             node=node.model_dump(mode="json") if node else None,
             ladder=[r.model_dump(mode="json") for r in target] if target else None,
-            text=call.text if isinstance(call, TypeCall) else None,
+            text=text,
+            key=key,
         )
+
+    def _scrub(self, value: Any) -> Any:
+        """Redact every string inside a tool call's arguments before logging."""
+        if isinstance(value, str):
+            return self.redactor.text(value)
+        if isinstance(value, dict):
+            return {k: self._scrub(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self._scrub(v) for v in value]
+        return value
 
     def _label(self, ref: str | None) -> str | None:
         if ref is None or self.screen is None:

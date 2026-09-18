@@ -1,0 +1,2000 @@
+{
+  "$defs": {
+    "AllOf": {
+      "properties": {
+        "kind": {
+          "const": "all_of",
+          "default": "all_of",
+          "title": "Kind",
+          "type": "string"
+        },
+        "all_of": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "all_of": "#/$defs/AllOf",
+                "any_of": "#/$defs/AnyOf",
+                "dialog_raised": "#/$defs/DialogRaised",
+                "error_banner_present": "#/$defs/ErrorBannerPresent",
+                "location_matches": "#/$defs/LocationMatches",
+                "output_extracted": "#/$defs/OutputExtracted",
+                "region_present": "#/$defs/RegionPresent",
+                "text_present": "#/$defs/TextPresent",
+                "validation_message_present": "#/$defs/ValidationMessagePresent",
+                "value_set": "#/$defs/ValueSet",
+                "visible": "#/$defs/Visible"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/Visible"
+              },
+              {
+                "$ref": "#/$defs/LocationMatches"
+              },
+              {
+                "$ref": "#/$defs/TextPresent"
+              },
+              {
+                "$ref": "#/$defs/RegionPresent"
+              },
+              {
+                "$ref": "#/$defs/ErrorBannerPresent"
+              },
+              {
+                "$ref": "#/$defs/ValidationMessagePresent"
+              },
+              {
+                "$ref": "#/$defs/ValueSet"
+              },
+              {
+                "$ref": "#/$defs/OutputExtracted"
+              },
+              {
+                "$ref": "#/$defs/DialogRaised"
+              },
+              {
+                "$ref": "#/$defs/AllOf"
+              },
+              {
+                "$ref": "#/$defs/AnyOf"
+              }
+            ]
+          },
+          "title": "All Of",
+          "type": "array"
+        }
+      },
+      "required": [
+        "all_of"
+      ],
+      "title": "AllOf",
+      "type": "object"
+    },
+    "AnyOf": {
+      "properties": {
+        "kind": {
+          "const": "any_of",
+          "default": "any_of",
+          "title": "Kind",
+          "type": "string"
+        },
+        "any_of": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "all_of": "#/$defs/AllOf",
+                "any_of": "#/$defs/AnyOf",
+                "dialog_raised": "#/$defs/DialogRaised",
+                "error_banner_present": "#/$defs/ErrorBannerPresent",
+                "location_matches": "#/$defs/LocationMatches",
+                "output_extracted": "#/$defs/OutputExtracted",
+                "region_present": "#/$defs/RegionPresent",
+                "text_present": "#/$defs/TextPresent",
+                "validation_message_present": "#/$defs/ValidationMessagePresent",
+                "value_set": "#/$defs/ValueSet",
+                "visible": "#/$defs/Visible"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/Visible"
+              },
+              {
+                "$ref": "#/$defs/LocationMatches"
+              },
+              {
+                "$ref": "#/$defs/TextPresent"
+              },
+              {
+                "$ref": "#/$defs/RegionPresent"
+              },
+              {
+                "$ref": "#/$defs/ErrorBannerPresent"
+              },
+              {
+                "$ref": "#/$defs/ValidationMessagePresent"
+              },
+              {
+                "$ref": "#/$defs/ValueSet"
+              },
+              {
+                "$ref": "#/$defs/OutputExtracted"
+              },
+              {
+                "$ref": "#/$defs/DialogRaised"
+              },
+              {
+                "$ref": "#/$defs/AllOf"
+              },
+              {
+                "$ref": "#/$defs/AnyOf"
+              }
+            ]
+          },
+          "title": "Any Of",
+          "type": "array"
+        }
+      },
+      "required": [
+        "any_of"
+      ],
+      "title": "AnyOf",
+      "type": "object"
+    },
+    "BBox": {
+      "description": "Pixels. The rung of last resort.\n\nValid only in the viewport the capability was recorded in, which is why\n``recording_env`` exists and why ``resolve_ladder`` refuses this rung\nanywhere else rather than clicking approximately the right place.",
+      "properties": {
+        "strategy": {
+          "const": "bbox",
+          "default": "bbox",
+          "title": "Strategy",
+          "type": "string"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "w": {
+          "title": "W",
+          "type": "number"
+        },
+        "h": {
+          "title": "H",
+          "type": "number"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
+        "confidence": {
+          "default": "low",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "within": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Within"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "title": "BBox",
+      "type": "object"
+    },
+    "Checkpoint": {
+      "additionalProperties": false,
+      "description": "A compound claim about where the run is, true right after ``after_step``.\n\nAlso what the resume-state search walks, newest first, to find the last\npoint a run is known to have reached.",
+      "properties": {
+        "id": {
+          "pattern": "^cp\\.[a-z][a-z0-9_]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "after_step": {
+          "title": "After Step",
+          "type": "string"
+        },
+        "all_of": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "all_of": "#/$defs/AllOf",
+                "any_of": "#/$defs/AnyOf",
+                "dialog_raised": "#/$defs/DialogRaised",
+                "error_banner_present": "#/$defs/ErrorBannerPresent",
+                "location_matches": "#/$defs/LocationMatches",
+                "output_extracted": "#/$defs/OutputExtracted",
+                "region_present": "#/$defs/RegionPresent",
+                "text_present": "#/$defs/TextPresent",
+                "validation_message_present": "#/$defs/ValidationMessagePresent",
+                "value_set": "#/$defs/ValueSet",
+                "visible": "#/$defs/Visible"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/Visible"
+              },
+              {
+                "$ref": "#/$defs/LocationMatches"
+              },
+              {
+                "$ref": "#/$defs/TextPresent"
+              },
+              {
+                "$ref": "#/$defs/RegionPresent"
+              },
+              {
+                "$ref": "#/$defs/ErrorBannerPresent"
+              },
+              {
+                "$ref": "#/$defs/ValidationMessagePresent"
+              },
+              {
+                "$ref": "#/$defs/ValueSet"
+              },
+              {
+                "$ref": "#/$defs/OutputExtracted"
+              },
+              {
+                "$ref": "#/$defs/DialogRaised"
+              },
+              {
+                "$ref": "#/$defs/AllOf"
+              },
+              {
+                "$ref": "#/$defs/AnyOf"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "All Of",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "after_step",
+        "all_of"
+      ],
+      "title": "Checkpoint",
+      "type": "object"
+    },
+    "Contract": {
+      "additionalProperties": false,
+      "description": "What a calling agent needs to know before it decides to invoke.",
+      "properties": {
+        "side_effects": {
+          "default": "none",
+          "enum": [
+            "none",
+            "creates_record",
+            "modifies_record",
+            "moves_money"
+          ],
+          "title": "Side Effects",
+          "type": "string"
+        },
+        "idempotent": {
+          "default": true,
+          "title": "Idempotent",
+          "type": "boolean"
+        },
+        "may_escalate": {
+          "default": false,
+          "title": "May Escalate",
+          "type": "boolean"
+        },
+        "preconditions": {
+          "$ref": "#/$defs/Preconditions"
+        },
+        "outcomes": {
+          "patternProperties": {
+            "^[A-Z][A-Z0-9_]*$": {
+              "$ref": "#/$defs/OutcomeSpec"
+            }
+          },
+          "title": "Outcomes",
+          "type": "object"
+        }
+      },
+      "title": "Contract",
+      "type": "object"
+    },
+    "CredentialSpec": {
+      "additionalProperties": false,
+      "description": "Resolved by the runner at invoke time; never an input, never persisted,\nnever logged.",
+      "properties": {
+        "ref": {
+          "pattern": "^secret://",
+          "title": "Ref",
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Fields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "ref",
+        "fields"
+      ],
+      "title": "CredentialSpec",
+      "type": "object"
+    },
+    "Detector": {
+      "additionalProperties": false,
+      "description": "Turns a screen into a typed result.\n\nEvaluated in fixed precedence by class \u2014 hard, then business, then\nrecoverable \u2014 before the step's own ``expect_after`` and the checkpoint.\n``class`` maps one-to-one onto the replay result kinds: hard \u2192 Failure,\nbusiness \u2192 BusinessOutcome, recoverable \u2192 handled, and the run goes on.",
+      "properties": {
+        "code": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "title": "Code",
+          "type": "string"
+        },
+        "class": {
+          "enum": [
+            "hard",
+            "business",
+            "recoverable"
+          ],
+          "title": "Class",
+          "type": "string"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Scope"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "match": {
+          "discriminator": {
+            "mapping": {
+              "all_of": "#/$defs/AllOf",
+              "any_of": "#/$defs/AnyOf",
+              "dialog_raised": "#/$defs/DialogRaised",
+              "error_banner_present": "#/$defs/ErrorBannerPresent",
+              "location_matches": "#/$defs/LocationMatches",
+              "output_extracted": "#/$defs/OutputExtracted",
+              "region_present": "#/$defs/RegionPresent",
+              "text_present": "#/$defs/TextPresent",
+              "timeout": "#/$defs/StepTimedOut",
+              "validation_message_present": "#/$defs/ValidationMessagePresent",
+              "value_set": "#/$defs/ValueSet",
+              "visible": "#/$defs/Visible"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Visible"
+            },
+            {
+              "$ref": "#/$defs/LocationMatches"
+            },
+            {
+              "$ref": "#/$defs/TextPresent"
+            },
+            {
+              "$ref": "#/$defs/RegionPresent"
+            },
+            {
+              "$ref": "#/$defs/ErrorBannerPresent"
+            },
+            {
+              "$ref": "#/$defs/ValidationMessagePresent"
+            },
+            {
+              "$ref": "#/$defs/ValueSet"
+            },
+            {
+              "$ref": "#/$defs/OutputExtracted"
+            },
+            {
+              "$ref": "#/$defs/DialogRaised"
+            },
+            {
+              "$ref": "#/$defs/AllOf"
+            },
+            {
+              "$ref": "#/$defs/AnyOf"
+            },
+            {
+              "$ref": "#/$defs/StepTimedOut"
+            }
+          ],
+          "title": "Match"
+        },
+        "payload_from": {
+          "anyOf": [
+            {
+              "const": "validation_message",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Payload From"
+        },
+        "recover": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Recover"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "code",
+        "class",
+        "match"
+      ],
+      "title": "Detector",
+      "type": "object"
+    },
+    "DialogRaised": {
+      "description": "The target raised a native dialog since the previous observation.\n\nWeb: an ``alert``/``confirm``/``prompt`` the surface intercepted. Desktop: a\nmodal window owned by the application. Asked in the past tense on purpose:\na native dialog blocks the whole session while it is open, so by the time\nanyone can ask, the surface has already answered it \u2014 as declared, or by\ndismissing it. ``expected=False`` narrows to dialogs the capability did not\ndeclare, which is the case replay escalates on.\n\nAn in-page overlay is not a native dialog. It is ordinary markup, so it is\nfound the way any screen text is found: ``text_present`` or\n``region_present``.",
+      "properties": {
+        "kind": {
+          "const": "dialog_raised",
+          "default": "dialog_raised",
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        },
+        "expected": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected"
+        }
+      },
+      "title": "DialogRaised",
+      "type": "object"
+    },
+    "Entry": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "location",
+          "default": "location",
+          "title": "Kind",
+          "type": "string"
+        },
+        "pattern": {
+          "title": "Pattern",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pattern"
+      ],
+      "title": "Entry",
+      "type": "object"
+    },
+    "ErrorBannerPresent": {
+      "description": "The app failed, as opposed to answering.\n\nWeb: a 5xx document response, or an ``alert`` node, or \u2014 for apps that\nrender failures as ordinary prose, which this class of app does \u2014 matching\n``text``. A modern app would be caught by the first two; a 1998 one needs\nthe capability to supply the wording, which is why the wording lives in\nartifact data rather than in this module.",
+      "properties": {
+        "kind": {
+          "const": "error_banner_present",
+          "default": "error_banner_present",
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        },
+        "within": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Within"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "ErrorBannerPresent",
+      "type": "object"
+    },
+    "Extract": {
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "bbox": "#/$defs/BBox",
+                "near_text": "#/$defs/NearText",
+                "role_name": "#/$defs/RoleName",
+                "table_cell": "#/$defs/TableCell"
+              },
+              "propertyName": "strategy"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/RoleName"
+              },
+              {
+                "$ref": "#/$defs/NearText"
+              },
+              {
+                "$ref": "#/$defs/TableCell"
+              },
+              {
+                "$ref": "#/$defs/BBox"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Target",
+          "type": "array"
+        },
+        "parse": {
+          "default": "text",
+          "enum": [
+            "text",
+            "decimal",
+            "currency_usd",
+            "integer"
+          ],
+          "title": "Parse",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "Extract",
+      "type": "object"
+    },
+    "InputSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "default": "string",
+          "enum": [
+            "string",
+            "decimal",
+            "integer"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pattern"
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "title": "InputSpec",
+      "type": "object"
+    },
+    "LocationMatches": {
+      "description": "Web: a regex against frame URLs. Desktop: against the window title.\n\nEvery frame is searched, not just the top document. A frameset shell keeps\nits URL while the main pane navigates, so \"are we on the member detail\nscreen\" is a question about the frames, and matching only the top document\nwould answer \"no\" forever.",
+      "properties": {
+        "kind": {
+          "const": "location_matches",
+          "default": "location_matches",
+          "title": "Kind",
+          "type": "string"
+        },
+        "pattern": {
+          "title": "Pattern",
+          "type": "string"
+        },
+        "within": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Within"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "pattern"
+      ],
+      "title": "LocationMatches",
+      "type": "object"
+    },
+    "NearText": {
+      "description": "The control next to a piece of text.\n\nThe rung that earns its keep on a legacy app: a textbox with no ``<label\nfor>`` has no accessible name at all, so the only durable way to say which\nbox to type in is \"the one beside the words *Member ID*\".",
+      "properties": {
+        "strategy": {
+          "const": "near_text",
+          "default": "near_text",
+          "title": "Strategy",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "enum": [
+                "right",
+                "below",
+                "left",
+                "above"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Direction"
+        },
+        "exact": {
+          "default": true,
+          "title": "Exact",
+          "type": "boolean"
+        },
+        "within": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Within"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "NearText",
+      "type": "object"
+    },
+    "OutcomeSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "payload": {
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*$": {
+              "$ref": "#/$defs/PayloadField"
+            }
+          },
+          "title": "Payload",
+          "type": "object"
+        }
+      },
+      "title": "OutcomeSpec",
+      "type": "object"
+    },
+    "OutputExtracted": {
+      "description": "A declared output has been captured. The only condition that asks about\nthe run rather than the screen, which is why ``evaluate`` takes outputs.",
+      "properties": {
+        "kind": {
+          "const": "output_extracted",
+          "default": "output_extracted",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "OutputExtracted",
+      "type": "object"
+    },
+    "OutputSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "default": "string",
+          "enum": [
+            "string",
+            "decimal",
+            "integer"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "optional": {
+          "default": false,
+          "title": "Optional",
+          "type": "boolean"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "extract": {
+          "$ref": "#/$defs/Extract"
+        }
+      },
+      "required": [
+        "extract"
+      ],
+      "title": "OutputSpec",
+      "type": "object"
+    },
+    "PayloadField": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "default": "string",
+          "enum": [
+            "string",
+            "decimal",
+            "integer"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "optional": {
+          "default": false,
+          "title": "Optional",
+          "type": "boolean"
+        }
+      },
+      "title": "PayloadField",
+      "type": "object"
+    },
+    "Preconditions": {
+      "additionalProperties": false,
+      "properties": {
+        "session": {
+          "default": "fresh",
+          "enum": [
+            "fresh",
+            "reuse_allowed"
+          ],
+          "title": "Session",
+          "type": "string"
+        }
+      },
+      "title": "Preconditions",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Proves the discovery run happened without carrying its transcript.",
+      "properties": {
+        "discovery_run_id": {
+          "title": "Discovery Run Id",
+          "type": "string"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "transcript_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Transcript Sha256",
+          "type": "string"
+        },
+        "recorded_at": {
+          "title": "Recorded At",
+          "type": "string"
+        },
+        "locator_rungs_used": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Locator Rungs Used",
+          "type": "object"
+        }
+      },
+      "required": [
+        "discovery_run_id",
+        "provider",
+        "model",
+        "transcript_sha256",
+        "recorded_at"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "RecordingEnv": {
+      "description": "The environment a capability was recorded in.\n\nPixel-addressed locators mean nothing outside it, so ``resolve_ladder``\nrefuses a ``bbox`` rung anywhere else. Carried in the artifact as\n``recording_env``.",
+      "properties": {
+        "viewport": {
+          "$ref": "#/$defs/Viewport"
+        },
+        "dpr": {
+          "default": 1.0,
+          "title": "Dpr",
+          "type": "number"
+        }
+      },
+      "required": [
+        "viewport"
+      ],
+      "title": "RecordingEnv",
+      "type": "object"
+    },
+    "Recover": {
+      "additionalProperties": false,
+      "properties": {
+        "run": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run"
+        },
+        "then": {
+          "default": "continue",
+          "enum": [
+            "continue",
+            "retry_step",
+            "restart_from_last_checkpoint"
+          ],
+          "title": "Then",
+          "type": "string"
+        },
+        "max": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Max",
+          "type": "integer"
+        },
+        "backoff_s": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Backoff S",
+          "type": "number"
+        }
+      },
+      "title": "Recover",
+      "type": "object"
+    },
+    "RecoverAction": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "click",
+            "press"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "items": {
+                "discriminator": {
+                  "mapping": {
+                    "bbox": "#/$defs/BBox",
+                    "near_text": "#/$defs/NearText",
+                    "role_name": "#/$defs/RoleName",
+                    "table_cell": "#/$defs/TableCell"
+                  },
+                  "propertyName": "strategy"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/RoleName"
+                  },
+                  {
+                    "$ref": "#/$defs/NearText"
+                  },
+                  {
+                    "$ref": "#/$defs/TableCell"
+                  },
+                  {
+                    "$ref": "#/$defs/BBox"
+                  }
+                ]
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Key"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "RecoverAction",
+      "type": "object"
+    },
+    "Recoverer": {
+      "additionalProperties": false,
+      "description": "Either a few actions of its own, or a replay of steps the capability\nalready has (signing on again is the capability's own sign-on steps).",
+      "properties": {
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/RecoverAction"
+          },
+          "title": "Steps",
+          "type": "array"
+        },
+        "sub_flow": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Sub Flow",
+          "type": "array"
+        }
+      },
+      "title": "Recoverer",
+      "type": "object"
+    },
+    "RecoveryLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "per_step": {
+          "default": 1,
+          "minimum": 0,
+          "title": "Per Step",
+          "type": "integer"
+        },
+        "per_run": {
+          "default": 3,
+          "minimum": 0,
+          "title": "Per Run",
+          "type": "integer"
+        }
+      },
+      "title": "RecoveryLimits",
+      "type": "object"
+    },
+    "Redaction": {
+      "additionalProperties": false,
+      "properties": {
+        "screenshot_masks": {
+          "items": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "bbox": "#/$defs/BBox",
+                  "near_text": "#/$defs/NearText",
+                  "role_name": "#/$defs/RoleName",
+                  "table_cell": "#/$defs/TableCell"
+                },
+                "propertyName": "strategy"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/RoleName"
+                },
+                {
+                  "$ref": "#/$defs/NearText"
+                },
+                {
+                  "$ref": "#/$defs/TableCell"
+                },
+                {
+                  "$ref": "#/$defs/BBox"
+                }
+              ]
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "title": "Screenshot Masks",
+          "type": "array"
+        }
+      },
+      "title": "Redaction",
+      "type": "object"
+    },
+    "RegionPresent": {
+      "description": "Web: a heading or landmark with this name. Desktop: a pane or group.\n\nThis is the condition a checkpoint should prefer over ``text_present``: a\nscreen title is a claim about where you are, whereas stray text can match\nanywhere.",
+      "properties": {
+        "kind": {
+          "const": "region_present",
+          "default": "region_present",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "within": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Within"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "RegionPresent",
+      "type": "object"
+    },
+    "Retry": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed": {
+          "default": false,
+          "title": "Allowed",
+          "type": "boolean"
+        }
+      },
+      "title": "Retry",
+      "type": "object"
+    },
+    "RoleName": {
+      "description": "Role plus accessible name: the rung to prefer when the app gives a name.",
+      "properties": {
+        "strategy": {
+          "const": "role_name",
+          "default": "role_name",
+          "title": "Strategy",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "exact": {
+          "default": true,
+          "title": "Exact",
+          "type": "boolean"
+        },
+        "within": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Within"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "role",
+        "name"
+      ],
+      "title": "RoleName",
+      "type": "object"
+    },
+    "Scope": {
+      "additionalProperties": false,
+      "description": "Where a detector is listened for.\n\n``after_step`` \u2014 only on the screen right after that step. ``after_checkpoint``\n\u2014 on every screen from the step that checkpoint follows onwards, so a\ndetector for \"sent back to the sign-on screen\" cannot fire while the run\nis still signing on. Neither \u2014 every screen.",
+      "properties": {
+        "after_step": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "After Step"
+        },
+        "after_checkpoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "After Checkpoint"
+        },
+        "within": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Within"
+        }
+      },
+      "title": "Scope",
+      "type": "object"
+    },
+    "Step": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "action": {
+          "enum": [
+            "click",
+            "type",
+            "press",
+            "select",
+            "read"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "items": {
+                "discriminator": {
+                  "mapping": {
+                    "bbox": "#/$defs/BBox",
+                    "near_text": "#/$defs/NearText",
+                    "role_name": "#/$defs/RoleName",
+                    "table_cell": "#/$defs/TableCell"
+                  },
+                  "propertyName": "strategy"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/RoleName"
+                  },
+                  {
+                    "$ref": "#/$defs/NearText"
+                  },
+                  {
+                    "$ref": "#/$defs/TableCell"
+                  },
+                  {
+                    "$ref": "#/$defs/BBox"
+                  }
+                ]
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Key"
+        },
+        "intent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Intent"
+        },
+        "wait_before": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "all_of": "#/$defs/AllOf",
+                  "any_of": "#/$defs/AnyOf",
+                  "dialog_raised": "#/$defs/DialogRaised",
+                  "error_banner_present": "#/$defs/ErrorBannerPresent",
+                  "location_matches": "#/$defs/LocationMatches",
+                  "output_extracted": "#/$defs/OutputExtracted",
+                  "region_present": "#/$defs/RegionPresent",
+                  "text_present": "#/$defs/TextPresent",
+                  "validation_message_present": "#/$defs/ValidationMessagePresent",
+                  "value_set": "#/$defs/ValueSet",
+                  "visible": "#/$defs/Visible"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Visible"
+                },
+                {
+                  "$ref": "#/$defs/LocationMatches"
+                },
+                {
+                  "$ref": "#/$defs/TextPresent"
+                },
+                {
+                  "$ref": "#/$defs/RegionPresent"
+                },
+                {
+                  "$ref": "#/$defs/ErrorBannerPresent"
+                },
+                {
+                  "$ref": "#/$defs/ValidationMessagePresent"
+                },
+                {
+                  "$ref": "#/$defs/ValueSet"
+                },
+                {
+                  "$ref": "#/$defs/OutputExtracted"
+                },
+                {
+                  "$ref": "#/$defs/DialogRaised"
+                },
+                {
+                  "$ref": "#/$defs/AllOf"
+                },
+                {
+                  "$ref": "#/$defs/AnyOf"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wait Before"
+        },
+        "expect_after": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "all_of": "#/$defs/AllOf",
+                  "any_of": "#/$defs/AnyOf",
+                  "dialog_raised": "#/$defs/DialogRaised",
+                  "error_banner_present": "#/$defs/ErrorBannerPresent",
+                  "location_matches": "#/$defs/LocationMatches",
+                  "output_extracted": "#/$defs/OutputExtracted",
+                  "region_present": "#/$defs/RegionPresent",
+                  "text_present": "#/$defs/TextPresent",
+                  "validation_message_present": "#/$defs/ValidationMessagePresent",
+                  "value_set": "#/$defs/ValueSet",
+                  "visible": "#/$defs/Visible"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Visible"
+                },
+                {
+                  "$ref": "#/$defs/LocationMatches"
+                },
+                {
+                  "$ref": "#/$defs/TextPresent"
+                },
+                {
+                  "$ref": "#/$defs/RegionPresent"
+                },
+                {
+                  "$ref": "#/$defs/ErrorBannerPresent"
+                },
+                {
+                  "$ref": "#/$defs/ValidationMessagePresent"
+                },
+                {
+                  "$ref": "#/$defs/ValueSet"
+                },
+                {
+                  "$ref": "#/$defs/OutputExtracted"
+                },
+                {
+                  "$ref": "#/$defs/DialogRaised"
+                },
+                {
+                  "$ref": "#/$defs/AllOf"
+                },
+                {
+                  "$ref": "#/$defs/AnyOf"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expect After"
+        },
+        "risk": {
+          "default": "safe",
+          "enum": [
+            "safe",
+            "risky",
+            "irreversible"
+          ],
+          "title": "Risk",
+          "type": "string"
+        },
+        "approval": {
+          "default": "none",
+          "enum": [
+            "none",
+            "required"
+          ],
+          "title": "Approval",
+          "type": "string"
+        },
+        "retry": {
+          "$ref": "#/$defs/Retry"
+        },
+        "side_effect_marker": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "all_of": "#/$defs/AllOf",
+                  "any_of": "#/$defs/AnyOf",
+                  "dialog_raised": "#/$defs/DialogRaised",
+                  "error_banner_present": "#/$defs/ErrorBannerPresent",
+                  "location_matches": "#/$defs/LocationMatches",
+                  "output_extracted": "#/$defs/OutputExtracted",
+                  "region_present": "#/$defs/RegionPresent",
+                  "text_present": "#/$defs/TextPresent",
+                  "validation_message_present": "#/$defs/ValidationMessagePresent",
+                  "value_set": "#/$defs/ValueSet",
+                  "visible": "#/$defs/Visible"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Visible"
+                },
+                {
+                  "$ref": "#/$defs/LocationMatches"
+                },
+                {
+                  "$ref": "#/$defs/TextPresent"
+                },
+                {
+                  "$ref": "#/$defs/RegionPresent"
+                },
+                {
+                  "$ref": "#/$defs/ErrorBannerPresent"
+                },
+                {
+                  "$ref": "#/$defs/ValidationMessagePresent"
+                },
+                {
+                  "$ref": "#/$defs/ValueSet"
+                },
+                {
+                  "$ref": "#/$defs/OutputExtracted"
+                },
+                {
+                  "$ref": "#/$defs/DialogRaised"
+                },
+                {
+                  "$ref": "#/$defs/AllOf"
+                },
+                {
+                  "$ref": "#/$defs/AnyOf"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Side Effect Marker"
+        },
+        "on_fail": {
+          "default": "escalate",
+          "enum": [
+            "fail",
+            "escalate"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "action"
+      ],
+      "title": "Step",
+      "type": "object"
+    },
+    "StepTimedOut": {
+      "additionalProperties": false,
+      "description": "The step's ``expect_after`` did not hold in time. Not a screen\ncondition \u2014 an event of the run \u2014 so only a detector may match on it.",
+      "properties": {
+        "kind": {
+          "const": "timeout",
+          "default": "timeout",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "title": "StepTimedOut",
+      "type": "object"
+    },
+    "TableCell": {
+      "description": "A cell addressed by its row's content and its column's header.\n\nHow a human reads a legacy grid (\"the Balance column of the Savings row\"),\nand stable under a column being inserted, which a pixel or an index is not.",
+      "properties": {
+        "strategy": {
+          "const": "table_cell",
+          "default": "table_cell",
+          "title": "Strategy",
+          "type": "string"
+        },
+        "row_contains": {
+          "title": "Row Contains",
+          "type": "string"
+        },
+        "column_header": {
+          "title": "Column Header",
+          "type": "string"
+        },
+        "exact": {
+          "default": false,
+          "title": "Exact",
+          "type": "boolean"
+        },
+        "within": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Within"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "row_contains",
+        "column_header"
+      ],
+      "title": "TableCell",
+      "type": "object"
+    },
+    "Target": {
+      "additionalProperties": false,
+      "properties": {
+        "app_family": {
+          "title": "App Family",
+          "type": "string"
+        },
+        "vendor": {
+          "title": "Vendor",
+          "type": "string"
+        },
+        "version_hint": {
+          "default": "",
+          "title": "Version Hint",
+          "type": "string"
+        },
+        "surface": {
+          "default": "web",
+          "enum": [
+            "web",
+            "legacy_web",
+            "desktop"
+          ],
+          "title": "Surface",
+          "type": "string"
+        },
+        "entry": {
+          "$ref": "#/$defs/Entry"
+        }
+      },
+      "required": [
+        "app_family",
+        "vendor",
+        "entry"
+      ],
+      "title": "Target",
+      "type": "object"
+    },
+    "TextPresent": {
+      "description": "Web: the text appears in some node's name or value. Desktop: the same,\nover the platform's accessibility tree.",
+      "properties": {
+        "kind": {
+          "const": "text_present",
+          "default": "text_present",
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "within": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Within"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "TextPresent",
+      "type": "object"
+    },
+    "ValidationMessagePresent": {
+      "description": "The app rejected what was entered.\n\nWeb: a message sitting next to a control \u2014 either an ``alert`` node, or\ntext within ``SurfaceConfig.validation_proximity_px`` of an input, optionally narrowed by\n``text`` and by ``near`` (the label of the field it belongs to). The\nproximity rule is what separates \"Initial deposit is required\" printed\nabove a form from a paragraph of help text elsewhere on the screen.",
+      "properties": {
+        "kind": {
+          "const": "validation_message_present",
+          "default": "validation_message_present",
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        },
+        "near": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Near"
+        },
+        "within": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Within"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "ValidationMessagePresent",
+      "type": "object"
+    },
+    "ValueSet": {
+      "description": "Web: the control holds a value, equal to ``value`` when one is given.\n\nA step that types into a field asserts this afterwards, so a field that\nsilently refused the input (maxlength, a formatter, a disabled control)\nfails at the step that caused it instead of three screens later.",
+      "properties": {
+        "kind": {
+          "const": "value_set",
+          "default": "value_set",
+          "title": "Kind",
+          "type": "string"
+        },
+        "target": {
+          "default": "self",
+          "title": "Target",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "title": "ValueSet",
+      "type": "object"
+    },
+    "Viewport": {
+      "properties": {
+        "w": {
+          "title": "W",
+          "type": "integer"
+        },
+        "h": {
+          "title": "H",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "w",
+        "h"
+      ],
+      "title": "Viewport",
+      "type": "object"
+    },
+    "Visible": {
+      "description": "Web: the node is in the tree with a non-empty box. Desktop: the control\nis on screen and not occluded by another window.",
+      "properties": {
+        "kind": {
+          "const": "visible",
+          "default": "visible",
+          "title": "Kind",
+          "type": "string"
+        },
+        "target": {
+          "default": "self",
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "title": "Visible",
+      "type": "object"
+    },
+    "Within": {
+      "description": "Scope for a rung. ``frame`` is a frameset's frame name.",
+      "properties": {
+        "frame": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frame"
+        }
+      },
+      "title": "Within",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.1",
+      "default": "1.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^cap_[0-9A-HJKMNP-TV-Z]{26}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "name": {
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "title": "Name",
+      "type": "string"
+    },
+    "version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "approval_state": {
+      "default": "draft",
+      "enum": [
+        "draft",
+        "approved"
+      ],
+      "title": "Approval State",
+      "type": "string"
+    },
+    "approved_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approved By"
+    },
+    "approved_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approved At"
+    },
+    "content_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Content Sha256"
+    },
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "target": {
+      "$ref": "#/$defs/Target"
+    },
+    "contract": {
+      "$ref": "#/$defs/Contract"
+    },
+    "credentials": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/CredentialSpec"
+        }
+      },
+      "title": "Credentials",
+      "type": "object"
+    },
+    "inputs": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/InputSpec"
+        }
+      },
+      "title": "Inputs",
+      "type": "object"
+    },
+    "outputs": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/OutputSpec"
+        }
+      },
+      "title": "Outputs",
+      "type": "object"
+    },
+    "recording_env": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RecordingEnv"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/Step"
+      },
+      "minItems": 1,
+      "title": "Steps",
+      "type": "array"
+    },
+    "checkpoints": {
+      "items": {
+        "$ref": "#/$defs/Checkpoint"
+      },
+      "title": "Checkpoints",
+      "type": "array"
+    },
+    "outcome_detectors": {
+      "items": {
+        "$ref": "#/$defs/Detector"
+      },
+      "title": "Outcome Detectors",
+      "type": "array"
+    },
+    "recovery_limits": {
+      "$ref": "#/$defs/RecoveryLimits"
+    },
+    "recoverers": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/Recoverer"
+        }
+      },
+      "title": "Recoverers",
+      "type": "object"
+    },
+    "redaction": {
+      "$ref": "#/$defs/Redaction"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "description",
+    "target",
+    "steps",
+    "provenance"
+  ],
+  "title": "Capability",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/aniaisec/inter-cua/capability-1.1.json"
+}

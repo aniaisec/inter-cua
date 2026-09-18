@@ -55,4 +55,5 @@ def dump_script(script: Script, path: Path) -> None:
             step.pop("outputs", None)
         if not step.get("reason"):
             step.pop("reason", None)
-    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    text = yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
+    path.write_text(text, encoding="utf-8", newline="\n")

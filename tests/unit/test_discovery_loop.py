@@ -443,3 +443,70 @@ def test_a_malformed_call_and_a_turn_without_a_call_are_answered_not_fatal(
     assert outcome.reason == "STUCK"
     assert "ref: Field required" in named(log, "agent.bad_call")[0]["error"]
     assert len(named(log, "agent.no_tool")) == 1
+
+
+# -- a run cut short -----------------------------------------------------------
+
+
+class Interrupting(FakeSurface):
+    """Raises from the n-th non-navigation action, the way Ctrl+C lands in the
+    middle of whatever the browser was doing."""
+
+    def __init__(self, screens_: list[Observation], *, after: int, exc: BaseException) -> None:
+        super().__init__(screens_)
+        self.after = after
+        self.exc = exc
+
+    def act(self, action):  # type: ignore[no-untyped-def]
+        if action.action != "navigate" and len(self.acted) >= self.after:
+            raise self.exc
+        return super().act(action)
+
+
+@pytest.mark.parametrize(
+    ("exc", "reason"),
+    [(KeyboardInterrupt(), "KeyboardInterrupt"), (RuntimeError("browser gone"), "RuntimeError")],
+)
+def test_a_run_cut_short_still_records_how_it_ended_and_re_raises(
+    tmp_path: Path, exc: BaseException, reason: str
+) -> None:
+    surface = Interrupting(happy_screens(), after=3, exc=exc)
+    with pytest.raises(type(exc)):
+        run(tmp_path, HAPPY, surface)
+
+    run_dir = tmp_path / "run"
+    result = json.loads((run_dir / "result.json").read_text())
+    assert (result["kind"], result["reason"]) == ("interrupted", reason)
+    assert result["steps"] == 4
+    end = [json.loads(line) for line in (run_dir / "log.jsonl").read_text().splitlines()][-1]
+    assert (end["event"], end["kind"]) == ("run.end", "interrupted")
+    assert not (run_dir / "script.yaml").exists()
+
+
+def test_an_interruption_message_is_scrubbed_like_everything_else(tmp_path: Path) -> None:
+    surface = Interrupting(happy_screens(), after=1, exc=RuntimeError(f"typing {PASSWORD} failed"))
+    with pytest.raises(RuntimeError):
+        run(tmp_path, HAPPY, surface)
+    result = (tmp_path / "run" / "result.json").read_text()
+    assert PASSWORD not in result
+    assert "typing *** failed" in result
+
+
+def test_a_secret_typed_literally_is_masked_in_the_log_and_the_script(tmp_path: Path) -> None:
+    """The agent should type ``${credentials...}``, but a model that guesses the
+    password and types it outright must not put it on disk either."""
+    steps = list(HAPPY)
+    steps[1] = ScriptStep(tool="type", target=PASSWORD_FIELD, text=PASSWORD)
+    outcome, log, _ = run(tmp_path, steps, FakeSurface(happy_screens()))
+
+    assert outcome.kind == "done"
+    assert PASSWORD not in run_files(log)
+    assert named(log, "step")[1]["text"] == "***"
+    assert named(log, "agent.decision")[1]["input"]["text"] == "***"
+
+
+def test_run_files_are_written_with_lf_line_endings_on_every_platform(tmp_path: Path) -> None:
+    _, log, _ = run(tmp_path, HAPPY, FakeSurface(happy_screens()))
+    for path in log.dir.rglob("*"):
+        if path.is_file() and path.suffix != ".png":
+            assert b"\r\n" not in path.read_bytes(), path

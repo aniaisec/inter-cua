@@ -67,7 +67,7 @@ class RunLog:
         paths: dict[str, str] = {}
         name = f"{turn:04d}"
         tree = Path("observations") / f"{name}.json"
-        (self.dir / tree).write_text(observation.model_dump_json(indent=1), encoding="utf-8")
+        _write(self.dir / tree, observation.model_dump_json(indent=1))
         paths["observation"] = tree.as_posix()
         if observation.screenshot_png:
             shot = Path("screenshots") / f"{name}.png"
@@ -78,14 +78,24 @@ class RunLog:
     def write_json(self, name: str, data: BaseModel | dict[str, Any]) -> Path:
         path = self.dir / name
         if isinstance(data, BaseModel):
-            path.write_text(data.model_dump_json(indent=2), encoding="utf-8")
+            _write(path, data.model_dump_json(indent=2))
         else:
-            path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+            _write(path, json.dumps(data, indent=2, default=str))
         return path
 
 
+# Line endings are LF on every platform. A run directory is evidence that gets
+# committed, and git stores LF: a file written with CRLF on Windows would come
+# back from a clone with different bytes, and a hash taken of it would no
+# longer match.
+
+
+def _write(path: Path, text: str) -> None:
+    path.write_text(text, encoding="utf-8", newline="\n")
+
+
 def _append(path: Path, record: dict[str, Any]) -> None:
-    with path.open("a", encoding="utf-8") as f:
+    with path.open("a", encoding="utf-8", newline="\n") as f:
         f.write(json.dumps(record, default=_default) + "\n")
 
 

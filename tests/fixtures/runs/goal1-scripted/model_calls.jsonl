@@ -1,0 +1,6 @@
+{"ts": "2026-09-18T14:04:04.059Z", "turn": 1, "provider": "scripted", "response_id": "scripted_0001", "model": "scripted", "stop_reason": "tool_use", "usage": {}}
+{"ts": "2026-09-18T14:04:04.182Z", "turn": 2, "provider": "scripted", "response_id": "scripted_0002", "model": "scripted", "stop_reason": "tool_use", "usage": {}}
+{"ts": "2026-09-18T14:04:04.285Z", "turn": 3, "provider": "scripted", "response_id": "scripted_0003", "model": "scripted", "stop_reason": "tool_use", "usage": {}}
+{"ts": "2026-09-18T14:04:04.699Z", "turn": 4, "provider": "scripted", "response_id": "scripted_0004", "model": "scripted", "stop_reason": "tool_use", "usage": {}}
+{"ts": "2026-09-18T14:04:04.819Z", "turn": 5, "provider": "scripted", "response_id": "scripted_0005", "model": "scripted", "stop_reason": "tool_use", "usage": {}}
+{"ts": "2026-09-18T14:04:05.197Z", "turn": 6, "provider": "scripted", "response_id": "scripted_0006", "model": "scripted", "stop_reason": "tool_use", "usage": {}}

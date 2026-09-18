@@ -116,3 +116,74 @@ def test_a_slow_screen_is_waited_for_before_the_agent_decides(
     assert_found_the_seeded_balance(outcome)
     after_search = json.loads((log.dir / "observations" / "0005.json").read_text())
     assert any("/member/10003" in f["url"] for f in after_search["frames"])
+
+
+# Runs `cua discover` for real, with Ctrl+C simulated (``interrupt_main``) one
+# second into the four-second slow_load after the Search click, while the loop
+# is inside a Playwright wait.
+_INTERRUPTED_DISCOVER = """
+import _thread, sys, threading
+from cua.cli import main
+from cua.surface.playwright_surface import PlaywrightSurface
+from cua.surface.protocol import Click
+
+act, clicks = PlaywrightSurface.act, []
+
+def interrupting_act(self, action):
+    result = act(self, action)
+    if isinstance(action, Click):
+        clicks.append(action)
+        if len(clicks) == 2:  # Sign On, then Search
+            threading.Timer(1.0, _thread.interrupt_main).start()
+    return result
+
+PlaywrightSurface.act = interrupting_act
+sys.exit(main(sys.argv[1:]))
+"""
+
+
+def test_ctrl_c_inside_a_live_wait_is_recorded_and_the_process_exits(
+    mockapp_url: str, tmp_path: Path
+) -> None:
+    """Ctrl+C lands wherever the run happens to be, usually inside a Playwright
+    call. The run must still say how it ended, and closing the browser must
+    not wait forever on a reply the interrupted call will never read."""
+    import os
+    import subprocess
+    import sys
+
+    tenant = tmp_path / "tenant.yaml"
+    tenant.write_text(
+        "\n".join(
+            [
+                "id: local",
+                "app_family: legacy-core",
+                f"base_url: {mockapp_url}",
+                "secrets:",
+                "  mockcore/operator: {var: CUA_TEST_OPERATOR, format: 'username:password'}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    args = [
+        "discover", "--llm", "scripted", "--script", str(SCRIPT),
+        "--goal", "Look up a member by id and return the current savings balance",
+        "--name", "member_savings_balance", "--entry", "/login",
+        "--param", "member_id:string=10003", "--output", "savings_balance:decimal",
+        "--tenant", str(tenant), "--inject", Inject.SLOW_LOAD.value,
+        "--runs-dir", str(tmp_path / "runs"), "--no-record",
+    ]  # fmt: skip
+    done = subprocess.run(
+        [sys.executable, "-c", _INTERRUPTED_DISCOVER, *args],
+        cwd=REPO,
+        env={**os.environ, "CUA_TEST_OPERATOR": "operator:operator"},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert done.returncode == 130, done.stderr
+    assert "interrupted; the run says so" in done.stderr
+    (result_file,) = (tmp_path / "runs").glob("*/result.json")
+    result = json.loads(result_file.read_text())
+    assert (result["kind"], result["reason"]) == ("interrupted", "KeyboardInterrupt")

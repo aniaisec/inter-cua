@@ -23,7 +23,7 @@ cp .env.example .env               # only `cua discover` needs an API key (Claud
 
 ```bash
 make mockapp        # serves the mock legacy credit-union core on :8000
-make test           # ruff + mypy --strict + pytest (181 tests, no API key needed)
+make test           # ruff + mypy --strict + pytest (250 tests, no API key needed)
 python -m pytest -m "not browser"   # skip the tests that need Chromium
 
 # What the automation sees, for a human. Needs `make mockapp` running.
@@ -43,6 +43,13 @@ cua discover --llm scripted --script scripts/discovery/member_savings_balance.ya
   --name member_savings_balance --entry /login \
   --param member_id:string=10003 \
   --output savings_balance:decimal --output "member_name:string?"
+
+# A run that reaches done is recorded as capabilities/<name>.json (draft).
+# Record an existing run directory, read it in plain words, then approve it:
+cua record evidence/runs/<run_id>
+cua describe capabilities/member_savings_balance.json
+cua approve capabilities/member_savings_balance.json --by "<your name>"
+cua schema          # regenerate capabilities/schema/capability-1.1.json
 ```
 
 A discovery run is one model call per action: the model sees the compact tree
@@ -51,7 +58,8 @@ or `stuck`, and the policy is checked before the action happens. It ends
 `done` (every declared output named by ref and read back by the runner, exit
 0), `escalated` (`stuck`, a dead end of three unchanged screens, or a risky
 action with no approval, exit 3; the human handoff lands in M6), or `stopped`
-(step or time limit, exit 1). Credentials reach the model only as
+(step or time limit, exit 1). A run cut short by Ctrl+C or a crash still
+writes `result.json`, as `interrupted` (exit 130). Credentials reach the model only as
 `${credentials.app_login.password}` placeholders, and a typed password, which
 the accessibility tree reports back as the field's value, is scrubbed from
 every observation before the model or the log sees it. Each run exports its
@@ -178,6 +186,37 @@ system never learns that this particular target is a web page.
 No CSS or XPath selector appears anywhere under `src/cua`. The only exception
 is the document-level `body` anchor that `aria_snapshot` requires, which never
 names a control.
+
+## The capability artifact
+
+A discovery run becomes a capability: a callable contract a calling agent can
+reason about before it invokes it, and the steps the replay engine follows.
+The pydantic model in `src/cua/artifact/schema.py` is the source of truth;
+`capabilities/schema/capability-1.1.json` is exported from it.
+
+- **Contract first.** `inputs` (what the caller supplies), `outputs`,
+  `contract` (side effects, idempotent, may escalate, declared business
+  outcomes) and `credentials` (a `secret://{tenant.id}/...` reference, never an
+  input and never a value).
+- **Steps** name their control by locator ladder, carry `risk`,
+  `approval` and `retry`, and say what they expect afterwards. **Checkpoints**
+  are compound (`all_of`) and bind the input: after the search, the member
+  detail screen must show `${member_id}` and the Balances heading.
+- **Detectors and recoverers** come from the app-family template
+  (`capabilities/families/legacy-core.yaml`), because what the product does
+  when things go wrong is not something one happy-path run can learn.
+- **Recording** templates a typed value as `${param}` only when it equals a
+  declared `--param` value, and refuses a run in which a secret was typed
+  literally. Outputs are named by position (row and column, or the label
+  beside them), never by the value read.
+- **Validation** refuses an unknown action, an unresolved `${placeholder}`, a
+  credential used anywhere but a typed value, duplicate or dangling ids, a
+  retryable irreversible step, and a pixel rung without the viewport it was
+  measured in.
+- **Approval.** `cua describe` renders the capability for a non-engineer and
+  records what it showed; `cua approve` refuses unless the capability is
+  exactly that. Any change bumps the version and resets it to draft, including
+  a hand edit, which is caught by the content seal written on every save.
 
 ## License
 

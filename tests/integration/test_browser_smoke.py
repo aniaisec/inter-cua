@@ -22,6 +22,7 @@ from collections.abc import Callable
 
 import pytest
 from playwright.sync_api import Browser, Frame, Page, expect
+from playwright.sync_api import Error as PlaywrightError
 
 from mockapp.data import MEMBERS, format_currency
 from mockapp.injects import Inject
@@ -48,6 +49,19 @@ def frame_named(page: Page, name: str) -> Frame:
     frame = page.frame(name=name)
     assert frame is not None
     return frame
+
+
+def settled_content(frame: Frame) -> str:
+    """The frame's HTML once it has finished loading, or "" while a navigation
+    is still under way — Playwright refuses to read a frame mid-navigation,
+    and a click's navigation can start after the call that caused it returns."""
+    try:
+        frame.wait_for_load_state("load")
+        return frame.content()
+    except PlaywrightError as exc:
+        if "navigating" in str(exc):
+            return ""
+        raise
 
 
 def sign_in(page: Page, base_url: str) -> None:
@@ -92,8 +106,8 @@ def test_happy_path_in_the_browser(page: Page, mockapp_url: str) -> None:
 
     frame.fill("input[name=F_MBRID]", "10003")
     frame.click("input[type=submit]")
-    frame.wait_for_url("**/member/10003")
-    assert format_currency(MEMBERS["10003"].savings) in frame.content()
+    savings = format_currency(MEMBERS["10003"].savings)
+    wait_until(lambda: savings in settled_content(frame), "the member detail screen")
 
     frame.click("text=Open Sub-account")
     frame.wait_for_url("**/subaccount/10003")
@@ -101,7 +115,7 @@ def test_happy_path_in_the_browser(page: Page, mockapp_url: str) -> None:
     frame.click("input[value=Continue]")
     frame.wait_for_url("**/review/10003")
     frame.click("input[value=Confirm]")
-    wait_until(lambda: "Reference number" in frame.content(), "the confirmation screen")
+    wait_until(lambda: "Reference number" in settled_content(frame), "the confirmation screen")
 
 
 def test_ambiguous_button_puts_a_second_search_button_in_the_nav_frame(
@@ -164,5 +178,5 @@ def test_session_expiry_relogin_does_not_nest_the_frameset(page: Page, mockapp_u
     # One-shot: the expiry does not fire a second time.
     main.fill("input[name=F_MBRID]", "10003")
     main.click("input[type=submit]")
-    main.wait_for_url("**/member/10003")
-    assert format_currency(MEMBERS["10003"].savings) in main.content()
+    savings = format_currency(MEMBERS["10003"].savings)
+    wait_until(lambda: savings in settled_content(main), "the member detail screen")

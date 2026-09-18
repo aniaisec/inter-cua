@@ -15,3 +15,6 @@ dist/
 !evidence/**/*.trace.zip
 /evidence/runs/
 .DS_Store
+
+# Local review receipts written by `cua describe`; approvals themselves are committed.
+/.cua/

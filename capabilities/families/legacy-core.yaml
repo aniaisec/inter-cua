@@ -1,0 +1,81 @@
+# App-family template: what every capability recorded against a "legacy-core"
+# deployment knows about that product without having to rediscover it.
+#
+# The recorder merges this into each draft capability. A discovery run only
+# walks the happy path once; it cannot learn what "member not found" or
+# "session expired" look like on this product. Those are facts about the
+# vendor's app, shared by every tenant running it, so they live here as data —
+# a tenant whose deployment words them differently overrides them in an
+# overlay rather than in code.
+#
+# Detectors and recoverers that refer to a step or checkpoint the recorded
+# capability does not have are left out of it (NOT_FOUND only means something
+# to a capability that searches). Step ids follow the recorder's naming:
+# <screen>.<control>, e.g. login.submit, search.submit.
+
+target:
+  vendor: MockCore
+  version_hint: "1.0"
+  surface: web
+
+outcomes:
+  NOT_FOUND: {payload: {}}
+  PERMISSION_DENIED: {payload: {}}
+  VALIDATION_ERROR:
+    payload:
+      message: {type: string}
+
+outcome_detectors:
+  # A 5xx response is caught whatever it says; the wording catches a failure
+  # page served with a 200, which this class of app does.
+  - code: APP_ERROR
+    class: hard
+    match: {kind: error_banner_present, text: Internal Server Error}
+
+  - code: NOT_FOUND
+    class: business
+    scope: {after_step: search.submit}
+    match: {kind: text_present, text: No matching member, within: {frame: main}}
+
+  - code: PERMISSION_DENIED
+    class: business
+    scope: {after_step: search.submit}
+    match: {kind: text_present, text: not authorized to view this record}
+
+  - code: VALIDATION_ERROR
+    class: business
+    scope: {after_step: subaccount.submit}
+    match: {kind: validation_message_present}
+    payload_from: validation_message
+
+  - code: INTERSTITIAL
+    class: recoverable
+    scope: {after_checkpoint: cp.logged_in}
+    match: {kind: region_present, name: System notice}
+    recover: {run: dismiss_notice, then: continue}
+
+  - code: SESSION_EXPIRED
+    class: recoverable
+    scope: {after_checkpoint: cp.logged_in}
+    match: {kind: location_matches, pattern: "/login$"}
+    recover: {run: relogin, then: restart_from_last_checkpoint}
+
+  # Honoured only on steps whose retry.allowed is true.
+  - code: SLOW_LOAD
+    class: recoverable
+    match: {kind: timeout}
+    recover: {then: retry_step, max: 2, backoff_s: 2}
+
+recovery_limits: {per_step: 1, per_run: 3}
+
+recoverers:
+  dismiss_notice:
+    steps:
+      - action: click
+        target: [{strategy: role_name, role: button, name: OK}]
+  relogin:
+    sub_flow: [login.username, login.password, login.submit]
+
+redaction:
+  screenshot_masks:
+    - [{strategy: near_text, text: Password, role: textbox}]

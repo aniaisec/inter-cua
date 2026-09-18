@@ -185,12 +185,20 @@ class PlaywrightSurface:
             owns=(browser, playwright),
         )
 
-    def close(self) -> None:
+    def close(self, *, interrupted: bool = False) -> None:
+        """Shut down the browser this surface launched.
+
+        ``interrupted``: a KeyboardInterrupt landed inside a Playwright call,
+        which leaves the sync dispatcher waiting on a reply it will never
+        read, so a polite ``browser.close()`` would block forever. Stopping
+        the driver alone ends its connection, and the browser goes with it.
+        """
         if self._owns is None:
             return
         browser, playwright = self._owns
         self._owns = None
-        browser.close()
+        if not interrupted:
+            browser.close()
         playwright.stop()
 
     def __enter__(self) -> Self:
@@ -202,7 +210,7 @@ class PlaywrightSurface:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        self.close()
+        self.close(interrupted=exc_type is not None and issubclass(exc_type, KeyboardInterrupt))
 
     @property
     def page(self) -> Page:

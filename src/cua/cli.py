@@ -17,8 +17,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 PENDING: dict[str, str] = {
-    "describe": "M3 - capability artifact and recorder",
-    "approve": "M3 - approval gate",
     "replay": "M4 - deterministic replay engine",
     "resume": "M6 - escalation and handoff",
     "operator": "M6 - escalation and handoff",
@@ -37,6 +35,7 @@ def _build_parser() -> argparse.ArgumentParser:
     mockapp.add_argument("--port", type=int, default=8000)
 
     _add_discover(sub)
+    _add_artifact_commands(sub)
 
     for name, milestone in PENDING.items():
         sub.add_parser(name, help=f"(not yet implemented: {milestone})")
@@ -103,6 +102,44 @@ def _add_discover(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
     d.add_argument("--inject", help="Arm a mock-app failure mode for this run")
     d.add_argument("--headed", action="store_true", help="Show the browser window")
     d.add_argument("--runs-dir", type=Path, default=Path("evidence/runs"))
+    d.add_argument(
+        "--capabilities-dir",
+        type=Path,
+        default=Path("capabilities"),
+        help="Where a run that reaches done is recorded, as <name>.json (draft)",
+    )
+    d.add_argument("--no-record", action="store_true", help="Keep the run; record nothing")
+
+
+def _add_artifact_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    r = sub.add_parser(
+        "record",
+        help="Turn a finished discovery run into a draft capability",
+        description="Read a run directory and write capabilities/<name>.json as a draft. "
+        "Recording over an existing file makes a new version of that capability.",
+    )
+    r.add_argument("run_dir", type=Path)
+    r.add_argument("--out", type=Path, help="Default: capabilities/<name>.json")
+    r.add_argument("--policy", default="policies/default.yaml", type=Path)
+    r.add_argument("--families-dir", type=Path, default=Path("capabilities/families"))
+
+    d = sub.add_parser(
+        "describe", help="Show a capability in plain words; required reading before approve"
+    )
+    d.add_argument("capability", type=Path)
+    d.add_argument("--state-dir", type=Path, default=Path(".cua"), help=argparse.SUPPRESS)
+
+    a = sub.add_parser(
+        "approve",
+        help="Approve a capability (draft -> approved) exactly as last described",
+        description="Refuses unless the capability is exactly what `cua describe` last showed.",
+    )
+    a.add_argument("capability", type=Path)
+    a.add_argument("--by", required=True, help="Who is approving")
+    a.add_argument("--state-dir", type=Path, default=Path(".cua"), help=argparse.SUPPRESS)
+
+    s = sub.add_parser("schema", help="Write the capability JSON Schema")
+    s.add_argument("--out", type=Path, default=Path("capabilities/schema/capability-1.1.json"))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -118,6 +155,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "discover":
         load_dotenv(Path(".env"))
         return _discover(args)
+    if args.command == "record":
+        return _record(args)
+    if args.command == "describe":
+        return _describe(args)
+    if args.command == "approve":
+        return _approve(args)
+    if args.command == "schema":
+        from cua.artifact.schema import export_json_schema
+
+        print(export_json_schema(args.out).as_posix())
+        return 0
 
     milestone = PENDING[args.command]
     print(f"cua {args.command}: not implemented yet ({milestone})", file=sys.stderr)
@@ -185,18 +233,30 @@ def _discover(args: argparse.Namespace) -> int:
         screenshots=not args.no_screenshots,
         auto_approve_risky=args.auto_approve_risky,
     )
-    with PlaywrightSurface.launch(headed=args.headed or None) as surface:
-        outcome = DiscoveryLoop(
-            surface=surface,
-            llm=llm,
-            goal=goal,
-            tenant=tenant,
-            policy=policy,
-            credentials=credentials,
-            log=log,
-            config=config,
-            entry_url=entry_url,
-        ).run()
+    try:
+        with PlaywrightSurface.launch(headed=args.headed or None) as surface:
+            outcome = DiscoveryLoop(
+                surface=surface,
+                llm=llm,
+                goal=goal,
+                tenant=tenant,
+                policy=policy,
+                credentials=credentials,
+                log=log,
+                config=config,
+                entry_url=entry_url,
+            ).run()
+    except KeyboardInterrupt:
+        import logging
+
+        # The interrupted Playwright call leaves tasks behind that asyncio
+        # reports at exit; the run's own record is what matters.
+        logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+        print(
+            f"cua discover: interrupted; the run says so in {log.dir.as_posix()}/result.json",
+            file=sys.stderr,
+        )
+        return 130
 
     summary = {
         "run_id": outcome.run_id,
@@ -208,8 +268,106 @@ def _discover(args: argparse.Namespace) -> int:
         "duration_ms": outcome.duration_ms,
         "run_dir": outcome.run_dir,
     }
+    if outcome.kind == "done" and not args.no_record:
+        from cua.artifact.recorder import RecordError
+
+        out = args.capabilities_dir / f"{goal.name}.json"
+        try:
+            _record_run(log.dir, out, args.policy)
+            summary["capability"] = out.as_posix()
+        except RecordError as exc:
+            print(f"cua discover: the run could not be recorded: {exc}", file=sys.stderr)
     print(json.dumps(summary, indent=2))
     return outcome.exit_code
+
+
+def _record_run(
+    run_dir: Path,
+    out: Path,
+    policy_path: Path,
+    families_dir: Path = Path("capabilities/families"),
+) -> None:
+    """Record a run into ``out`` as a draft; raises ``RecordError``."""
+    from cua.artifact.recorder import RecordError, record
+    from cua.artifact.store import save
+    from cua.policy.allowlist import load_policy
+    from cua.tenant import Tenant
+
+    try:
+        run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+        policy = load_policy(policy_path, Tenant.model_validate(run["tenant"]))
+    except (OSError, KeyError, ValueError) as exc:
+        raise RecordError(f"{run_dir.as_posix()} is not a readable discovery run: {exc}") from exc
+    saved = save(record(run_dir, policy=policy, families_dir=families_dir), out)
+    print(
+        f"cua record: wrote {out.as_posix()}, version {saved.version} ({saved.approval_state}). "
+        f"Review it with: cua describe {out.as_posix()}",
+        file=sys.stderr,
+    )
+
+
+def _record(args: argparse.Namespace) -> int:
+    from cua.artifact.recorder import RecordError
+
+    out = args.out
+    if out is None:
+        try:
+            run = json.loads((args.run_dir / "run.json").read_text(encoding="utf-8"))
+            out = Path("capabilities") / f"{run['goal']['name']}.json"
+        except (OSError, KeyError, ValueError) as exc:
+            print(
+                f"cua record: {args.run_dir.as_posix()} is not a discovery run: {exc}",
+                file=sys.stderr,
+            )
+            return EX_USAGE
+    try:
+        _record_run(args.run_dir, out, args.policy, args.families_dir)
+    except RecordError as exc:
+        print(f"cua record: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def _describe(args: argparse.Namespace) -> int:
+    from cua.artifact.describe import describe
+    from cua.artifact.store import ArtifactError, open_capability
+    from cua.policy.approval import record_review
+
+    try:
+        loaded = open_capability(args.capability)
+    except ArtifactError as exc:
+        print(f"cua describe: {exc}", file=sys.stderr)
+        return 1
+    cap = loaded.capability
+    if loaded.edited_outside:
+        print(
+            f"NOTE: this file was edited by hand after it was saved as version "
+            f"{loaded.sealed_version}, so it is shown as version {cap.version}, a new draft.\n"
+        )
+    print(describe(cap), end="")
+    review = record_review(cap, args.capability, state_dir=args.state_dir)
+    if cap.approval_state == "draft":
+        print(
+            f"\nReviewed as version {review.version} (content {review.content_sha256[:12]}). "
+            f"To approve exactly this: cua approve {args.capability.as_posix()} --by <your name>"
+        )
+    return 0
+
+
+def _approve(args: argparse.Namespace) -> int:
+    from cua.artifact.store import ArtifactError
+    from cua.policy.approval import ApprovalRefused, approve
+
+    try:
+        cap = approve(args.capability, args.by, state_dir=args.state_dir)
+    except (ApprovalRefused, ArtifactError) as exc:
+        print(f"cua approve: refused: {exc}", file=sys.stderr)
+        return 1
+    print(
+        f"cua approve: {cap.name} version {cap.version} is approved by {cap.approved_by} "
+        f"({args.capability.as_posix()})"
+    )
+    return 0
 
 
 def load_dotenv(path: Path) -> None:
