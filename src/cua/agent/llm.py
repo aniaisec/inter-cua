@@ -36,6 +36,7 @@ GEMINI_MODEL = "gemini-flash-latest"
 does not go stale. Evidence records the exact version that answered
 (``model_version``), so pinning is only needed for reproducibility."""
 MAX_TOKENS = 16_000
+GEMINI_ATTEMPTS = 5
 
 Provider = Literal["anthropic", "gemini", "scripted"]
 
@@ -282,10 +283,24 @@ class GeminiClient:
         client: Any | None = None,
     ) -> None:
         from google import genai  # only discovery needs a model SDK
+        from google.genai import types
 
         self._model = model
         self._max_tokens = max_tokens
-        self._client: Any = client or genai.Client()  # reads GEMINI_API_KEY / GOOGLE_API_KEY
+        # Reads GEMINI_API_KEY / GOOGLE_API_KEY. Unlike the Anthropic SDK, this
+        # one does not retry by default, and a busy model answers 503 — so
+        # overload and rate limits are retried with backoff, as they are for
+        # Claude. Anything else fails the call at once.
+        self._client: Any = client or genai.Client(
+            http_options=types.HttpOptions(
+                retry_options=types.HttpRetryOptions(
+                    attempts=GEMINI_ATTEMPTS,
+                    initial_delay=2.0,
+                    max_delay=30.0,
+                    http_status_codes=[408, 429, 500, 502, 503, 504],
+                )
+            )
+        )
         self._calls = 0
 
     @property
