@@ -1,308 +1,342 @@
 # inter-cua
 
-Goal-driven UI discovery → a reviewable capability artifact → deterministic
-replay with no model in the loop → human handoff on the live session.
+A model works out how to do a task in a legacy back-office UI once. What it
+did becomes a typed, versioned, reviewable **capability**. An AI agent then
+invokes that capability by name with typed inputs, and a deterministic replay
+engine with no model in the process carries it out. When the replay cannot
+safely go on, a person takes over the same live browser session and hands it
+back.
 
-**Status: M6.** The mock target app, the Surface layer (perception, the
-locator ladder, the condition vocabulary), goal-driven discovery
-(`cua discover`), the capability artifact (`cua record`, `cua describe`,
-`cua approve`), deterministic replay (`cua replay`), the safety policy, and
-handoff to a person on the live session (`--handoff`, `cua operator`,
-`cua resume`) are in. `cua --help` names the milestone for every subcommand
-that is not wired up yet. `README.md` gets its real treatment at M8.
+```
+goal ─► cua discover (LLM) ─► capability.json (draft) ─► cua describe / approve
+                                                              │
+     caller ◄── ReplayResult (success | business_outcome | failure | escalated)
+                    ▲
+                    └── cua replay (no model) ──► cua operator (a person, same session) ──► cua resume
+```
+
+The target is `mockapp/`, a deliberately hostile stand-in for a legacy
+credit-union core: framesets, nested tables, no ids, unlabeled inputs, and
+thirteen failure modes you can switch on per request.
+
+- **Design write-up:** [REPORT.md](REPORT.md)
+- **Evidence** (two real model discovery runs, seven replays including
+  failures and handoffs): [evidence/](evidence/README.md)
 
 ## Setup
 
+Python 3.11 or newer, and Chromium through Playwright.
+
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
-playwright install chromium        # required for the browser tests
-cp .env.example .env               # only `cua discover` needs an API key (Claude or Gemini)
+playwright install chromium
+cp .env.example .env
 ```
 
-## What runs today
+`.env` holds everything the system reads from the environment:
+
+| Variable | Needed for | Notes |
+|---|---|---|
+| `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` | `cua discover` with a real model | Only discovery calls a model. Set either one; with both, Claude is used unless `CUA_LLM` says otherwise |
+| `CUA_MODEL` | Claude model id | default `claude-sonnet-5` |
+| `CUA_GEMINI_MODEL` | Gemini model id | default `gemini-flash-latest` |
+| `CUA_SECRET_MOCKCORE_OPERATOR` | signing on to the mock app | `operator:operator` as shipped. Capabilities name it only as `secret://{tenant.id}/mockcore/operator` |
+| `CUA_HEADED` | tests | `1` shows the browser |
+
+Nothing else needs a key: the tests, `cua replay`, `cua operator`, and
+`cua discover --llm scripted` all run offline.
+
+## Demo path
+
+Start the mock app in one terminal and leave it running:
 
 ```bash
-make mockapp        # serves the mock legacy credit-union core on :8000
-make test           # ruff + mypy --strict + pytest (no API key needed)
-python -m pytest -m "not browser"   # skip the tests that need Chromium
+make mockapp                       # or: cua mockapp   -> http://127.0.0.1:8000 (sign on operator / operator)
+```
 
-# What the automation sees, for a human. Needs `make mockapp` running.
-python -m cua.surface --url http://127.0.0.1:8000/login
-python -m cua.surface --url http://127.0.0.1:8000/login --signed-in
+Everything else runs in a second terminal with the venv activated.
 
-# Goal-driven discovery. Needs `make mockapp` running; writes evidence/runs/<run_id>/.
-# With a model: needs ANTHROPIC_API_KEY or GEMINI_API_KEY in .env (--llm auto picks
-# whichever is set, Claude first; --llm anthropic|gemini or CUA_LLM chooses):
+**1. Discover.** A model drives the app from the goal alone and the run is
+recorded as a draft capability. `--capabilities-dir demo` keeps it out of the
+committed `capabilities/`.
+
+```bash
 cua discover --goal "Look up a member by id and return the current savings balance" \
   --name member_savings_balance --entry /login \
   --param member_id:string=10003 \
-  --output savings_balance:decimal --output "member_name:string?"
-# Same loop with no key: a scripted "model" plays back a recorded tool-call sequence.
-cua discover --llm scripted --script scripts/discovery/member_savings_balance.yaml \
-  --goal "Look up a member by id and return the current savings balance" \
-  --name member_savings_balance --entry /login \
-  --param member_id:string=10003 \
-  --output savings_balance:decimal --output "member_name:string?"
-
-# A run that reaches done is recorded as capabilities/<name>.json (draft).
-# Record an existing run directory, read it in plain words, then approve it:
-cua record evidence/runs/<run_id>
-cua describe capabilities/member_savings_balance.json
-cua approve capabilities/member_savings_balance.json --by "<your name>"
-cua schema          # regenerate capabilities/schema/capability-1.1.json
+  --output savings_balance:decimal --output "member_name:string?" \
+  --capabilities-dir demo
 ```
 
-A discovery run is one model call per action: the model sees the compact tree
-and a masked screenshot, calls one of `click`, `type`, `press`, `read`, `done`
-or `stuck`, and the policy is checked before the action happens. It ends
-`done` (every declared output named by ref and read back by the runner, exit
-0), `escalated` (`stuck`, a dead end of three unchanged screens, or a risky
-action with no approval, exit 3; with `--handoff` each of these is first put
-to a person on the operator console), or `stopped` (step or time limit, or an
-operator's abort, exit 1). A run cut short by Ctrl+C or a crash still
-writes `result.json`, as `interrupted` (exit 130). Credentials reach the model only as
-`${credentials.app_login.password}` placeholders, and a typed password, which
-the accessibility tree reports back as the field's value, is scrubbed from
-every observation before the model or the log sees it. Each run exports its
-own `script.yaml`, with every target named by locator ladder, and
-`--llm scripted` replays it.
+It prints the run directory (`evidence/runs/<run_id>/`: the model's reason for
+every action in `log.jsonl`, response ids and token counts in
+`model_calls.jsonl`, masked screenshots) and `demo/member_savings_balance.json`.
 
-Sign on to the mock app with `operator` / `operator`. Walk
-login → member 10003 → detail → sub-account → review → confirm.
+No key? Add `--llm scripted --script scripts/discovery/member_savings_balance.yaml`
+to the same command. The same loop, policy checks and recorder run; the
+"model" plays back a recorded tool-call sequence.
 
-`python -m cua.surface --signed-in` signs on through the same locator ladders a
-recorded capability will use, and prints the compact tree for the screen it
-lands on:
-
-```
-# MockCore 1.0 :: http://127.0.0.1:8000/
-[nav] http://127.0.0.1:8000/nav
-  n52 text "Functions"
-  row: n57 link "Member Search"
-  row: n60 link "Account Inquiry"
-  row: n63 link "Reports"
-  row: n66 link "Sign Off"
-[main] http://127.0.0.1:8000/search
-  n67 text "MockCore Member Services 1.0"
-  n68 heading "Member Search"
-  row: n72 cell "Member ID" | n74 textbox ~'Member ID' | n76 button "Search"
-  n77 paragraph "Enter a five digit member number."
-```
-
-The refs start at `n52` because signing on took four looks at the screen first,
-and no observation reuses another's numbers.
-
-The `~'Member ID'` is the label the textbox does not have: the app gives it no
-accessible name, so perception records the text beside it, and the `near_text`
-locator rung finds it by the same geometry.
-
-## The mock target app
-
-`mockapp/` is a deliberately hostile simulation of a legacy core banking UI,
-so the perception and locator layers have something real to fight:
-
-- the signed-in shell is a `<frameset>` (nav + main), so perception must walk
-  every frame
-- every layout is a nested `<table>`; no `id`, `data-*` or ARIA attributes
-- no `<label for>`, so **text inputs have no accessible name** — this is what
-  forces the `near_text` locator rung to exist
-- buttons are `<input type=submit>`, so the accessible name is the `value`
-  attribute and can change out from under a recorded capability
-- form fields carry cryptic `name` attributes (`F_MBRID`, `F_DEPAMT`) because
-  HTML form submission requires them. They contribute nothing to the
-  accessibility tree, and nothing under `src/cua` may use them as selectors.
-
-All data is synthetic: members 10001–10010, named `Test Member NN`. Member
-10007 is flagged restricted.
-
-### Failure injection
-
-Arm a mode with `?inject=<mode>` on any request or the `X-Inject` header. The
-mode is stored in the session so it fires on the screen it belongs to, not on
-the request that armed it. `?inject=none` disarms.
-
-| Mode | Fires at | Persistence | Exercises |
-|---|---|---|---|
-| `not_found` | search submit | persistent | `BusinessOutcome NOT_FOUND` |
-| `validation_error` | sub-account submit | persistent | `BusinessOutcome VALIDATION_ERROR` |
-| `permission_denied` | member detail | persistent | `BusinessOutcome PERMISSION_DENIED` |
-| `interstitial_dialog` | after sign on | one-shot | recovery: dismiss notice |
-| `interstitial_persistent` | after sign on, and on every return to the shell | persistent | recovery is capped: `Failure RECOVERY_EXHAUSTED` |
-| `slow_load` | member detail (4 s) | one-shot | recovery: bounded retry |
-| `session_expired` | member detail | one-shot | recovery: re-login from last checkpoint |
-| `server_error` | member detail (HTTP 500) | persistent | `Failure APP_ERROR` |
-| `renamed_button` | search page ("Find") | persistent | `Failure LOCATOR_UNRESOLVED`, drift |
-| `ambiguous_button` | search page (two "Search") | persistent | ladder must fall through, not guess |
-| `slow_confirm` | review → confirm (6 s) | one-shot | `Failure TIMEOUT, side_effect: unknown` |
-| `modal_dialog` | member detail (in-page overlay) | one-shot | recovery: dismiss the overlay; a click under it faults instead of going nowhere |
-| `native_confirm` | review → confirm (`window.confirm`) | persistent | undeclared: dismissed and reported, nothing committed → escalate; declared: answered as the capability says |
-
-One-shot modes clear themselves the first time they fire. If they persisted,
-no recovery could ever succeed and the recovery tests would prove nothing.
-Persistent modes model states the app is genuinely in, so replay should report
-an outcome rather than recover.
-
-The two dialog modes are different problems. An in-page overlay is ordinary
-markup, so perception sees it; it just covers the screen. A native
-`confirm()` never enters the accessibility tree or a screenshot, and while it
-is open the browser accepts no further instruction — so the surface answers it
-the moment it appears (as the capability declared, otherwise by dismissing,
-which commits nothing) and records the answer on the action result and the
-next observation. Playwright's default is to dismiss silently, which would make
-a cancelled irreversible step look like a successful one.
-
-## Repo layout
-
-```
-mockapp/        the automation target
-src/cua/surface/  protocol | a11y | locators | conditions | playwright_surface
-src/cua/        agent | artifact | replay | policy | secrets | escalation | evidence
-policies/       allowlist, risk rules, masks and scrub patterns
-tenants/        per-deployment binding: base_url, secret refs, overlay
-capabilities/   saved artifacts, git-tracked
-evidence/       discovery, replay and escalation runs (M7)
-tests/          unit | integration (`-m browser` needs Chromium)
-```
-
-## The Surface layer
-
-Everything that touches the target goes through `Surface`, so the rest of the
-system never learns that this particular target is a web page.
-
-- **Perception** takes one `aria_snapshot()` per frame (a `<frameset>` has no
-  single tree, and `page.accessibility.snapshot()` is deprecated) and flattens
-  the result into refs, roles, names, values, boxes and parents. Refs are
-  scoped to one observation and never reused, so a ref that outlives its screen
-  addresses nothing instead of addressing whatever took its place.
-- **The locator ladder** is how a step names a control: `role_name`, then
-  `near_text`, then `table_cell`, then `bbox`. Every rung must resolve to
-  exactly one node; a rung that matches nothing *or matches several* falls
-  through to the next, and the run records which rung answered. Pixels are
-  refused outside the viewport the capability was recorded in.
-- **Conditions** (`location_matches`, `region_present`, `text_present`,
-  `value_set`, `error_banner_present`, `validation_message_present`, ...) are
-  pure functions of an observation, so the same check that a step waited for
-  can be re-run later against recorded evidence. Each one documents what it
-  would mean on a desktop target.
-
-No CSS or XPath selector appears anywhere under `src/cua`. The only exception
-is the document-level `body` anchor that `aria_snapshot` requires, which never
-names a control.
-
-## The capability artifact
-
-A discovery run becomes a capability: a callable contract a calling agent can
-reason about before it invokes it, and the steps the replay engine follows.
-The pydantic model in `src/cua/artifact/schema.py` is the source of truth;
-`capabilities/schema/capability-1.1.json` is exported from it.
-
-- **Contract first.** `inputs` (what the caller supplies), `outputs`,
-  `contract` (side effects, idempotent, may escalate, declared business
-  outcomes) and `credentials` (a `secret://{tenant.id}/...` reference, never an
-  input and never a value).
-- **Steps** name their control by locator ladder, carry `risk`,
-  `approval` and `retry`, and say what they expect afterwards. **Checkpoints**
-  are compound (`all_of`) and bind the input: after the search, the member
-  detail screen must show `${member_id}` and the Balances heading.
-- **Detectors and recoverers** come from the app-family template
-  (`capabilities/families/legacy-core.yaml`), because what the product does
-  when things go wrong is not something one happy-path run can learn.
-- **Recording** templates a typed value as `${param}` only when it equals a
-  declared `--param` value, and refuses a run in which a secret was typed
-  literally. Outputs are named by position (row and column, or the label
-  beside them), never by the value read.
-- **Validation** refuses an unknown action, an unresolved `${placeholder}`, a
-  credential used anywhere but a typed value, duplicate or dangling ids, a
-  retryable irreversible step, and a pixel rung without the viewport it was
-  measured in.
-- **Approval.** `cua describe` renders the capability for a non-engineer and
-  records what it showed; `cua approve` refuses unless the capability is
-  exactly that. Any change bumps the version and resets it to draft, including
-  a hand edit, which is caught by the content seal written on every save.
-
-## Replay
-
-`cua replay` runs an approved capability with no model anywhere in the
-process (a test imports all of `cua.replay` in a clean interpreter and checks).
+**2. Review and approve.** Replay refuses a draft. `describe` renders the
+capability for a person who is not an engineer; `approve` refuses unless the
+capability is exactly what `describe` last showed.
 
 ```bash
-cua replay capabilities/member_savings_balance.json --input member_id=10003
-cua replay capabilities/member_savings_balance.json --input member_id=10003 --inject not_found
-cua replay capabilities/open_subaccount.json --input member_id=10003 --input initial_deposit=250.00 --inject slow_confirm --approval-token "$(cua approval-token capabilities/open_subaccount.json --input member_id=10003 --input initial_deposit=250.00 --by anil)"
+cua describe demo/member_savings_balance.json
+cua approve demo/member_savings_balance.json --by reviewer
 ```
 
-It prints one JSON `ReplayResult` and exits 0 `success`, 2 `business_outcome`,
-1 `failure`, 3 `escalated`. Before any browser starts it refuses a draft
-(`POLICY_BLOCKED`), checks the inputs (`INPUT_INVALID`), and answers a repeated
-`--idempotency-key` from its cache. Then, per step: find the control (exactly
-one node, on a rung it trusts — a control found only by pixels is not clicked
-unattended), check the policy (a risky step needs a signed `--approval-token`), act,
-and wait by condition until an in-scope detector fires (hard, then business,
-then recoverable) or the step's expectation and checkpoint hold.
-
-Recovery is bounded per step and per run: a system notice is dismissed, a slow
-screen is looked at again before the step is repeated (and only if the step is
-retryable), an expired session signs on again and the resume-state search
-picks the newest checkpoint that holds. An irreversible step is never repeated;
-if it does not land, its marker decides between `side_effect: committed` and
-`unknown`. A failed run keeps a Playwright `trace.zip`, scrubbed of secrets,
-next to its log and masked screenshots under `evidence/runs/<run_id>/`.
-
-## Safety
-
-One policy file (`policies/default.yaml`) is checked before every action, by
-the discovery loop and by replay alike (`cua.policy.allowlist.check`):
-
-- **Allowlist.** Allowed origins and URL paths, allowed actions, and
-  `blocked_actions`: a link that leaves the allowed origins
-  (`external_navigation`) or fetches a file (`download`) is refused from its
-  destination before it is clicked, and the browser context refuses downloads
-  as well. A blocked action is never performed; the agent is told why and goes
-  on.
-- **Risk.** `risky_rules` (button name, and where it sits) mark a control that
-  commits something. It needs approval: a signed token for this invocation, or
-  a person on the operator console (`--handoff`). A block is never lifted by an
-  approval.
-- **Approval tokens.** `cua approval-token` signs consent for exactly one
-  capability version and content, one tenant, one set of inputs, for a limited
-  time (HMAC with the tenant's `secret://<tenant>/cua/approval-signing-key`;
-  locally a gitignored key file created on first use). The runner verifies it
-  before a browser starts: anything else, including a token for other inputs,
-  is `POLICY_BLOCKED` with nothing touched. One token is one commit: once a
-  run has reached the risky step, the token is spent.
-- **Redaction.** Credentials are `secret://` references resolved from an
-  environment variable or a file into memory only. Every resolved value and
-  every sensitive input becomes `***` in what the model sees and in every log
-  line, tree and result; a field labelled like a secret is masked whatever it
-  holds; screenshot masks are painted in when the picture is taken; and text
-  shaped like an SSN or a 9-16 digit account or card number (`scrub_patterns`)
-  is masked everywhere, including a kept trace. The run log applies the same
-  scrub to every line it writes, as a net under the rest.
-
-## Handoff to a person
-
-With `--handoff`, a fault a person could help with does not end the run: a
-locator that no longer resolves, a step that needs approval and has no token,
-a recovery that ran out, a commit whose outcome is `unknown`, a server error.
-The run writes an **intervention request** (capability, step, reason, the
-fault, what was expected, a scrubbed excerpt of what the screen showed, a
-masked screenshot, and the DevTools endpoint and page of the live browser),
-gives up the controls, and waits. Its step timers and budget stop while it
-does.
+**3. Replay.** No model is involved from here on. Each call prints one JSON
+`ReplayResult`, and the exit code says which of the four kinds it is.
 
 ```bash
-cua operator                      # the console, on http://127.0.0.1:8100
+cua replay demo/member_savings_balance.json --input member_id=10003                          # 0 success: savings_balance 1411.21
+cua replay demo/member_savings_balance.json --input member_id=99999                          # 2 business_outcome: NOT_FOUND at search.submit
+cua replay demo/member_savings_balance.json --input member_id=10003 --inject session_expired # 0 success, after a re-login recovery
+cua replay demo/member_savings_balance.json --input member_id=10003 --inject server_error    # 1 failure: APP_ERROR, expected/observed, trace.zip
+cua replay demo/member_savings_balance.json --input member_id=ten                            # 1 failure: INPUT_INVALID, no browser started
+```
+
+**4. Hand a stuck run to a person.** Start the operator console in a third
+terminal, then make the Search button read "Find", which the capability has
+never seen:
+
+```bash
+cua operator                       # http://127.0.0.1:8100
+```
+
+```bash
 cua replay capabilities/member_savings_balance.json --input member_id=10003 \
   --inject renamed_button --handoff --headed
 ```
 
-On the console a person can **Take control** (and work in the browser window;
-for a headless session the request links the page in the browser's own
-DevTools, which shows it and takes clicks), **Resume** (optionally naming where
-to carry on), **Retry step**, **Approve action**, or **Abort**. Who holds the
-controls is one record per run, `control.json`, with a lease the replay
-checks before every action it takes; every change of hands is a line of
+The replay pauses and opens an intervention request. On the console press
+**Take control**, click **Find** in the browser window, then **Resume**. The
+run checks the screen against its checkpoints, finds the member detail page
+already showing the balance (`cp.done`), reads it, and returns `success`
+with the handoff in the result (`handoffs[0]`) and your click in the run's
+`human_actions.jsonl`.
+
+**5. A step that commits something.** Opening a sub-account ends on an
+irreversible Confirm. Without consent the run does not press it; with a
+signed, single-use approval token it runs unattended:
+
+```bash
+cua replay capabilities/open_subaccount.json --input member_id=10003 --input initial_deposit=250.00 --handoff
+```
+
+(pauses at `review.submit` with `NEEDS_APPROVAL`; **Approve action** on the console commits once)
+
+```bash
+cua replay capabilities/open_subaccount.json --input member_id=10003 --input initial_deposit=250.00 \
+  --approval-token "$(cua approval-token capabilities/open_subaccount.json --input member_id=10003 --input initial_deposit=250.00 --by reviewer)"
+```
+
+(commits unattended; `side_effect: committed` and the reference number)
+
+In PowerShell, write `` ` `` instead of `\` at line ends.
+
+## Run without live services
+
+| What | Command | Needs |
+|---|---|---|
+| Full gate: lint, format, `mypy --strict`, every test | `make test` | Chromium |
+| Tests that need no browser | `python -m pytest -m "not browser"` | nothing |
+| Discovery with no model | `cua discover --llm scripted --script scripts/discovery/<name>.yaml ...` | mock app |
+| Replay the committed, approved capabilities | `cua replay capabilities/<name>.json --input ...` | mock app |
+| Regenerate every replay under `evidence/` | `make evidence` | port 8000 free |
+
+The browser tests start their own mock app on a free port. No test calls a
+model: the discovery tests use the scripted client and recorded fixtures.
+
+## CLI
+
+| Command | What it does | Exit |
+|---|---|---|
+| `cua discover --goal ... --param name:type=value --output name:type` | LLM observe → decide → act loop until the goal is met, or a step limit, time limit, dead end or `stuck`; records a draft capability | 0 done, 3 escalated, 1 stopped |
+| `cua discover ... --llm scripted --script <file>` | same loop, no key | as above |
+| `cua record <run_dir>` | turn a finished discovery run into a draft capability | |
+| `cua describe <capability>` | the capability in plain words: inputs, outputs, side effects, steps and how each control is found, possible outcomes | |
+| `cua approve <capability> --by <name>` | draft → approved, only as last described | |
+| `cua replay <capability> --input k=v` | deterministic replay; prints a JSON `ReplayResult` | 0 success, 2 business outcome, 1 failure, 3 escalated |
+| `cua replay ... --inject <mode>` | arm a mock-app failure mode for the run | |
+| `cua replay ... --approval-token <t> --idempotency-key <k> --budget timeout_s=120,max_recoveries=3,allow_escalation=false` | invocation-level consent, retry safety and limits | |
+| `cua replay ... --handoff [--headed]` | route what a person could fix to the operator console instead of failing | |
+| `cua approval-token <capability> --input k=v --by <name>` | sign consent for one invocation's risky step | |
+| `cua resume <resume_token> [--resume-at <step>]` | carry on an `escalated` run from another process | as replay |
+| `cua operator` | the operator console on :8100 | |
+| `cua schema` | regenerate `capabilities/schema/capability-1.1.json` | |
+| `cua mockapp` | the target app on :8000 | |
+
+`cua catalog` is reserved for the stretch goal and says so when run.
+
+## Test matrix
+
+Every scenario below is a pytest case (`tests/integration` run against the
+mock app in Chromium; `tests/unit` do not).
+
+| # | Scenario | Inject | Expected | Test |
+|---|---|---|---|---|
+| 1 | Member 10003 balance | | `success`, seeded balance, no pixel rung | `integration/test_replay.py::test_row01_*` |
+| 2 | Unknown member | `not_found` | `business_outcome NOT_FOUND` at `search.submit`, exit 2 | `test_row02_*` |
+| 3 | Empty deposit | `validation_error` | `business_outcome VALIDATION_ERROR`, `payload.field` | `test_row03_*` |
+| 4 | Restricted member 10007 | `permission_denied` | `business_outcome PERMISSION_DENIED` with the name that could be read | `test_row04_*` |
+| 5 | System notice after sign on | `interstitial_dialog` | `success`, recovery `INTERSTITIAL` | `test_row05_*` |
+| 6 | 4 s detail page | `slow_load` | `success`, recovery `SLOW_LOAD` | `test_row06_*` |
+| 7 | Session expires | `session_expired` | `success`, re-login, resumed after `cp.logged_in`, password never logged | `test_row07_*` |
+| 8 | HTTP 500 | `server_error` | `failure APP_ERROR` with screenshot and trace | `test_row08_*` |
+| 9 | Search button renamed | `renamed_button` | `failure LOCATOR_UNRESOLVED` (escalation reason `STUCK`); with `--handoff`, an intervention with a masked screenshot | `test_row09_*` (both files) |
+| 10 | Two Search buttons | `ambiguous_button` | `success`; an ambiguous rung falls through | `test_row10_*` |
+| 11 | Confirm answers slowly | `slow_confirm` | `failure TIMEOUT`, `side_effect: unknown`, Confirm pressed once | `test_row11_*` |
+| 12 | Detector scope | | nothing fires on a clean run; session expiry is deaf while signing on | `test_row12_*`, `unit/test_replay.py::test_session_expiry_is_deaf_*` |
+| 13 | Notice that keeps coming back | `interstitial_persistent` | `failure RECOVERY_EXHAUSTED` | `test_row13_*` |
+| 14 | Commit with no token | | not pressed; with `--handoff` the person approves and it commits once | `test_row14_*` (both files) |
+| 15 | Commit with a valid token | | `success` unattended, `side_effect: committed` | `test_row15_*`, `test_one_token_is_one_commit` |
+| 16 | The person finishes the flow | `renamed_button` | resume finds `cp.done`, nothing re-executed | `integration/test_handoff.py::test_row16_*` |
+| 17 | `allow_escalation=false` | `server_error` | `failure ESCALATION_ABORTED`, nobody asked | `test_row17_*` |
+| 18 | The person aborts | `server_error` | `failure ESCALATION_ABORTED`, `HUMAN_IN_CONTROL → ABORTED` | `test_row18_*` |
+| 19 | Same idempotency key twice | | stored result, one browser session | `test_row19_*` |
+| 20 | Malformed input | | `failure INPUT_INVALID`, no browser | `test_row20_*` |
+| 21 | Agent follows an external or download link | | blocked, agent told why, run goes on | `integration/test_discovery.py::test_row21_*` |
+| 22 | Agent at a dead end | | escalated `DEAD_END` after 3 unchanged screens, no more model calls | `unit/test_discovery_loop.py::test_a_screen_that_never_changes_*` |
+| 23 | `done` without a declared output | | rejected, the agent is told why | `unit/test_discovery_loop.py::test_done_missing_a_declared_output_*` |
+| 24 | Replay imports no model | | `anthropic`, `google.genai`, `cua.agent` absent | `unit/test_replay.py::test_replay_imports_no_model_client_and_no_agent` |
+| 25 | Unsafe capability | | refused: unknown action, unresolved `${x}`, duplicate ids, retryable irreversible step | `unit/test_artifact_schema.py::test_an_unsafe_or_malformed_*` |
+| 26 | Recorder golden | | goal-1 run → the golden capability | `unit/test_recorder.py::test_the_goal_one_run_records_*` |
+| 27 | Redaction | | SSN and long-number shapes masked; the password in no file of a run | `unit/test_safety.py::test_the_scrubber_*`, `integration/test_discovery.py::test_the_live_password_*` |
+| 28 | State machine and lease | | illegal transitions raise; no automation act while a person holds the lease; paused time not counted | `unit/test_escalation.py` |
+| 29 | Resume-state search | | the newest holding checkpoint, never before a commit | `unit/test_replay.py::test_resume_search_*` |
+
+## The mock target app
+
+`mockapp/` imitates a legacy core banking UI so the perception and locator
+layers have something real to fight:
+
+- the signed-in shell is a `<frameset>` (nav and main), so perception must walk
+  every frame
+- every layout is a nested `<table>`; no `id`, `data-*` or ARIA attributes
+- no `<label for>`, so **text inputs have no accessible name**, which is why
+  the `near_text` locator rung exists
+- buttons are `<input type=submit>`, so the accessible name is the `value`
+  attribute and can change under a recorded capability
+- form fields carry cryptic `name` attributes (`F_MBRID`, `F_DEPAMT`) because
+  HTML forms need them. They are not in the accessibility tree, and nothing
+  under `src/cua` uses them.
+
+All data is synthetic: members 10001–10010, named `Test Member NN`. Member
+10007 is restricted.
+
+Arm a failure mode with `?inject=<mode>` on any request, the `X-Inject`
+header, or `cua replay --inject`. The mode is stored in the session so it
+fires on the screen it belongs to. `?inject=none` disarms.
+
+| Mode | Fires at | Persistence | Exercises |
+|---|---|---|---|
+| `not_found` | search submit | persistent | `business_outcome NOT_FOUND` |
+| `validation_error` | sub-account submit | persistent | `business_outcome VALIDATION_ERROR` |
+| `permission_denied` | member detail | persistent | `business_outcome PERMISSION_DENIED` |
+| `interstitial_dialog` | after sign on | one-shot | recovery: dismiss the notice |
+| `interstitial_persistent` | after sign on, and every return to the shell | persistent | recovery is capped: `RECOVERY_EXHAUSTED` |
+| `slow_load` | member detail (4 s) | one-shot | recovery: look again, then retry |
+| `session_expired` | member detail | one-shot | recovery: sign on again, resume from the last checkpoint |
+| `server_error` | member detail (HTTP 500) | persistent | `failure APP_ERROR` |
+| `renamed_button` | search page ("Find") | persistent | `LOCATOR_UNRESOLVED`, drift, handoff |
+| `ambiguous_button` | search page (two "Search") | persistent | the ladder falls through rather than guess |
+| `slow_confirm` | review → confirm (6 s) | one-shot | `failure TIMEOUT, side_effect: unknown` |
+| `modal_dialog` | member detail (in-page overlay) | one-shot | a click under an overlay faults instead of going nowhere |
+| `native_confirm` | review → confirm (`window.confirm`) | persistent | undeclared: dismissed and reported, nothing committed |
+
+One-shot modes clear the first time they fire; if they persisted, no recovery
+could succeed and the recovery tests would prove nothing. Persistent modes
+model states the app is really in, where replay should report rather than
+recover.
+
+## How it works
+
+The reasoning behind each choice is in [REPORT.md](REPORT.md). This is the
+map of the code.
+
+```
+mockapp/            the automation target
+src/cua/surface/    Surface protocol, a11y perception, locator ladder, conditions, Playwright adapter
+src/cua/agent/      discovery loop, prompts, tools, stopping conditions, LLM clients (Claude, Gemini, scripted)
+src/cua/artifact/   capability schema, recorder, store (versioning, content seal), describe
+src/cua/replay/     engine, waits, detectors, recoverers, resume-state search, result contract, runner
+src/cua/policy/     allowlist and risk, approval gate, approval tokens, redaction
+src/cua/secrets/    secret:// resolver (environment or file, memory only)
+src/cua/escalation/ control lease, state machine, intervention requests, operator console, human-action capture
+src/cua/evidence/   run log, trace, `make evidence` builder
+policies/           allowlist, risk rules, masks and scrub patterns
+tenants/            per-deployment binding: base_url, secret refs, overlay
+capabilities/       approved capabilities, the app-family template, the exported JSON Schema
+evidence/           discovery, replay and escalation runs
+tests/              unit | integration (`-m browser` needs Chromium)
+```
+
+### Surface
+
+Everything that touches the target goes through `Surface`, so nothing above it
+knows the target is a web page.
+
+- **Perception** takes one `aria_snapshot()` per frame and flattens it into
+  refs, roles, names, values, boxes and parents. Refs belong to one
+  observation and are never reused, so a stale ref addresses nothing rather
+  than whatever took its place. `python -m cua.surface --url
+  http://127.0.0.1:8000/login --signed-in` prints what the automation sees.
+- **The locator ladder** names a control by `role_name`, then `near_text`,
+  then `table_cell`, then `bbox`. Each rung must resolve to exactly one node;
+  a rung that matches nothing or several falls through, and the run records
+  which rung answered. Pixels are refused outside the viewport the capability
+  was recorded in, and are never acted on unattended.
+- **Conditions** (`location_matches`, `region_present`, `text_present`,
+  `value_set`, `error_banner_present`, `validation_message_present`, ...) are
+  pure functions of an observation, and each documents what it would mean on
+  a desktop surface.
+
+No CSS or XPath selector appears under `src/cua`. The one exception is the
+document-level `body` anchor `aria_snapshot` requires, which never names a
+control.
+
+### Capability
+
+The pydantic model in `src/cua/artifact/schema.py` is the source of truth;
+`capabilities/schema/capability-1.1.json` is exported from it. A capability
+carries its contract (`inputs`, `outputs`, `contract` with side effects,
+idempotency and declared business outcomes, and `credentials` as `secret://`
+refs), its `steps` (a locator ladder, `risk`, `approval`, `retry`, and what
+must hold afterwards), compound `checkpoints` that bind the inputs,
+`outcome_detectors` and `recoverers` from the app-family template
+(`capabilities/families/legacy-core.yaml`), and `provenance` naming the
+discovery run. Any change bumps the version and resets it to draft, including
+a hand edit, which the content seal written on every save catches.
+
+### Replay
+
+Per step: find the control (exactly one node, on a rung it trusts), check the
+policy, act, then wait by condition until an in-scope detector fires (hard,
+then business, then recoverable) or the step's expectation and checkpoint
+hold. Recovery is bounded per step and per run. An irreversible step is never
+repeated; if it does not visibly land, its marker decides between
+`side_effect: committed` and `unknown`. A failed run keeps a scrubbed
+Playwright `trace.zip` beside its log and masked screenshots.
+
+### Safety
+
+`policies/default.yaml` is checked before every action by discovery and replay
+alike: allowed origins, paths and actions; `blocked_actions` (external
+navigation, downloads), judged from a link's destination before it is clicked;
+`risky_rules` that need a signed approval token or a person; masks applied when
+a screenshot is taken; and SSN and account-number shapes scrubbed from
+everything written.
+
+### Handoff
+
+With `--handoff`, a fault a person could fix writes an intervention request
+(capability, step, reason, expected, a scrubbed excerpt of the screen, a
+masked screenshot, the DevTools endpoint of the live browser), gives up the
+controls and waits, with its timers stopped. Who holds the controls is one
+record per run (`control.json`), and every change of hands is a line of
 `state_transitions.jsonl`:
 
 ```
@@ -311,35 +345,13 @@ AUTOMATION -> PAUSED -> HUMAN_IN_CONTROL -> RESUMING -> AUTOMATION
                  \-> ABORTED    \-> ABORTED
 ```
 
-While a person has the controls, the console attaches to the same browser over
-CDP and records what they do in `human_actions.jsonl`: clicks, changes (which
-control and how many characters, never the value), key presses, navigations.
-They are recorded, not policy-checked: the person is the escalation path for
-what the policy did not foresee.
-
-When they hand back, the run takes nobody's word for where it is. It reads
-whatever outputs the screen shows, tests its checkpoints newest first, and
-carries on after the newest one that holds; an operator's "resume at" only
-narrows which checkpoint is tested. It never goes back before a commit that
-has happened — or may have — and if the person committed it, the result says
-so (`side_effect: committed`, `performed_by: person` in the log). If no
-checkpoint holds, it asks again.
-
-A caller is never stuck waiting on a person. `--handoff-wait 0` (or nobody
-picking the request up in time, or Ctrl+C) returns `escalated` with a
-`resume_token`, exit 3. The browser runs as a process of its own, so the
-session outlives the replay; once the person has handed back on the console,
-`cua resume <token>` attaches to it and carries the run on (or, called before
-anyone has, is the handback itself). A request nobody answers is aborted after
-`--handoff-ttl`. Without `--handoff`, a fault that should have gone to a
-person is a `failure` naming the escalation it replaced (`escalation_reason`);
-with `--budget allow_escalation=false` it is `ESCALATION_ABORTED` and nobody
-is asked.
-
-`cua discover --handoff` puts a risky action, `stuck` and a dead end to the
-same console: an approval lets the action through; a handback lets the agent
-carry on from the screen the person left (a run a person acted in is not
-recorded as a capability; its transcript is not the whole story).
+While a person holds the controls the console attaches to the same browser
+over CDP and records clicks, changes (which control and how many characters,
+never the value), key presses and navigations in `human_actions.jsonl`. When
+they hand back, the run tests its checkpoints newest first and carries on
+after the newest that holds. A caller is never blocked on a person:
+`--handoff-wait 0`, or nobody answering in time, returns `escalated` with a
+`resume_token`, and the browser outlives the process for `cua resume`.
 
 ## License
 

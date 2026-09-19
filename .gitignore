@@ -16,5 +16,8 @@ dist/
 /evidence/runs/
 .DS_Store
 
+# Capabilities recorded by following the README demo path.
+/demo/
+
 # Local review receipts written by `cua describe`; approvals themselves are committed.
 /.cua/
