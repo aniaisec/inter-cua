@@ -1,9 +1,8 @@
 """``cua`` command line entry point.
 
-The subcommand surface is declared here in full from M0 so that the shape of
-the deliverable is fixed early and the README's CLI table has something to
-point at. Subcommands not built yet exit 70 (EX_SOFTWARE) naming the milestone
-that will land them.
+Discover a capability, review and approve it, replay it deterministically,
+hand a stuck run to a person and carry it on, and offer the approved ones to
+a calling agent as tools (``cua catalog``).
 """
 
 from __future__ import annotations
@@ -18,10 +17,6 @@ from pathlib import Path
 from typing import Any
 
 from cua.termlink import link
-
-PENDING: dict[str, str] = {
-    "catalog": "M9 - stretch",
-}
 
 EX_USAGE = 64
 
@@ -38,10 +33,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_artifact_commands(sub)
     _add_replay(sub)
     _add_handoff_commands(sub)
-
-    for name, milestone in PENDING.items():
-        sub.add_parser(name, help=f"(not yet implemented: {milestone})")
-
+    _add_catalog(sub)
     return parser
 
 
@@ -123,6 +115,15 @@ def _add_replay(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> Non
     )
     r.add_argument("capability", type=Path)
     r.add_argument("--tenant", default="local", help="tenants/<id>.yaml, or a path to one")
+    _add_invocation_flags(r)
+    r.add_argument(
+        "--allow-draft",
+        action="store_true",
+        help="Operator override: replay a capability nobody has approved. Logged loudly.",
+    )
+
+
+def _add_invocation_flags(r: argparse.ArgumentParser) -> None:
     r.add_argument(
         "--input",
         action="append",
@@ -151,11 +152,6 @@ def _add_replay(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> Non
     )
     r.add_argument("--step-timeout", type=float, default=3.0, help="Seconds one step may take")
     r.add_argument("--inject", help="Arm a mock-app failure mode for this run (demo)")
-    r.add_argument(
-        "--allow-draft",
-        action="store_true",
-        help="Operator override: replay a capability nobody has approved. Logged loudly.",
-    )
     r.add_argument("--no-screenshots", action="store_true")
     r.add_argument("--headed", action="store_true", help="Show the browser window")
     r.add_argument("--runs-dir", type=Path, default=Path("evidence/runs"))
@@ -222,6 +218,14 @@ def _add_handoff_commands(sub: argparse._SubParsersAction[argparse.ArgumentParse
         help="Sensitive inputs again: they were not kept",
     )
     r.add_argument(
+        "--approval-token",
+        help="Consent for the risky step the run stopped at (NEEDS_APPROVAL), from "
+        "`cua approval-token` with the run's inputs; instead of approving on the console",
+    )
+    r.add_argument(
+        "--approved-by", help="Who gave that consent; refused if the token names someone else"
+    )
+    r.add_argument(
         "--handoff-wait",
         type=float,
         default=None,
@@ -241,6 +245,35 @@ def _add_handoff_commands(sub: argparse._SubParsersAction[argparse.ArgumentParse
     o.add_argument("--runs-dir", type=Path, default=Path("evidence/runs"))
     o.add_argument("--tenant", default="local", help="For the policy's scrub patterns")
     o.add_argument("--policy", default="policies/default.yaml", type=Path)
+
+
+def _add_catalog(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    c = sub.add_parser(
+        "catalog",
+        help="The approved capabilities as tools a calling agent can invoke by name",
+        description="List the approved capabilities; --json prints them as tool definitions "
+        "(name, description, input_schema) for a model's tool-calling API. "
+        "`cua catalog invoke <name>` calls one with typed arguments and prints a JSON "
+        "ReplayResult.",
+    )
+    c.add_argument("--json", action="store_true", help="Tool definitions, for an agent")
+    c.add_argument("--all", action="store_true", help="Drafts too (they cannot be invoked)")
+    c.add_argument("--capabilities-dir", type=Path, default=Path("capabilities"))
+    csub = c.add_subparsers(dest="catalog_command")
+    i = csub.add_parser(
+        "invoke",
+        help="Invoke an approved capability by name",
+        description="Invoke an approved capability by name. Arguments come as a JSON object "
+        "typed the way a model's tool call types them (--args), as NAME=VALUE (--input), or "
+        "inside a whole invocation request (--request FILE, or - for stdin). Prints a JSON "
+        "ReplayResult; exit 0 success, 2 business outcome, 1 failure, 3 escalated.",
+    )
+    i.add_argument("name", nargs="?", help="Capability name (default: the request's)")
+    i.add_argument("--args", metavar="JSON", help='Typed arguments, e.g. {"member_id": "10003"}')
+    i.add_argument("--request", metavar="FILE", help="A JSON invocation request; - reads stdin")
+    i.add_argument("--tenant", help="tenants/<id>.yaml, or a path to one (default: local)")
+    i.add_argument("--capabilities-dir", type=Path, default=Path("capabilities"))
+    _add_invocation_flags(i)
 
 
 def _add_artifact_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -325,15 +358,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "approval-token":
         load_dotenv(Path(".env"))
         return _approval_token(args)
-    if args.command == "schema":
-        from cua.artifact.schema import export_json_schema
+    if args.command == "catalog":
+        if args.catalog_command == "invoke":
+            load_dotenv(Path(".env"))
+            return _catalog_invoke(args)
+        return _catalog_list(args)
 
-        print(link(export_json_schema(args.out), stream=sys.stdout))
-        return 0
+    from cua.artifact.schema import export_json_schema
 
-    milestone = PENDING[args.command]
-    print(f"cua {args.command}: not implemented yet ({milestone})", file=sys.stderr)
-    return 70
+    print(link(export_json_schema(args.out), stream=sys.stdout))
+    return 0
 
 
 def _discover(args: argparse.Namespace) -> int:
@@ -476,6 +510,33 @@ def _discover(args: argparse.Namespace) -> int:
 
 
 def _replay(args: argparse.Namespace) -> int:
+    try:
+        inputs = dict(_pair(i, "--input") for i in args.input)
+    except ValueError as exc:
+        print(f"cua replay: {exc}", file=sys.stderr)
+        return EX_USAGE
+    return _invoke(
+        "replay",
+        args,
+        args.capability,
+        tenant_id=args.tenant,
+        inputs=inputs,
+        allow_draft=args.allow_draft,
+    )
+
+
+def _invoke(
+    command: str,
+    args: argparse.Namespace,
+    capability: Path,
+    *,
+    tenant_id: str,
+    inputs: dict[str, str],
+    request: dict[str, Any] | None = None,
+    allow_draft: bool = False,
+) -> int:
+    """One replay from the invocation flags, and for ``catalog invoke`` a
+    request object too; a flag given on the command line wins over it."""
     from pydantic import ValidationError
 
     from cua.policy.allowlist import load_policy
@@ -484,30 +545,36 @@ def _replay(args: argparse.Namespace) -> int:
     from cua.replay.runner import InvocationError, launched, replay
     from cua.tenant import load_tenant
 
+    request = request or {}
     try:
-        tenant = load_tenant(args.tenant)
+        tenant = load_tenant(tenant_id)
         policy = load_policy(args.policy, tenant)
-        inputs = dict(_pair(i, "--input") for i in args.input)
         budget = Budget.model_validate(
-            dict(_pair(b, "--budget") for b in args.budget.split(",") if b.strip())
+            {
+                **request.get("budget", {}),
+                **dict(_pair(b, "--budget") for b in args.budget.split(",") if b.strip()),
+            }
         )
+        approval: ApprovalGrant | None = None
+        if args.approval_token:
+            approval = ApprovalGrant(token=args.approval_token, approved_by=args.approved_by)
+        elif request.get("approval"):
+            approval = ApprovalGrant.model_validate(request["approval"])
         handoff = _handoff_settings(args)
         invocation = Invocation(
             inputs=inputs,
-            idempotency_key=args.idempotency_key,
-            approval=ApprovalGrant(token=args.approval_token, approved_by=args.approved_by)
-            if args.approval_token
-            else None,
+            idempotency_key=args.idempotency_key or request.get("idempotency_key"),
+            approval=approval,
             budget=budget,
             inject=args.inject,
         )
         result = replay(
-            args.capability,
+            capability,
             tenant=tenant,
             policy=policy,
             invocation=invocation,
             runs_dir=args.runs_dir,
-            allow_draft=args.allow_draft,
+            allow_draft=allow_draft,
             config=ReplayConfig(
                 step_timeout_s=args.step_timeout, screenshots=not args.no_screenshots
             ),
@@ -515,15 +582,98 @@ def _replay(args: argparse.Namespace) -> int:
             handoff=handoff,
         )
     except (InvocationError, OSError, ValueError, ValidationError) as exc:
-        print(f"cua replay: {exc}", file=sys.stderr)
+        print(f"cua {command}: {exc}", file=sys.stderr)
         return EX_USAGE
     except KeyboardInterrupt:
         import logging
 
         logging.getLogger("asyncio").setLevel(logging.CRITICAL)
-        print("cua replay: interrupted", file=sys.stderr)
+        print(f"cua {command}: interrupted", file=sys.stderr)
         return 130
-    return _print_result("replay", result)
+    return _print_result(command, result)
+
+
+def _catalog_list(args: argparse.Namespace) -> int:
+    from cua import catalog
+
+    entries, broken = catalog.scan(args.capabilities_dir)
+    for b in broken:
+        print(f"cua catalog: skipped {b.path.as_posix()}: {b.error}", file=sys.stderr)
+    if args.json:
+        print(json.dumps(catalog.tools(entries, include_drafts=args.all), indent=2))
+        return 0
+    shown = [e for e in entries if e.invocable or args.all]
+    if not shown:
+        print(f"No approved capabilities in {args.capabilities_dir.as_posix()}.")
+    for e in shown:
+        cap = e.capability
+        state = cap.approval_state + (" (edited by hand)" if e.edited_outside else "")
+        ins = ", ".join(f"{n}: {s.type}{'' if s.required else '?'}" for n, s in cap.inputs.items())
+        outs = ", ".join(
+            f"{n}: {o.type}{'?' if o.optional else ''}" for n, o in cap.outputs.items()
+        )
+        print(f"{cap.name}  v{cap.version}  {state}  side effects: {cap.contract.side_effects}")
+        print(f"    {cap.description}")
+        print(f"    ({ins}) -> ({outs})")
+        if cap.contract.outcomes:
+            print(f"    business outcomes: {', '.join(sorted(cap.contract.outcomes))}")
+        if cap.contract.may_escalate:
+            print("    needs consent to commit: an approval token, or a person on the console")
+        print(f"    {link(e.path, stream=sys.stdout)}")
+    hidden = len(entries) - len(shown)
+    if hidden:
+        print(f"({hidden} draft(s) not shown: they cannot be invoked. --all lists them.)")
+    if shown:
+        print("\nInvoke one by name: cua catalog invoke <name> --input name=value")
+        print("Tool definitions for an agent: cua catalog --json")
+    return 0
+
+
+def _catalog_invoke(args: argparse.Namespace) -> int:
+    from cua import catalog
+    from cua.artifact.store import ArtifactError, open_capability
+    from cua.replay.result import exit_code, to_json
+
+    try:
+        request: dict[str, Any] = {}
+        if args.request is not None:
+            text = (
+                sys.stdin.read()
+                if args.request == "-"
+                else Path(args.request).read_text(encoding="utf-8")
+            )
+            request = catalog.parse_request(text)
+        asked = request.get("capability")
+        if args.name and asked not in (None, args.name):
+            raise ValueError(f"the request is for {asked!r}, not {args.name!r}")
+        name = args.name or asked
+        if not name:
+            raise ValueError("name the capability to invoke (or give one in the request)")
+        path = catalog.find(args.capabilities_dir, name)
+        cap = open_capability(path).capability
+        arguments: dict[str, Any] = dict(request.get("inputs", {}))
+        if args.args is not None:
+            arguments.update(catalog.parse_arguments(args.args))
+        arguments.update(_pair(i, "--input") for i in args.input)
+    except (catalog.CatalogError, ArtifactError, OSError, ValueError) as exc:
+        print(f"cua catalog invoke: {exc}", file=sys.stderr)
+        return EX_USAGE
+
+    inputs, problems = catalog.coerce(cap, arguments)
+    if problems:
+        failure = catalog.input_invalid(
+            cap, problems, args.idempotency_key or request.get("idempotency_key")
+        )
+        print(to_json(failure), end="")
+        return int(exit_code(failure))
+    return _invoke(
+        "catalog invoke",
+        args,
+        path,
+        tenant_id=args.tenant or request.get("tenant") or "local",
+        inputs=inputs,
+        request=request,
+    )
 
 
 def _print_result(command: str, result: Any) -> int:
@@ -544,6 +694,7 @@ def _print_result(command: str, result: Any) -> int:
 
 
 def _resume(args: argparse.Namespace) -> int:
+    from cua.replay.invocation import ApprovalGrant
     from cua.replay.runner import InvocationError, resume
 
     try:
@@ -553,6 +704,9 @@ def _resume(args: argparse.Namespace) -> int:
             by=args.by,
             resume_at=args.resume_at,
             inputs=dict(_pair(i, "--input") for i in args.input),
+            approval=ApprovalGrant(token=args.approval_token, approved_by=args.approved_by)
+            if args.approval_token
+            else None,
             wait_s=args.handoff_wait,
         )
     except (InvocationError, OSError, ValueError) as exc:

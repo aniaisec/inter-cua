@@ -164,12 +164,54 @@ model: the discovery tests use the scripted client and recorded fixtures.
 | `cua replay ... --approval-token <t> --idempotency-key <k> --budget timeout_s=120,max_recoveries=3,allow_escalation=false` | invocation-level consent, retry safety and limits | |
 | `cua replay ... --handoff [--headed]` | route what a person could fix to the operator console instead of failing | |
 | `cua approval-token <capability> --input k=v --by <name>` | sign consent for one invocation's risky step | |
-| `cua resume <resume_token> [--resume-at <step>]` | carry on an `escalated` run from another process | as replay |
+| `cua resume <resume_token> [--resume-at <step>] [--approval-token <t>]` | carry on an `escalated` run from another process; a token answers `NEEDS_APPROVAL` without the console | as replay |
+| `cua catalog [--json]` | the approved capabilities, typed; `--json` prints them as tool definitions for a model | |
+| `cua catalog invoke <name> --args '<json>' \| --input k=v \| --request <file>` | invoke by name with typed arguments; takes the replay invocation flags | as replay |
 | `cua operator` | the operator console on :8100 | |
 | `cua schema` | regenerate `capabilities/schema/capability-1.1.json` | |
 | `cua mockapp` | the target app on :8000 | |
 
-`cua catalog` is reserved for the stretch goal and says so when run.
+## Calling a capability from an agent
+
+`cua catalog` is the surface an agent sees. It lists only approved
+capabilities, because those are the only ones unattended replay will run.
+`--json` prints each one as a tool definition (`name`, `description`,
+`input_schema`), the shape a model's tool-calling API takes. The description
+carries the contract: outputs, side effect, whether it is idempotent, and
+which business outcomes and escalations to expect.
+
+```bash
+cua catalog
+cua catalog --json
+cua catalog invoke member_savings_balance --args '{"member_id": "10003"}'     # 0 success
+cua catalog invoke member_savings_balance --args '{"member_id": 10003}'       # 1 INPUT_INVALID: member_id is a string
+```
+
+Arguments are typed the way a model types a tool call. A `decimal` may come as
+a number or a string, but a `string` must be a JSON string: a member id sent
+as a number would lose any leading zero. A wrong type fails before a browser
+starts. `--request <file>` (or `-` for stdin) takes a whole invocation request
+(`capability`, `inputs`, `idempotency_key`, `approval`, `budget`) as JSON.
+
+An invocation that needs a person returns `escalated` and exits, leaving the
+browser up. The caller gets consent from someone who may give it and carries
+the run on:
+
+```bash
+cua catalog invoke open_subaccount --input member_id=10003 --input initial_deposit=250.00 --handoff --handoff-wait 0
+```
+
+(exit 3: `escalated`, `NEEDS_APPROVAL` at `review.submit`, `side_effect: none`, and a `resume_token`)
+
+```bash
+cua resume <resume_token> --approval-token "$(cua approval-token capabilities/open_subaccount.json --input member_id=10003 --input initial_deposit=250.00 --by reviewer)"
+```
+
+(exit 0: `success`, `side_effect: committed`, the reference number. The resumed
+run found the review screen still holding, so it carried on at
+`review.submit` with the fresh consent. A token for other inputs is refused and
+the run keeps waiting.) The same request also shows up on `cua operator`, where
+**Approve action** does the same thing.
 
 ## Test matrix
 
@@ -207,6 +249,7 @@ mock app in Chromium; `tests/unit` do not).
 | 27 | Redaction | | SSN and long-number shapes masked; the password in no file of a run | `unit/test_safety.py::test_the_scrubber_*`, `integration/test_discovery.py::test_the_live_password_*` |
 | 28 | State machine and lease | | illegal transitions raise; no automation act while a person holds the lease; paused time not counted | `unit/test_escalation.py` |
 | 29 | Resume-state search | | the newest holding checkpoint, never before a commit | `unit/test_replay.py::test_resume_search_*` |
+| – | Catalog (stretch) | | invoke by name → `escalated NEEDS_APPROVAL` → `cua resume` with fresh consent commits once; wrong types fail `INPUT_INVALID` | `integration/test_catalog.py`, `unit/test_catalog.py` |
 
 ## The mock target app
 

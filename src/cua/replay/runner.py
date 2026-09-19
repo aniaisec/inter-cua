@@ -62,7 +62,13 @@ from cua.policy.allowlist import Policy
 from cua.policy.redaction import Redactor
 from cua.policy.tokens import Approval, SpentTokens, TokenRefused
 from cua.replay.engine import ReplayConfig, ReplayEngine, SavedRun
-from cua.replay.invocation import Budget, Invocation, request_summary, validate_inputs
+from cua.replay.invocation import (
+    ApprovalGrant,
+    Budget,
+    Invocation,
+    request_summary,
+    validate_inputs,
+)
 from cua.replay.result import (
     RESULT,
     Failure,
@@ -424,6 +430,7 @@ def resume(
     by: str = "cua-resume",
     resume_at: str | None = None,
     inputs: dict[str, str] | None = None,
+    approval: ApprovalGrant | None = None,
     environ: dict[str, str] | None = None,
     surface: Callable[[ResumeContext], AbstractContextManager[PlaywrightSurface]] | None = None,
     wait_s: float | None = None,
@@ -435,6 +442,12 @@ def resume(
     ``resume_at``); either way the engine then runs the resume-state search on
     the live session and carries on — or asks again. A run that has already
     ended returns its stored result.
+
+    ``approval``: fresh consent for the capability's risky steps, checked as
+    ``replay`` checks it (this capability, tenant and inputs; unspent). It is
+    how a run that stopped at ``NEEDS_APPROVAL`` is finished without the
+    console: the caller gets a token from whoever may consent, and resumes
+    with it. Consent the first run held is never carried over.
     """
     queue = Queue(runs_dir)
     entry = queue.by_token(resume_token)
@@ -472,6 +485,26 @@ def resume(
             "only with the capability it began with"
         )
     values = _restore_inputs(ctx, inputs or {})
+    invocation = Invocation(
+        inputs=values,
+        idempotency_key=ctx.idempotency_key,
+        approval=approval,
+        budget=ctx.budget,
+    )
+    grant: Approval | None = None
+    if approval is not None:
+        # Checked before the run's state is touched: a refused token leaves
+        # it waiting exactly as it was, to be resumed again.
+        try:
+            grant = _verified(cap, ctx.tenant, invocation, environ)
+        except TokenRefused as exc:
+            raise InvocationError(f"approval refused: {exc}") from None
+        used_by = SpentTokens(runs_dir).spent_by(grant)
+        if used_by is not None:
+            raise InvocationError(
+                f"approval refused: this token was already used by {used_by}; one consent "
+                "covers one commit"
+            )
 
     if record.state == "PAUSED":
         record = control.transition(
@@ -488,11 +521,6 @@ def resume(
 
     log = RunLog(run_dir)
     handoff = ctx.handoff if wait_s is None else ctx.handoff.model_copy(update={"wait_s": wait_s})
-    invocation = Invocation(
-        inputs=values,
-        idempotency_key=ctx.idempotency_key,
-        budget=ctx.budget,
-    )
     credentials = _credentials(cap, ctx.tenant, environ)
     factory = surface or _attached
     try:
@@ -502,7 +530,7 @@ def resume(
             tenant=ctx.tenant,
             policy=ctx.policy,
             invocation=invocation,
-            approval=None,  # consent is never carried over; the console gives it again
+            approval=grant,  # given again here, or on the console; never carried over
             spent=SpentTokens(runs_dir),
             credentials=credentials,
             runs_dir=runs_dir,

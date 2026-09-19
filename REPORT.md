@@ -223,7 +223,10 @@ narrows the search. The run never goes back before a commit that happened or
 may have happened, and if the person committed, the result says so. If no
 checkpoint holds, it asks again. The caller is never blocked: if nobody takes
 the request in time, replay returns `escalated` with a `resume_token`, the
-browser outlives the process, and `cua resume <token>` finishes the run. In
+browser outlives the process, and `cua resume <token>` finishes the run. For
+`NEEDS_APPROVAL` the caller may pass `resume` a fresh approval token instead of
+using the console; it is checked as replay checks one, and a refusal leaves the
+run waiting. In
 the goal-2 discovery run, a person approved the Confirm step by hand through
 this console.
 
@@ -278,7 +281,7 @@ this console.
 | Real operator console | Out of scope in the brief. Lease, CDP, capture and resume search are real; the page is minimal | Co-browsing view, request assignment, operator auth |
 | Remote CDP | Localhost only | Authenticated proxy, or a VNC/WebRTC viewer |
 | Idempotency and request stores | Files | A table keyed by tenant and key; the request queue as the first service |
-| Stretch goals | Core first | `cua catalog` as a tool-calling surface, or a `--times N` stability report |
+| Stretch goals | One built: `cua catalog` lists approved capabilities as tool definitions and invokes them by name with typed arguments, including `escalated` → `cua resume` | A `--times N` stability report |
 
 Two choices differ from where I started. A fault that a person could fix
 returns `failure` unless the invocation asks for a handoff, because an
