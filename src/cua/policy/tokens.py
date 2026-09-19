@@ -31,6 +31,7 @@ import json
 import secrets
 import time
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
@@ -60,6 +61,10 @@ class Approval(BaseModel):
     approved_by: str
     expires_at: int
     token_sha256: str
+    via: Literal["token", "console"] = "token"
+    """``console``: given on the operator console in answer to an
+    intervention request, for that request's step only. There is no token
+    then, and ``token_sha256`` is a hash of the request id; nothing is spent."""
 
 
 class _Claims(BaseModel):

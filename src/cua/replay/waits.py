@@ -31,6 +31,44 @@ class MonotonicClock:
         return time.monotonic()
 
 
+class PausableClock:
+    """A clock that stops while a human has the controls.
+
+    Every deadline the engine holds — the step's, the invocation's budget — is
+    measured on this clock, so an hour a request spends waiting for an operator
+    is not an hour the run spent. Without it the first step after a handback
+    would find its budget long gone and fail for time the automation never had.
+    """
+
+    def __init__(self, base: Clock | None = None) -> None:
+        self._base = base or MonotonicClock()
+        self._paused_at: float | None = None
+        self._paused_total = 0.0
+
+    def now(self) -> float:
+        at = self._paused_at if self._paused_at is not None else self._base.now()
+        return at - self._paused_total
+
+    @property
+    def paused(self) -> bool:
+        return self._paused_at is not None
+
+    @property
+    def paused_s(self) -> float:
+        """Time spent paused so far, the current pause included."""
+        current = self._base.now() - self._paused_at if self._paused_at is not None else 0.0
+        return self._paused_total + current
+
+    def pause(self) -> None:
+        if self._paused_at is None:
+            self._paused_at = self._base.now()
+
+    def resume(self) -> None:
+        if self._paused_at is not None:
+            self._paused_total += self._base.now() - self._paused_at
+            self._paused_at = None
+
+
 class Deadline:
     def __init__(self, clock: Clock, seconds: float) -> None:
         self._clock = clock

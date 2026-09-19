@@ -284,6 +284,9 @@ class SessionHandle(BaseModel):
     cdp_url: str
     page_url: str
     viewport: Viewport
+    target_id: str | None = None
+    """The DevTools target of the page being driven: a browser has many
+    pages, and whoever attaches must take over this one."""
 
 
 # --------------------------------------------------------------------------

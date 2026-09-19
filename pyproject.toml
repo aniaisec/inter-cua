@@ -46,6 +46,9 @@ addopts = "-q --strict-markers"
 filterwarnings = [
   # Raised inside google-genai on Python 3.14, not by this code.
   "ignore:.*_UnionGenericAlias.*:DeprecationWarning:google.genai",
+  # Raised by starlette's TestClient itself (the operator console tests).
+  "ignore:Using `httpx` with `starlette.testclient`",
+  "ignore:The anyio.abc.BlockingPortal alias is deprecated",
 ]
 markers = [
   "browser: requires a Playwright Chromium install",

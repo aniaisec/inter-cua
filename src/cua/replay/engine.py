@@ -28,17 +28,28 @@ before it once it has happened. If anything goes wrong after it was performed,
 the step's ``side_effect_marker`` is checked on the screen: seen means
 ``side_effect: committed``, not seen means ``unknown`` — never ``none``.
 
+A fault a person could help with (``escalate`` on the step, and a handoff
+channel attached) does not end the run. The engine publishes an intervention
+request with a masked screenshot, gives up the controls, and waits; its clocks
+stop while it does. When the person hands back, the engine takes nobody's word
+for where the run is: it runs the resume-state search on the screen as the
+person left it and carries on after the newest checkpoint that holds, never
+before a commit that has happened. If nothing holds, it asks again.
+
 Nothing here imports a model client or the discovery agent; a test proves it.
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
-from collections.abc import Mapping
+import time
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Literal, NoReturn, cast
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from cua.artifact.schema import (
     DONE,
@@ -55,11 +66,22 @@ from cua.policy.redaction import Redactor
 from cua.policy.tokens import Approval
 from cua.replay import detectors as det_rules
 from cua.replay.extract import ParseError, parse
+from cua.replay.handoff import (
+    Abort,
+    HandBack,
+    Handoff,
+    HandoffRequest,
+    Option,
+    ResumeChoice,
+    Ticket,
+    Unanswered,
+)
 from cua.replay.invocation import Invocation, bind, credential_field, fill
 from cua.replay.recoverers import RecoveryLedger
 from cua.replay.result import (
     FAILURE_CODES,
     BusinessOutcome,
+    Escalated,
     EscalationReason,
     Evidence,
     Failure,
@@ -70,8 +92,9 @@ from cua.replay.result import (
     SideEffect,
     Success,
 )
-from cua.replay.resume import find_resume_point, holds
-from cua.replay.waits import Clock, Deadline, MonotonicClock, poll
+from cua.replay.result import Handoff as HandoffRecord
+from cua.replay.resume import find_resume_point, holds, next_step_after
+from cua.replay.waits import Clock, Deadline, PausableClock, poll
 from cua.secrets.resolver import Credential
 from cua.surface.a11y import normalize
 from cua.surface.conditions import (
@@ -151,6 +174,52 @@ class _Refind(Exception):
     """The screen moved between finding the control and acting on it."""
 
 
+class _Escalate(Exception):
+    """A fault a person should be asked about. Caught at the top of the run,
+    which hands the session over instead of ending."""
+
+    def __init__(self, failure: Failure, index: int | None, attempt: int = 1) -> None:
+        super().__init__(failure.code)
+        self.failure = failure
+        self.index = index
+        """The step that stopped the run, or None."""
+        self.attempt = attempt
+
+
+class SavedRun(BaseModel):
+    """What a run waiting on a person needs to be carried on by another
+    process (``cua resume``): everything the engine knows about how far it
+    got, and nothing secret. Credentials are resolved again, sensitive inputs
+    supplied again, and consent is never carried over."""
+
+    model_config = ConfigDict(frozen=True)
+
+    escalation: Failure
+    index: int | None
+    attempt: int
+    ticket: Ticket
+    committed_through: int | None
+    in_flight: str | None
+    passed: list[str]
+    outputs: dict[str, OutputValue]
+    rungs: dict[str, str]
+    warnings: list[str]
+    recoveries: list[Recovery]
+    recoveries_by_step: dict[str, int]
+    recoveries_by_detector: list[tuple[str, str, int]]
+    handoffs: list[HandoffRecord]
+    screenshots: list[str]
+    shots: int
+    masks_added: list[Any] = Field(default_factory=list)
+    """Controls a credential was typed into, painted out from then on."""
+    used_s: float
+    """Clock time the run had used, pauses excluded."""
+
+
+_LADDERS: TypeAdapter[list[Ladder]] = TypeAdapter(list[Ladder])
+OPERATOR_APPROVAL_TTL_S = 15 * 60
+
+
 @dataclass(frozen=True)
 class _Passed:
     observation: Observation
@@ -189,11 +258,16 @@ class ReplayEngine:
         approval: Approval | None = None,
         config: ReplayConfig | None = None,
         clock: Clock | None = None,
+        handoff: Handoff | None = None,
     ) -> None:
         """``approval``: consent the runner has already checked against this
         capability, tenant and inputs (``cua.policy.tokens.verify``). It is the
         only thing that lets a risky step run unattended; the raw token on the
-        invocation is never trusted here."""
+        invocation is never trusted here.
+
+        ``handoff``: the channel to a person. Without one, a fault that should
+        be escalated ends the run as a ``Failure`` naming the escalation it
+        replaced (``escalation_reason``)."""
         self.cap = capability
         self.surface = surface
         self.tenant = tenant
@@ -204,7 +278,8 @@ class ReplayEngine:
         self.credentials = dict(credentials)
         self.log = log
         self.config = config or ReplayConfig()
-        self.clock = clock or MonotonicClock()
+        self.clock = clock if isinstance(clock, PausableClock) else PausableClock(clock)
+        self.handoff = handoff
         self.ev = surface.evaluator
 
         sensitive = [
@@ -220,6 +295,7 @@ class ReplayEngine:
             *capability.redaction.screenshot_masks,
             *policy.screenshot_masks,
         ]
+        self._initial_masks = len(self.masks)
         self.ledger = RecoveryLedger(capability.recovery_limits, invocation.budget.max_recoveries)
         self.rungs: dict[str, str] = {}
         self.warnings: list[str] = []
@@ -235,7 +311,13 @@ class ReplayEngine:
         self._current_step: str | None = None
         self._shots = 0
         self._started = self.clock.now()
+        self._used_before = 0.0
+        """Time an earlier process used, for a run carried on by ``resume``."""
         self._budget = Deadline(self.clock, invocation.budget.timeout_s)
+        self.handoffs: list[HandoffRecord] = []
+        self.suspended: SavedRun | None = None
+        """Set when the run returns ``escalated``: what ``cua resume`` needs."""
+        self._intervention: str | None = None
 
     # -- the run -------------------------------------------------------------
 
@@ -256,15 +338,40 @@ class ReplayEngine:
             tenant=self.tenant.id,
             entry=self.entry_url,
         )
-        try:
+
+        def start() -> int:
             first = self.entry_url
             if self.invocation.inject:
                 first += ("&" if "?" in first else "?") + f"inject={self.invocation.inject}"
             self._navigate(first)
-            index = 0
-            while index < len(self.cap.steps):
-                index = self._step(index)
-            result = self._done()
+            return 0
+
+        return self._drive(start)
+
+    def resume(self, saved: SavedRun) -> ReplayResult:
+        """Carry on a run that another process left waiting on a person."""
+        self._restore(saved)
+        self.log.event(
+            "run.resumed",
+            capability=self.cap.name,
+            version=self.cap.version,
+            content_sha256=self.cap.content_hash(),
+            request=saved.ticket.request_id,
+        )
+        esc = _Escalate(saved.escalation, saved.index, saved.attempt)
+        return self._drive(lambda: self._handoff(esc, ticket=saved.ticket))
+
+    def _drive(self, start: Callable[[], int]) -> ReplayResult:
+        try:
+            index = start()
+            while True:
+                try:
+                    while index < len(self.cap.steps):
+                        index = self._step(index)
+                    result = self._done()
+                    break
+                except _Escalate as esc:
+                    index = self._handoff(esc)
         except _Stop as stop:
             result = stop.result
         except SurfaceError as exc:
@@ -315,14 +422,16 @@ class ReplayEngine:
                 "capability": self.cap.name,
                 "capability_version": self.cap.version,
                 "idempotency_key": self.invocation.idempotency_key,
-                "duration_ms": int((self.clock.now() - self._started) * 1000),
+                "duration_ms": int(self._used_s() * 1000),
                 "locator_rungs_used": dict(self.rungs),
                 "recoveries": list(self.ledger.made),
+                "handoffs": list(self.handoffs),
                 "warnings": list(self.warnings),
                 "evidence": Evidence(
                     run_dir=self.log.dir.as_posix(),
                     screenshots=list(self.screenshots),
                     trace=result.evidence.trace,
+                    intervention=self._intervention,
                 ),
             }
         )
@@ -535,6 +644,7 @@ class ReplayEngine:
             step=step.id,
             rule=rule,
             approved_by=grant.approved_by,
+            via=grant.via,
             token_sha256=grant.token_sha256[:12],
             expires_at=grant.expires_at,
         )
@@ -625,6 +735,9 @@ class ReplayEngine:
             self.committed_through = index
             self._in_flight = None
             self.log.event("irreversible.committed", step=step.id)
+            if self.approval is not None and self.approval.via == "console":
+                # An operator's consent covers the step it was asked for.
+                self.approval = None
             # Read whatever outputs this screen shows, before anything else
             # can go wrong. The confirmation screen is often the only place
             # the reference number exists; a session expiry between here and
@@ -651,6 +764,9 @@ class ReplayEngine:
             # A hard detector whose code is a failure code of its own
             # (AUTH_FAILED) is reported as that; any other is the app failing.
             code = cast(FailureCode, det.code) if det.code in FAILURE_CODES else "APP_ERROR"
+            # No recovery of the capability's own will fix it; a person may
+            # (reload once the core is back, sign on with the new password),
+            # or may decide to stop. Without a channel it is a Failure as is.
             self._fail(
                 code,
                 step,
@@ -659,6 +775,7 @@ class ReplayEngine:
                 observation=screen,
                 performed=step.risk == "irreversible",
                 code_detail=det.code,
+                escalate="UNRECOVERABLE",
             )
         if det.class_ == "business":
             self._business(step, det, screen)
@@ -914,6 +1031,435 @@ class ReplayEngine:
                 return ids.index(cp.after_step)
         return -1
 
+    # -- handing the session to a person ---------------------------------------
+
+    def _handoff(self, esc: _Escalate, ticket: Ticket | None = None) -> int:
+        """Ask a person, wait, and return the step to carry on from — or end
+        the run the way the person (or nobody) decided."""
+        assert self.handoff is not None
+        self._recovering = None  # listed as failed; the person takes it from here
+        if not self.invocation.budget.allow_escalation:
+            self._refuse_escalation(esc.failure)
+        while True:
+            if ticket is None:
+                ticket = self._open(esc)
+            with self._timers_stopped():
+                decision = self.handoff.wait(ticket)
+            if isinstance(decision, Unanswered):
+                self._suspend(esc, ticket, decision)
+            count = self.handoff.human_actions(ticket)
+            if isinstance(decision, Abort):
+                self._aborted(esc, ticket, decision, count)
+            nxt = self._handback(esc, ticket, decision, count)
+            if nxt is not None:
+                return nxt
+            esc = self._still_lost(esc, count)
+            ticket = None
+
+    def _refuse_escalation(self, failure: Failure) -> NoReturn:
+        reason = failure.escalation_reason or "STUCK"
+        self.log.event("escalation.refused", reason=reason, code=failure.code, step=failure.step_id)
+        self._snapshot(f"{failure.step_id or 'run'}.failed")
+        self._stop(
+            failure.model_copy(
+                update={
+                    "code": "ESCALATION_ABORTED",
+                    "message": f"{failure.code}: {failure.message}. A person should have been "
+                    f"asked ({reason}); budget.allow_escalation is false, so nobody was",
+                }
+            )
+        )
+
+    def _open(self, esc: _Escalate) -> Ticket:
+        assert self.handoff is not None
+        failure = esc.failure
+        reason = failure.escalation_reason or "STUCK"
+        shot = self._snapshot(f"{failure.step_id or 'run'}.escalated", always=True)
+        not_before = self._not_before()
+        ticket = self.handoff.open(
+            HandoffRequest(
+                step_id=failure.step_id,
+                reason=reason,
+                code=failure.code,
+                message=failure.message,
+                expected=failure.expected,
+                observed=failure.observed,
+                screenshot=shot,
+                side_effect=failure.side_effect,
+                options=self._options(esc, not_before),
+                resume_points=self._resume_choices(not_before),
+                attempt=esc.attempt,
+            )
+        )
+        self._intervention = ticket.intervention
+        self.log.event(
+            "escalation.requested",
+            request=ticket.request_id,
+            reason=reason,
+            code=failure.code,
+            step=failure.step_id,
+            attempt=esc.attempt,
+            intervention=ticket.intervention,
+            operator_url=ticket.operator_url,
+        )
+        return ticket
+
+    def _options(self, esc: _Escalate, not_before: int) -> list[Option]:
+        options: list[Option] = ["take_control", "resume"]
+        if esc.failure.escalation_reason == "NEEDS_APPROVAL":
+            options.append("approve")
+        elif esc.index is not None and esc.index >= not_before:
+            # Never offered for a step that may already have happened.
+            options.append("retry_step")
+        options.append("abort")
+        return options
+
+    def _not_before(self) -> int:
+        """The earliest step the run may carry on from: after the last commit
+        known to have happened, and after one that may have."""
+        floor = self.committed_through + 1 if self.committed_through is not None else 0
+        flying = self._index_of(self._in_flight)
+        return max(floor, flying + 1) if flying is not None else floor
+
+    def _resume_choices(self, not_before: int) -> list[ResumeChoice]:
+        steps = self.cap.steps
+        choices: list[ResumeChoice] = []
+        if not_before == 0:
+            choices.append(
+                ResumeChoice(
+                    step_id=steps[0].id, after_checkpoint=None, label="start over from the entry"
+                )
+            )
+        for cp in self.cap.checkpoints:
+            nxt = next_step_after(self.cap, cp)
+            if nxt < not_before or any(
+                c.step_id == (steps[nxt].id if nxt < len(steps) else DONE) for c in choices
+            ):
+                continue  # one choice per place to carry on from
+            if nxt < len(steps):
+                choices.append(
+                    ResumeChoice(
+                        step_id=steps[nxt].id,
+                        after_checkpoint=cp.id,
+                        label=f"after {cp.id}: carry on with {steps[nxt].id}",
+                    )
+                )
+            else:
+                choices.append(
+                    ResumeChoice(
+                        step_id=DONE,
+                        after_checkpoint=cp.id,
+                        label=f"after {cp.id}: read the outputs and finish",
+                    )
+                )
+        return choices
+
+    def _handback(
+        self, esc: _Escalate, ticket: Ticket, decision: HandBack, count: int
+    ) -> int | None:
+        """The step to carry on from, proven by the screen; None if nothing holds."""
+        assert self.handoff is not None
+        failure = esc.failure
+        reason = failure.escalation_reason or "STUCK"
+        not_before = self._not_before()
+        approving = decision.approved and reason == "NEEDS_APPROVAL"
+        kind: Literal["approve", "retry_step", "hand_back"] = (
+            "approve" if approving else "retry_step" if decision.retry else "hand_back"
+        )
+        self.log.event(
+            "handoff.handed_back",
+            request=ticket.request_id,
+            by=decision.by,
+            decision=kind,
+            resume_at=decision.resume_at,
+            human_actions=count,
+        )
+        if approving:
+            self.approval = Approval(
+                capability=self.cap.name,
+                version=self.cap.version,
+                tenant=self.tenant.id,
+                approved_by=decision.by,
+                expires_at=int(time.time()) + OPERATOR_APPROVAL_TTL_S,
+                token_sha256=hashlib.sha256(f"operator:{ticket.request_id}".encode()).hexdigest(),
+                via="console",
+            )
+        nxt: int | None
+        checkpoint: str | None = None
+        if (approving or decision.retry) and esc.index is not None and esc.index >= not_before:
+            nxt = esc.index
+        else:
+            if decision.retry:
+                self.log.event(
+                    "handoff.retry_refused",
+                    step=failure.step_id,
+                    why="the step may already have happened, and is never performed twice",
+                )
+            nxt, checkpoint = self._locate_run(not_before, resume_at=decision.resume_at)
+
+        resumed_at: str | None = None
+        if nxt is not None:
+            self._committed_by_handback(nxt)
+            resumed_at = self.cap.steps[nxt].id if nxt < len(self.cap.steps) else DONE
+            if checkpoint is not None:
+                self.passed.append(checkpoint)
+                self.log.event("checkpoint.passed", checkpoint=checkpoint, step="handback")
+        self.handoffs.append(
+            HandoffRecord(
+                request_id=ticket.request_id,
+                reason=reason,
+                step_id=failure.step_id,
+                decision=kind,
+                decided_by=decision.by,
+                human_actions_count=count,
+                resumed_at=resumed_at,
+                resumed_after_checkpoint=checkpoint,
+            )
+        )
+        if nxt is None or resumed_at is None:
+            return None
+        self.log.event(
+            "handoff.resumed", request=ticket.request_id, at=resumed_at, after=checkpoint
+        )
+        self.handoff.resumed(ticket, checkpoint=checkpoint, next_step=resumed_at)
+        return nxt
+
+    def _locate_run(
+        self, not_before: int, *, resume_at: str | None = None
+    ) -> tuple[int | None, str | None]:
+        """Where the screen says the run is, after a person has had it.
+
+        The newest checkpoint that holds, never one before ``not_before``. An
+        operator's ``resume_at`` narrows the search to the checkpoint in front
+        of that step; it is a claim to check, not an instruction to follow.
+        """
+        only: str | None = None
+        if resume_at is not None:
+            choice = next(
+                (c for c in self._resume_choices(not_before) if c.step_id == resume_at), None
+            )
+            if choice is None:
+                self.log.event(
+                    "handoff.resume_at_refused",
+                    step=resume_at,
+                    why="not a step this run may carry on from",
+                )
+            elif choice.after_checkpoint is None:
+                self.log.event("handoff.start_over", by="console")
+                self._navigate(self.entry_url)
+                return 0, None
+            else:
+                only = choice.after_checkpoint
+
+        def answer(obs: Observation) -> tuple[int, str] | None:
+            # Outputs are read first, so that a screen the person finished on
+            # can prove the done checkpoint; nothing read here is kept.
+            trial = {**self.outputs, **self._read_outputs(obs, optional_only=False, quiet=True)}
+            point = find_resume_point(
+                self.cap,
+                obs,
+                self.ev,
+                inputs=self.inputs,
+                outputs=trial,
+                not_before=not_before,
+                only=only,
+            )
+            return (point.next_step, point.checkpoint) if point is not None else None
+
+        found, _ = poll(self.surface, self._deadline(), answer)
+        if found is None:
+            self.log.event("handoff.no_checkpoint", not_before=not_before, only=only)
+            return None, None
+        self.log.event("handoff.located", checkpoint=found[1], next=found[0])
+        return found
+
+    def _committed_by_handback(self, nxt: int) -> None:
+        """An irreversible step behind the point the screen proves the run has
+        reached has happened: a press of the engine's that it never saw land,
+        or the person's own."""
+        start = self.committed_through + 1 if self.committed_through is not None else 0
+        for i in range(start, min(nxt, len(self.cap.steps))):
+            step = self.cap.steps[i]
+            if step.risk != "irreversible":
+                continue
+            self.committed_through = i
+            self.log.event(
+                "irreversible.committed",
+                step=step.id,
+                seen="after handback",
+                performed_by="automation" if self._in_flight == step.id else "person",
+            )
+        flying = self._index_of(self._in_flight)
+        if flying is not None and flying < nxt:
+            self._in_flight = None
+
+    def _side_effect_after_person(self, count: int) -> SideEffect:
+        """What may have been committed once a person has had the controls.
+
+        The automation cannot vouch for what a person did: an irreversible
+        step still ahead is ``committed`` if its marker is on the screen, and
+        ``unknown`` if the person acted at all and it is not."""
+        known = self.side_effect_so_far()
+        if known == "committed":
+            return known
+        ahead = [
+            s
+            for i, s in enumerate(self.cap.steps)
+            if s.risk == "irreversible" and (s.id == self._in_flight or i >= self._not_before())
+        ]
+        if not ahead or (known == "none" and count == 0):
+            return known
+        screen = self.surface.observe()
+        for step in ahead:
+            marker = step.side_effect_marker
+            if marker is not None and self.ev.evaluate(
+                bind(marker, self.inputs), screen, outputs=self.outputs
+            ):
+                return "committed"
+        return "unknown" if (count > 0 or known == "unknown") else known
+
+    def _still_lost(self, esc: _Escalate, count: int) -> _Escalate:
+        """Handed back to a screen no checkpoint holds on: ask again."""
+        screen = self.surface.observe()
+        failure = esc.failure.model_copy(
+            update={
+                "code": "CHECKPOINT_FAILED",
+                "expected": "a checkpoint to hold on the screen as it was handed back",
+                "observed": self._excerpt(screen),
+                "message": "handed back, but no checkpoint holds on this screen, so the run "
+                "cannot tell where it is; it will not guess",
+                "side_effect": self._side_effect_after_person(count),
+            }
+        )
+        self.log.event("handoff.lost", step=failure.step_id, attempt=esc.attempt + 1)
+        return _Escalate(failure, esc.index, esc.attempt + 1)
+
+    def _aborted(self, esc: _Escalate, ticket: Ticket, decision: Abort, count: int) -> NoReturn:
+        failure = esc.failure
+        reason = failure.escalation_reason or "STUCK"
+        side_effect = self._side_effect_after_person(count)
+        self.handoffs.append(
+            HandoffRecord(
+                request_id=ticket.request_id,
+                reason=reason,
+                step_id=failure.step_id,
+                decision="abort",
+                decided_by=decision.by,
+                human_actions_count=count,
+            )
+        )
+        self.log.event(
+            "handoff.aborted",
+            request=ticket.request_id,
+            by=decision.by,
+            why=decision.why,
+            human_actions=count,
+            side_effect=side_effect,
+        )
+        self._snapshot(f"{failure.step_id or 'run'}.aborted")
+        why = f": {self.redactor.text(decision.why)}" if decision.why else ""
+        self._stop(
+            failure.model_copy(
+                update={
+                    "code": "ESCALATION_ABORTED",
+                    "message": f"{decision.by} aborted the run at {failure.step_id} "
+                    f"({reason}, after {failure.code}){why}",
+                    "side_effect": side_effect,
+                    "outputs": dict(self.outputs),
+                }
+            )
+        )
+
+    def _suspend(self, esc: _Escalate, ticket: Ticket, decision: Unanswered) -> NoReturn:
+        """Nobody answered while this process waited: return ``escalated`` and
+        leave everything ``cua resume`` needs to carry on."""
+        failure = esc.failure
+        reason = failure.escalation_reason or "STUCK"
+        by_step, by_detector = self.ledger.counts()
+        self.suspended = SavedRun(
+            escalation=failure,
+            index=esc.index,
+            attempt=esc.attempt,
+            ticket=ticket,
+            committed_through=self.committed_through,
+            in_flight=self._in_flight,
+            passed=list(self.passed),
+            outputs=dict(self.outputs),
+            rungs=dict(self.rungs),
+            warnings=list(self.warnings),
+            recoveries=list(self.ledger.made),
+            recoveries_by_step=by_step,
+            recoveries_by_detector=by_detector,
+            handoffs=list(self.handoffs),
+            screenshots=list(self.screenshots),
+            shots=self._shots,
+            masks_added=_LADDERS.dump_python(self.masks[self._initial_masks :], mode="json"),
+            used_s=self._used_s(),
+        )
+        self.handoffs.append(
+            HandoffRecord(
+                request_id=ticket.request_id,
+                reason=reason,
+                step_id=failure.step_id,
+                decision="unanswered",
+            )
+        )
+        self.log.event("escalation.pending", request=ticket.request_id, why=decision.why)
+        self._stop(
+            Escalated(
+                reason=reason,
+                step_id=failure.step_id,
+                message=f"{failure.code}: {failure.message}",
+                side_effect=failure.side_effect,
+                request_id=ticket.request_id,
+                resume_token=ticket.resume_token,
+                operator_url=ticket.operator_url,
+                outputs=dict(self.outputs),
+                capability=self.cap.name,
+                capability_version=self.cap.version,
+            )
+        )
+
+    def _restore(self, saved: SavedRun) -> None:
+        self.committed_through = saved.committed_through
+        self._in_flight = saved.in_flight
+        self.passed = list(saved.passed)
+        self.outputs = dict(saved.outputs)
+        self.rungs = dict(saved.rungs)
+        self.warnings = list(saved.warnings)
+        self.ledger.restore(
+            saved.recoveries, saved.recoveries_by_step, saved.recoveries_by_detector
+        )
+        self.handoffs = list(saved.handoffs)
+        self.screenshots = list(saved.screenshots)
+        self._shots = saved.shots
+        for ladder in _LADDERS.validate_python(saved.masks_added):
+            if ladder not in self.masks:
+                self.masks.append(ladder)
+        self._used_before = saved.used_s
+        self._budget = Deadline(
+            self.clock, max(0.0, self.invocation.budget.timeout_s - saved.used_s)
+        )
+        self._intervention = saved.ticket.intervention
+
+    @contextmanager
+    def _timers_stopped(self) -> Iterator[None]:
+        """No step deadline and no budget runs while the controls are not the
+        automation's."""
+        self.clock.pause()
+        try:
+            yield
+        finally:
+            self.clock.resume()
+
+    def _used_s(self) -> float:
+        """Time the automation has spent on this run, waits for a person excluded."""
+        return self._used_before + (self.clock.now() - self._started)
+
+    def _index_of(self, step_id: str | None) -> int | None:
+        ids = [s.id for s in self.cap.steps]
+        return ids.index(step_id) if step_id in ids else None
+
     # -- outputs -------------------------------------------------------------
 
     def _done(self) -> ReplayResult:
@@ -969,7 +1515,12 @@ class ReplayEngine:
         return found if isinstance(found, Resolved) and self._trusted(ladder, found) else None
 
     def _read_outputs(
-        self, screen: Observation, *, optional_only: bool, tolerant: bool = False
+        self,
+        screen: Observation,
+        *,
+        optional_only: bool,
+        tolerant: bool = False,
+        quiet: bool = False,
     ) -> dict[str, OutputValue]:
         """Read outputs live off this screen. Required ones that cannot be
         read or parsed end the run; optional ones are left out, with a note.
@@ -977,7 +1528,11 @@ class ReplayEngine:
         ``tolerant``: an opportunistic read (right after a commit landed) —
         whatever is on this screen is kept, and what is not is left for the
         done step to find, silently.
+
+        ``quiet``: a look, not a reading — tolerant, and nothing is logged or
+        counted as a rung used (the resume-state search tries every screen).
         """
+        tolerant = tolerant or quiet
         out: dict[str, OutputValue] = {}
         for name, spec in self.cap.outputs.items():
             if optional_only and not spec.optional:
@@ -1005,6 +1560,8 @@ class ReplayEngine:
                     performed=self.committed_through is not None,
                 )
             out[name] = value
+            if quiet:
+                continue
             self._note_rung(f"outputs.{name}", spec.extract.target, found)
             self.log.event("output.extracted", name=name, rung=found.rung)
         return out
@@ -1077,8 +1634,10 @@ class ReplayEngine:
                 return "committed"
         return "unknown"
 
-    def _snapshot(self, label: str) -> str | None:
-        if not self.config.screenshots:
+    def _snapshot(self, label: str, *, always: bool = False) -> str | None:
+        """``always``: taken even on a run configured without screenshots —
+        an intervention request is not complete without the screen."""
+        if not self.config.screenshots and not always:
             return None
         raw = self.surface.observe(screenshot=True, masks=self.masks)
         screen = self.redactor.observation(raw)
@@ -1112,34 +1671,35 @@ class ReplayEngine:
         if during is not None:
             message = f"during recovery ({during}): {message}"
         excerpt = self._excerpt(observation) if observation is not None else ""
+        failure = Failure(
+            code=code,
+            step_id=step.id if step else None,
+            expected=self.redactor.text(expected),
+            observed=excerpt,
+            message=self.redactor.text(message),
+            side_effect=side_effect,
+            outputs=dict(self.outputs),
+            during_recovery=during,
+            escalation_reason=wanted,
+            capability=self.cap.name,
+            capability_version=self.cap.version,
+        )
         self.log.event(
-            "replay.failed",
+            "replay.fault" if wanted and self.handoff else "replay.failed",
             code=code,
             detector=code_detail,
-            step=step.id if step else None,
-            expected=self.redactor.text(expected),
-            message=self.redactor.text(message),
+            step=failure.step_id,
+            expected=failure.expected,
+            message=failure.message,
             side_effect=side_effect,
             during_recovery=during,
             escalation_reason=wanted,
         )
+        if wanted is not None and self.handoff is not None:
+            raise _Escalate(failure, self._index_of(failure.step_id))
         if observation is not None:
             self._snapshot(f"{step.id if step else 'run'}.failed")
-        self._stop(
-            Failure(
-                code=code,
-                step_id=step.id if step else None,
-                expected=self.redactor.text(expected),
-                observed=excerpt,
-                message=self.redactor.text(message),
-                side_effect=side_effect,
-                outputs=dict(self.outputs),
-                during_recovery=during,
-                escalation_reason=wanted,
-                capability=self.cap.name,
-                capability_version=self.cap.version,
-            )
-        )
+        self._stop(failure)
 
     def _stop(self, result: ReplayResult) -> NoReturn:
         raise _Stop(result)

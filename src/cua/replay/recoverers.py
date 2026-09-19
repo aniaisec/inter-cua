@@ -72,6 +72,20 @@ class RecoveryLedger:
         self.made[self.made.index(recovery)] = done
         return done
 
+    def counts(self) -> tuple[dict[str, int], list[tuple[str, str, int]]]:
+        """The caps' counters, to carry a run on in another process."""
+        return dict(self._by_step), [(s, c, n) for (s, c), n in self._by_detector.items()]
+
+    def restore(
+        self,
+        made: list[Recovery],
+        by_step: dict[str, int],
+        by_detector: list[tuple[str, str, int]],
+    ) -> None:
+        self.made = list(made)
+        self._by_step = Counter(by_step)
+        self._by_detector = Counter({(s, c): n for s, c, n in by_detector})
+
     def record(
         self,
         step: Step,

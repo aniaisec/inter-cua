@@ -51,6 +51,8 @@ class Stopwatch:
     def __init__(self, limits: StopLimits) -> None:
         self.limits = limits
         self._started = time.monotonic()
+        self._paused_at: float | None = None
+        self._paused_s = 0.0
         self._steps = 0
         self._last: str | None = None
         self._repeats = 0
@@ -65,7 +67,25 @@ class Stopwatch:
 
     @property
     def elapsed_s(self) -> float:
-        return time.monotonic() - self._started
+        """Wall clock since the start, time spent waiting on a person excluded."""
+        now = self._paused_at if self._paused_at is not None else time.monotonic()
+        return now - self._started - self._paused_s
+
+    def pause(self) -> None:
+        """A person has the session: their time is not the agent's."""
+        if self._paused_at is None:
+            self._paused_at = time.monotonic()
+
+    def resume(self) -> None:
+        if self._paused_at is not None:
+            self._paused_s += time.monotonic() - self._paused_at
+            self._paused_at = None
+
+    def fresh_screen(self) -> None:
+        """Forget the repeats: a person handed back a screen the agent has
+        not been stuck on yet."""
+        self._last = None
+        self._repeats = 0
 
     def before_call(self) -> StopReason | None:
         """Checked before every model call; a call is only made if this is None."""

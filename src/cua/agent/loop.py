@@ -12,9 +12,12 @@ masked screenshot), picks exactly one tool, and the loop:
 It ends in one of five ways. ``done`` — the agent named a ref for every
 declared output and the loop read each one itself. ``escalated`` — the agent
 said it was ``stuck``, the screen stopped changing (dead end), or a risky
-action needed an approval nobody gave; M6 routes these to a human, and until
-then the run ends there with the request logged. ``stopped`` — a step or time
-limit. ``error`` — the model call itself failed. ``interrupted`` — something
+action needed an approval nobody gave. With a handoff channel (``--handoff``)
+each of these first becomes an intervention request on the operator console:
+a person can approve the risky action, take the session over and hand it back
+(the agent carries on from the screen they leave), or abort; the run ends
+``escalated`` only if nobody answers. ``stopped`` — a step or time limit, or
+an operator's abort. ``error`` — the model call itself failed. ``interrupted`` — something
 outside the run's own logic cut it short (Ctrl+C, a crash in the surface);
 the run directory still says so, and the exception carries on upwards.
 
@@ -60,8 +63,11 @@ from cua.agent.tools import (
 from cua.evidence.logger import RunLog, utc_now
 from cua.policy.allowlist import Block, NeedsApproval, Policy, check
 from cua.policy.redaction import Redactor
+from cua.replay.handoff import Abort, HandBack, Handoff, HandoffRequest, Option, Unanswered
+from cua.replay.result import EscalationReason
+from cua.replay.result import Handoff as HandoffRecord
 from cua.secrets.resolver import Credential
-from cua.surface.locators import Ladder, ladder_for
+from cua.surface.locators import Ladder, Resolved, ladder_for, resolve_ladder
 from cua.surface.protocol import (
     Action,
     Click,
@@ -77,6 +83,11 @@ from cua.surface.protocol import (
 from cua.tenant import Tenant
 
 OutcomeKind = Literal["done", "escalated", "stopped", "error", "interrupted"]
+_HANDED_BACK = (
+    "A person had the session and handed it back; the screen may have changed since you "
+    "last saw it."
+)
+EXCERPT_LINES = 40
 _PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
 _CREDENTIAL = re.compile(r"^credentials\.([a-z][a-z0-9_]*)\.([a-z][a-z0-9_]*)$")
 
@@ -125,6 +136,10 @@ class DiscoveryOutcome(BaseModel):
     run_id: str
     run_dir: str
     duration_ms: int = 0
+    handoffs: list[HandoffRecord] = Field(default_factory=list)
+    human_assisted: bool = False
+    """A person acted in the browser during the run. Its transcript is then not
+    the whole story, and it is not recorded as a capability."""
 
     @property
     def exit_code(self) -> int:
@@ -154,8 +169,12 @@ class DiscoveryLoop:
         log: RunLog,
         config: DiscoveryConfig | None = None,
         entry_url: str | None = None,
+        handoff: Handoff | None = None,
     ) -> None:
         self.surface = surface
+        self.handoff = handoff
+        self.handoffs: list[HandoffRecord] = []
+        self.human_actions = 0
         self.llm = llm
         self.goal = goal
         self.tenant = tenant
@@ -232,6 +251,8 @@ class DiscoveryLoop:
             run_id=self.log.run_id,
             run_dir=self.log.dir.as_posix(),
             duration_ms=int((time.monotonic() - started) * 1000),
+            handoffs=list(self.handoffs),
+            human_assisted=self.human_actions > 0,
         )
 
     def _finish(self, outcome: DiscoveryOutcome) -> None:
@@ -245,10 +266,22 @@ class DiscoveryLoop:
     def _turn(self) -> None:
         stop = self.watch.before_call()
         if stop == "DEAD_END":
-            self._escalate(
-                "DEAD_END",
-                f"the screen did not change across {self.config.limits.dead_end_repeats} actions",
+            message = (
+                f"the screen did not change across {self.config.limits.dead_end_repeats} actions"
             )
+            if self.handoff is None:
+                self._escalate("DEAD_END", message)
+            self._ask("DEAD_END", "DEAD_END", message, ["take_control", "resume", "abort"])
+            screen = self._look()
+            self.transcript.append(
+                UserTurn(
+                    text=prompts.after_action(
+                        _HANDED_BACK + " Carry on from this screen.", screen, self.watch.remaining
+                    ),
+                    png=screen.screenshot_png,
+                )
+            )
+            return
         if stop is not None:
             raise _End("stopped", stop, f"{stop.lower().replace('_', ' ')} reached")
 
@@ -313,7 +346,12 @@ class DiscoveryLoop:
 
     def _handle(self, call_id: str, call: AgentCall) -> None:
         if isinstance(call, StuckCall):
-            self._escalate("STUCK", call.reason or "the agent could not continue")
+            why = call.reason or "the agent could not continue"
+            if self.handoff is None:
+                self._escalate("STUCK", why)
+            self._ask("STUCK", "STUCK", why, ["take_control", "resume", "abort"])
+            self._reply_with_screen(call_id, _HANDED_BACK + " Carry on from this screen.")
+            return
         if isinstance(call, DoneCall):
             self._done(call_id, call)
             return
@@ -330,8 +368,10 @@ class DiscoveryLoop:
             self._reply(call_id, str(exc), error=True)
             return
 
-        if not self._permitted(call_id, action, screen):
+        permitted = self._permitted(call_id, action, screen)
+        if permitted is None:
             return
+        action = permitted
 
         node = screen.find(call.ref) if call.ref else None
         try:
@@ -379,15 +419,18 @@ class DiscoveryLoop:
             return Press(key=call.key, ref=call.ref)
         return ReadText(ref=call.ref)
 
-    def _permitted(self, call_id: str, action: Action, screen: Observation) -> bool:
+    def _permitted(self, call_id: str, action: Action, screen: Observation) -> Action | None:
+        """The action to perform, or None (the agent has been told why not)."""
         decision = check(self.policy, action, screen)
         if isinstance(decision, Block):
             self.log.event("policy.block", turn=self.watch.steps, reason=decision.reason)
             self._reply(call_id, f"Blocked by policy: {decision.reason}", error=True)
-            return False
+            return None
         if isinstance(decision, NeedsApproval):
             if not self.config.auto_approve_risky:
-                self._escalate("NEEDS_APPROVAL", decision.reason, rule=decision.rule)
+                if self.handoff is None:
+                    self._escalate("NEEDS_APPROVAL", decision.reason, rule=decision.rule)
+                return self._approved(call_id, action, screen, decision)
             self.log.event(
                 "policy.auto_approved",
                 turn=self.watch.steps,
@@ -399,7 +442,55 @@ class DiscoveryLoop:
                 f"WARNING: auto-approving risky action ({decision.rule}): {decision.reason}",
                 file=sys.stderr,
             )
-        return True
+        return action
+
+    def _approved(
+        self, call_id: str, action: Action, screen: Observation, decision: NeedsApproval
+    ) -> Action | None:
+        """Put a risky action to a person; the same action on the same control
+        if they approve it.
+
+        Asking takes a fresh look at the screen (the request's screenshot),
+        which spends every ref the agent was holding, and the person may have
+        had the controls meanwhile. So the control is found again, by the
+        ladder it was seen by, on the screen as it is now.
+        """
+        ref = getattr(action, "ref", None)
+        node = screen.find(ref) if ref else None
+        ladder = ladder_for(node, screen) if node is not None else None
+        back = self._ask(
+            "NEEDS_APPROVAL",
+            "POLICY_BLOCKED",
+            f"{decision.reason} (rule {decision.rule})",
+            ["take_control", "resume", "approve", "abort"],
+        )
+        if not back.approved:
+            self._reply_with_screen(
+                call_id,
+                "A person was asked to approve that action and handed back without "
+                "approving it; it was not performed. Do not try it again. " + _HANDED_BACK,
+                error=True,
+            )
+            return None
+        self.log.event(
+            "policy.approved",
+            turn=self.watch.steps,
+            rule=decision.rule,
+            approved_by=back.by,
+            via="console",
+        )
+        if ref is None:
+            return action
+        found = resolve_ladder(ladder, self.surface.observe()) if ladder else None
+        if not isinstance(found, Resolved):
+            self._reply_with_screen(
+                call_id,
+                "It was approved, but the control is no longer on the screen, so nothing was "
+                "done. " + _HANDED_BACK,
+                error=True,
+            )
+            return None
+        return action.model_copy(update={"ref": found.ref})
 
     def _done(self, call_id: str, call: DoneCall) -> None:
         screen = self.screen
@@ -470,9 +561,8 @@ class DiscoveryLoop:
         raise _End("done", None, call.reason or "goal reached")
 
     def _escalate(self, reason: str, message: str, **fields: Any) -> NoReturn:
-        """Stop and ask for a human. The handoff itself lands with M6; until
-        then the request is logged with everything it will carry, and the run
-        ends."""
+        """Stop and ask for a human, with no channel to one: the request is
+        logged with everything it would carry, and the run ends."""
         screen = self.screen
         self.log.event(
             "escalation.requested",
@@ -481,10 +571,84 @@ class DiscoveryLoop:
             message=message,
             location=screen.location if screen else None,
             frames=[f.model_dump() for f in screen.frames] if screen else [],
-            note="human handoff is not wired up yet (M6); the run ends here",
+            note="no handoff channel (--handoff); the run ends here",
             **fields,
         )
         raise _End("escalated", reason, message)
+
+    def _ask(
+        self, reason: EscalationReason, code: str, message: str, options: list[Option]
+    ) -> HandBack:
+        """Hand the session to a person and wait for it back. Returns the
+        handback; an abort or no answer ends the run."""
+        assert self.handoff is not None
+        turn = self.watch.steps
+        raw = self.surface.observe(screenshot=True, masks=self.masks)
+        screen = self.redactor.observation(raw)
+        paths = self.log.observation(turn, screen, suffix="-handoff")
+        # Not an "observe": no decision was taken on this screen, and the
+        # recorder reads each step against the screen it was decided on.
+        self.log.event("escalation.screen", turn=turn, location=screen.location, **paths)
+        message = self.redactor.text(message)
+        ticket = self.handoff.open(
+            HandoffRequest(
+                step_id=f"turn {turn}",
+                reason=reason,
+                code=code,
+                message=message,
+                expected=self.goal.goal,
+                observed=_excerpt(screen),
+                screenshot=paths.get("screenshot"),
+                options=options,
+            )
+        )
+        self.log.event(
+            "escalation.requested",
+            turn=turn,
+            request=ticket.request_id,
+            reason_code=reason,
+            message=message,
+            intervention=ticket.intervention,
+            operator_url=ticket.operator_url,
+        )
+        self.watch.pause()
+        try:
+            decision = self.handoff.wait(ticket)
+        finally:
+            self.watch.resume()
+        count = self.handoff.human_actions(ticket)
+        self.human_actions += count
+        common: dict[str, Any] = {
+            "request_id": ticket.request_id,
+            "reason": reason,
+            "step_id": f"turn {turn}",
+            "human_actions_count": count,
+        }
+        if isinstance(decision, Unanswered):
+            self.handoffs.append(HandoffRecord(**common, decision="unanswered"))
+            raise _End("escalated", reason, f"{message} ({decision.why})")
+        if isinstance(decision, Abort):
+            self.handoffs.append(HandoffRecord(**common, decision="abort", decided_by=decision.by))
+            self.log.event("handoff.aborted", turn=turn, by=decision.by, why=decision.why)
+            why = f": {self.redactor.text(decision.why)}" if decision.why else ""
+            raise _End("stopped", "ESCALATION_ABORTED", f"{decision.by} aborted the run{why}")
+        kind: Literal["approve", "hand_back"] = "approve" if decision.approved else "hand_back"
+        self.handoffs.append(
+            HandoffRecord(
+                **common, decision=kind, decided_by=decision.by, resumed_at=f"turn {turn + 1}"
+            )
+        )
+        self.log.event(
+            "handoff.handed_back",
+            turn=turn,
+            request=ticket.request_id,
+            by=decision.by,
+            decision=kind,
+            human_actions=count,
+        )
+        self.handoff.resumed(ticket, checkpoint=None, next_step=f"turn {turn + 1}")
+        self.watch.fresh_screen()
+        return decision
 
     # -- screens and messages ------------------------------------------------
 
@@ -632,3 +796,10 @@ def _normalize(value: str, spec: OutputSpec) -> tuple[str, str | None]:
             return "", "which is not an integer"
         return str(int(number)), None
     return str(number), None
+
+
+def _excerpt(screen: Observation) -> str:
+    lines = screen.compact().splitlines()
+    if len(lines) > EXCERPT_LINES:
+        lines = [*lines[:EXCERPT_LINES], f"... {len(lines) - EXCERPT_LINES} more lines"]
+    return "\n".join(lines)

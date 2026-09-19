@@ -217,6 +217,15 @@ class _Run:
                 f"run {self.run.run_id} ended {result.get('kind')}{reason}; "
                 "only a run that reached done can be recorded"
             )
+        if result.get("human_assisted"):
+            # The steps a person took are in human_actions.jsonl, not in the
+            # transcript; a capability recorded from the transcript alone
+            # would skip them. A consent on the console is not an action.
+            raise RecordError(
+                f"run {self.run.run_id} reached done with a person's help in the browser; "
+                "what they did is not in the transcript, so it cannot be recorded. "
+                "Run discovery again."
+            )
         self.log_bytes = (run_dir / "log.jsonl").read_bytes()
         lines = self.log_bytes.decode("utf-8").splitlines()
         self.events = [json.loads(line) for line in lines if line.strip()]

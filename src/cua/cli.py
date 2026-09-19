@@ -15,10 +15,11 @@ import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
+
+from cua.termlink import link
 
 PENDING: dict[str, str] = {
-    "resume": "M6 - escalation and handoff",
-    "operator": "M6 - escalation and handoff",
     "catalog": "M9 - stretch",
 }
 
@@ -36,6 +37,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_discover(sub)
     _add_artifact_commands(sub)
     _add_replay(sub)
+    _add_handoff_commands(sub)
 
     for name, milestone in PENDING.items():
         sub.add_parser(name, help=f"(not yet implemented: {milestone})")
@@ -97,8 +99,9 @@ def _add_discover(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
         "--auto-approve-risky",
         action="store_true",
         help="Let risky actions through without approval. Logged loudly; not for evidence "
-        "runs. Replaced by the approval handoff in M6.",
+        "runs. Prefer --handoff, which asks a person on the operator console.",
     )
+    _add_handoff_flags(d)
     d.add_argument("--inject", help="Arm a mock-app failure mode for this run")
     d.add_argument("--headed", action="store_true", help="Show the browser window")
     d.add_argument("--runs-dir", type=Path, default=Path("evidence/runs"))
@@ -156,6 +159,88 @@ def _add_replay(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> Non
     r.add_argument("--no-screenshots", action="store_true")
     r.add_argument("--headed", action="store_true", help="Show the browser window")
     r.add_argument("--runs-dir", type=Path, default=Path("evidence/runs"))
+    _add_handoff_flags(r)
+
+
+def _add_handoff_flags(p: argparse.ArgumentParser) -> None:
+    p.add_argument(
+        "--handoff",
+        action="store_true",
+        help="Hand a stuck run to a person instead of failing: open an intervention request "
+        "on the operator console (`cua operator`) and wait. The browser runs detached, so an "
+        "unanswered request leaves the session up for `cua resume`.",
+    )
+    p.add_argument(
+        "--handoff-wait",
+        type=float,
+        default=600.0,
+        metavar="S",
+        help="Seconds to wait for someone to take a request before returning escalated (600)",
+    )
+    p.add_argument(
+        "--handoff-ttl",
+        type=float,
+        default=1800.0,
+        metavar="S",
+        help="Seconds a request stays open at all before it is aborted (1800)",
+    )
+    p.add_argument("--operator-url", default="http://127.0.0.1:8100", help=argparse.SUPPRESS)
+
+
+def _handoff_settings(args: argparse.Namespace) -> Any:
+    from cua.escalation.channel import HandoffSettings
+
+    if not args.handoff:
+        return None
+    return HandoffSettings(
+        wait_s=args.handoff_wait,
+        ttl_s=args.handoff_ttl,
+        operator_url=args.operator_url,
+        announce=True,
+    )
+
+
+def _add_handoff_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    r = sub.add_parser(
+        "resume",
+        help="Carry on a run that returned escalated, once a person has handed back",
+        description="Carry on an escalated replay from its resume token. If the person has "
+        "not handed back on the console, this is the handback. The run checks the screen "
+        "against its checkpoints and continues from the newest that holds (or asks again). "
+        "Prints a JSON ReplayResult; exit codes as for replay.",
+    )
+    r.add_argument("resume_token")
+    r.add_argument(
+        "--resume-at", metavar="STEP_ID", help="Where to carry on (checked, not trusted)"
+    )
+    r.add_argument("--by", default="cua-resume", help="Who is handing back (cua-resume)")
+    r.add_argument(
+        "--input",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="Sensitive inputs again: they were not kept",
+    )
+    r.add_argument(
+        "--handoff-wait",
+        type=float,
+        default=None,
+        metavar="S",
+        help="If it asks again, seconds to wait for someone (default: as the run started)",
+    )
+    r.add_argument("--runs-dir", type=Path, default=Path("evidence/runs"))
+
+    o = sub.add_parser(
+        "operator",
+        help="Serve the operator console for intervention requests (:8100)",
+        description="List open intervention requests; take control of the live session, "
+        "resume, retry, approve or abort. Records what the person does.",
+    )
+    o.add_argument("--host", default="127.0.0.1")
+    o.add_argument("--port", type=int, default=8100)
+    o.add_argument("--runs-dir", type=Path, default=Path("evidence/runs"))
+    o.add_argument("--tenant", default="local", help="For the policy's scrub patterns")
+    o.add_argument("--policy", default="policies/default.yaml", type=Path)
 
 
 def _add_artifact_commands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -226,6 +311,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "replay":
         load_dotenv(Path(".env"))
         return _replay(args)
+    if args.command == "resume":
+        load_dotenv(Path(".env"))
+        return _resume(args)
+    if args.command == "operator":
+        return _operator(args)
     if args.command == "record":
         return _record(args)
     if args.command == "describe":
@@ -238,7 +328,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "schema":
         from cua.artifact.schema import export_json_schema
 
-        print(export_json_schema(args.out).as_posix())
+        print(link(export_json_schema(args.out), stream=sys.stdout))
         return 0
 
     milestone = PENDING[args.command]
@@ -302,7 +392,7 @@ def _discover(args: argparse.Namespace) -> int:
 
     log = RunLog.create(args.runs_dir)
     print(
-        f"cua discover: run {log.run_id} ({llm.provider}: {llm.model}) -> {log.dir.as_posix()}",
+        f"cua discover: run {log.run_id} ({llm.provider}: {llm.model}) -> {link(log.dir)}",
         file=sys.stderr,
     )
     config = DiscoveryConfig(
@@ -312,8 +402,30 @@ def _discover(args: argparse.Namespace) -> int:
     )
     try:
         with PlaywrightSurface.launch(headed=args.headed or None) as surface:
+            driven: Any = surface
+            channel = None
+            handoff = _handoff_settings(args)
+            if handoff is not None:
+                from cua.escalation.channel import OperatorChannel
+                from cua.escalation.controller import ControlStore
+                from cua.escalation.lease import LeasedSurface
+
+                control = ControlStore(log.dir)
+                control.start(log.run_id)
+                channel = OperatorChannel(
+                    log=log,
+                    runs_dir=args.runs_dir,
+                    control=control,
+                    session=surface.expose,
+                    kind="discovery",
+                    capability=goal.name,
+                    capability_version=None,
+                    tenant=tenant.id,
+                    settings=handoff,
+                )
+                driven = LeasedSurface(surface, control.lease)
             outcome = DiscoveryLoop(
-                surface=surface,
+                surface=driven,
                 llm=llm,
                 goal=goal,
                 tenant=tenant,
@@ -322,7 +434,10 @@ def _discover(args: argparse.Namespace) -> int:
                 log=log,
                 config=config,
                 entry_url=entry_url,
+                handoff=channel,
             ).run()
+            if channel is not None:
+                channel.control.end(outcome.kind)
     except KeyboardInterrupt:
         import logging
 
@@ -330,7 +445,7 @@ def _discover(args: argparse.Namespace) -> int:
         # reports at exit; the run's own record is what matters.
         logging.getLogger("asyncio").setLevel(logging.CRITICAL)
         print(
-            f"cua discover: interrupted; the run says so in {log.dir.as_posix()}/result.json",
+            f"cua discover: interrupted; the run says so in {link(log.dir / 'result.json')}",
             file=sys.stderr,
         )
         return 130
@@ -343,6 +458,8 @@ def _discover(args: argparse.Namespace) -> int:
         "outputs": {name: o.normalized for name, o in outcome.outputs.items()},
         "steps": outcome.steps,
         "duration_ms": outcome.duration_ms,
+        "handoffs": [h.model_dump(mode="json") for h in outcome.handoffs],
+        "human_assisted": outcome.human_assisted,
         "run_dir": outcome.run_dir,
     }
     if outcome.kind == "done" and not args.no_record:
@@ -364,7 +481,6 @@ def _replay(args: argparse.Namespace) -> int:
     from cua.policy.allowlist import load_policy
     from cua.replay.engine import ReplayConfig
     from cua.replay.invocation import ApprovalGrant, Budget, Invocation
-    from cua.replay.result import exit_code, to_json
     from cua.replay.runner import InvocationError, launched, replay
     from cua.tenant import load_tenant
 
@@ -375,6 +491,7 @@ def _replay(args: argparse.Namespace) -> int:
         budget = Budget.model_validate(
             dict(_pair(b, "--budget") for b in args.budget.split(",") if b.strip())
         )
+        handoff = _handoff_settings(args)
         invocation = Invocation(
             inputs=inputs,
             idempotency_key=args.idempotency_key,
@@ -394,7 +511,8 @@ def _replay(args: argparse.Namespace) -> int:
             config=ReplayConfig(
                 step_timeout_s=args.step_timeout, screenshots=not args.no_screenshots
             ),
-            surface=lambda: launched(headed=args.headed or None),
+            surface=lambda: launched(headed=args.headed or None, detached=handoff is not None),
+            handoff=handoff,
         )
     except (InvocationError, OSError, ValueError, ValidationError) as exc:
         print(f"cua replay: {exc}", file=sys.stderr)
@@ -405,11 +523,74 @@ def _replay(args: argparse.Namespace) -> int:
         logging.getLogger("asyncio").setLevel(logging.CRITICAL)
         print("cua replay: interrupted", file=sys.stderr)
         return 130
+    return _print_result("replay", result)
+
+
+def _print_result(command: str, result: Any) -> int:
+    from cua.replay.result import exit_code, to_json
 
     if result.evidence.run_dir:
-        print(f"cua replay: {result.kind} -> {result.evidence.run_dir}", file=sys.stderr)
+        run_dir = Path(result.evidence.run_dir)
+        print(f"cua {command}: {result.kind} -> {link(run_dir)}", file=sys.stderr)
+    if result.kind == "escalated":
+        print(
+            f"cua {command}: the session is still up. Once a person has handed back at "
+            f"{link(result.operator_url or '')}, carry the run on with: "
+            f"cua resume {result.resume_token}",
+            file=sys.stderr,
+        )
     print(to_json(result), end="")
-    return exit_code(result)
+    return int(exit_code(result))
+
+
+def _resume(args: argparse.Namespace) -> int:
+    from cua.replay.runner import InvocationError, resume
+
+    try:
+        result = resume(
+            args.resume_token,
+            runs_dir=args.runs_dir,
+            by=args.by,
+            resume_at=args.resume_at,
+            inputs=dict(_pair(i, "--input") for i in args.input),
+            wait_s=args.handoff_wait,
+        )
+    except (InvocationError, OSError, ValueError) as exc:
+        print(f"cua resume: {exc}", file=sys.stderr)
+        return EX_USAGE
+    except KeyboardInterrupt:
+        import logging
+
+        logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+        print("cua resume: interrupted", file=sys.stderr)
+        return 130
+    return _print_result("resume", result)
+
+
+def _operator(args: argparse.Namespace) -> int:
+    import uvicorn
+
+    from cua.escalation.operator_app import create_app
+    from cua.policy.allowlist import load_policy
+    from cua.tenant import load_tenant
+
+    try:
+        policy = load_policy(args.policy, load_tenant(args.tenant))
+    except (OSError, ValueError) as exc:
+        print(f"cua operator: {exc}", file=sys.stderr)
+        return EX_USAGE
+    print(
+        f"cua operator: {link(f'http://{args.host}:{args.port}/')} (requests under "
+        f"{link(args.runs_dir / '.interventions')})",
+        file=sys.stderr,
+    )
+    uvicorn.run(
+        create_app(args.runs_dir, policy=policy),
+        host=args.host,
+        port=args.port,
+        log_level="warning",
+    )
+    return 0
 
 
 def _pair(text: str, flag: str) -> tuple[str, str]:
@@ -438,7 +619,7 @@ def _record_run(
         raise RecordError(f"{run_dir.as_posix()} is not a readable discovery run: {exc}") from exc
     saved = save(record(run_dir, policy=policy, families_dir=families_dir), out)
     print(
-        f"cua record: wrote {out.as_posix()}, version {saved.version} ({saved.approval_state}). "
+        f"cua record: wrote {link(out)}, version {saved.version} ({saved.approval_state}). "
         f"Review it with: cua describe {out.as_posix()}",
         file=sys.stderr,
     )
@@ -503,7 +684,7 @@ def _approve(args: argparse.Namespace) -> int:
         return 1
     print(
         f"cua approve: {cap.name} version {cap.version} is approved by {cap.approved_by} "
-        f"({args.capability.as_posix()})"
+        f"({link(args.capability, stream=sys.stdout)})"
     )
     return 0
 
@@ -524,7 +705,7 @@ def _approval_token(args: argparse.Namespace) -> int:
             raise ValueError("; ".join(problems))
         created = tokens.create_signing_key(tenant)
         if created is not None:
-            print(f"cua approval-token: created a signing key at {created}", file=sys.stderr)
+            print(f"cua approval-token: created a signing key at {link(created)}", file=sys.stderr)
         token = tokens.mint(
             cap,
             tenant,

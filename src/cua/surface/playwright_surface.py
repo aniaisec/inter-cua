@@ -29,10 +29,18 @@ from __future__ import annotations
 
 import math
 import os
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.request
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from pathlib import Path
 from types import TracebackType
-from typing import Self
+from typing import Any, Self
 
 from playwright.sync_api import (
     Browser,
@@ -99,6 +107,7 @@ NAVIGATION_GRACE_S = 0.5
 """How long after a click or key press a navigation may take to be requested."""
 NAVIGATION_POLL_S = 0.02
 POLL_INTERVAL_S = 0.15
+CDP_START_TIMEOUT_S = 20.0
 
 GEOMETRY_ROLES: frozenset[str] = INTERACTIVE_ROLES | ANCHOR_ROLES
 """Which nodes get measured. Controls need boxes to be clicked by pixel and to
@@ -131,11 +140,16 @@ class PlaywrightSurface:
         viewport: Viewport | None = None,
         owns: tuple[Browser, Playwright] | None = None,
         config: SurfaceConfig | None = None,
+        process: BrowserProcess | None = None,
     ) -> None:
         self._page = page
         self._cdp_url = cdp_url
         self._viewport = viewport or _viewport_of(page)
         self._owns = owns
+        self.process = process
+        """The browser's own OS process, when it was started detached."""
+        self._keep = False
+        self._target_id: str | None = None
         self._config = config or DEFAULT_CONFIG
         self._evaluator = WebEvaluator(self._config)
         self._observation: Observation | None = None
@@ -166,20 +180,45 @@ class PlaywrightSurface:
         headed: bool | None = None,
         viewport: Viewport | None = None,
         cdp_port: int | None = None,
+        detached: bool = False,
     ) -> Self:
         """Start a browser this surface owns.
 
         The debugging port is opened even for unattended runs: whether a run
         will need a human is not known until it gets stuck, and a session that
         cannot be attached to cannot be handed over.
+
+        ``detached``: start Chromium as a process of its own and drive it over
+        the debugging port. A browser Playwright launches dies with the
+        process that launched it; a detached one outlives it, which is what
+        lets a run return ``escalated`` to its caller, exit, and still leave a
+        live session for a person to work in and ``cua resume`` to pick up.
         """
         view = viewport or DEFAULT_VIEWPORT
         port = cdp_port if cdp_port is not None else _free_port()
+        headless = not (headed if headed is not None else _headed_from_env())
         playwright = sync_playwright().start()
+        if detached:
+            process: BrowserProcess | None = None
+            try:
+                process = BrowserProcess.start(
+                    playwright.chromium.executable_path,
+                    port=port,
+                    headless=headless,
+                    viewport=view,
+                )
+                target = process.open_page(playwright)
+                return cls._connect(
+                    playwright, process.cdp_url, target_id=target, viewport=view, process=process
+                )
+            except BaseException:
+                playwright.stop()
+                if process is not None:
+                    process.kill()
+                raise
         try:
             browser = playwright.chromium.launch(
-                headless=not (headed if headed is not None else _headed_from_env()),
-                args=[f"--remote-debugging-port={port}"],
+                headless=headless, args=[f"--remote-debugging-port={port}"]
             )
             # Downloads are refused by the browser itself, under the policy's
             # check of a link's destination: a download reached some other way
@@ -198,6 +237,60 @@ class PlaywrightSurface:
             owns=(browser, playwright),
         )
 
+    @classmethod
+    def attach(
+        cls,
+        cdp_url: str,
+        *,
+        target_id: str | None = None,
+        viewport: Viewport | None = None,
+        process: BrowserProcess | None = None,
+    ) -> Self:
+        """Drive a browser that is already running, over its debugging port.
+
+        ``target_id`` picks the page a run was driving; without it, the first
+        page of the default context. Closing the surface kills ``process`` if
+        one is given (the surface then owns the browser), and otherwise only
+        disconnects.
+        """
+        playwright = sync_playwright().start()
+        try:
+            return cls._connect(
+                playwright, cdp_url, target_id=target_id, viewport=viewport, process=process
+            )
+        except BaseException:
+            playwright.stop()
+            raise
+
+    @classmethod
+    def _connect(
+        cls,
+        playwright: Playwright,
+        cdp_url: str,
+        *,
+        target_id: str | None = None,
+        viewport: Viewport | None = None,
+        process: BrowserProcess | None = None,
+    ) -> Self:
+        view = viewport or DEFAULT_VIEWPORT
+        browser = playwright.chromium.connect_over_cdp(cdp_url)
+        page = _page_for(browser, target_id)
+        # Size and download policy belong to the connection: set them on
+        # every attach, or a resumed run works in a different window.
+        page.set_viewport_size({"width": view.w, "height": view.h})
+        cdp = browser.new_browser_cdp_session()
+        cdp.send("Browser.setDownloadBehavior", {"behavior": "deny"})
+        surface = cls(
+            page, cdp_url=cdp_url, viewport=view, owns=(browser, playwright), process=process
+        )
+        surface._target_id = target_id
+        return surface
+
+    def keep_open(self) -> None:
+        """Leave the browser running when this surface closes (a detached
+        session handed to a person); only the connection is dropped."""
+        self._keep = True
+
     def close(self, *, interrupted: bool = False) -> None:
         """Shut down the browser this surface launched.
 
@@ -210,9 +303,20 @@ class PlaywrightSurface:
             return
         browser, playwright = self._owns
         self._owns = None
-        if not interrupted:
-            browser.close()
-        playwright.stop()
+        if self._keep and self.process is not None:
+            # Disconnect only. The process keeps the session for a person.
+            try:
+                playwright.stop()
+            except Exception:  # pragma: no cover - a driver already gone
+                pass
+            return
+        try:
+            if not interrupted:
+                browser.close()
+            playwright.stop()
+        finally:
+            if self.process is not None:
+                self.process.kill()
 
     def __enter__(self) -> Self:
         return self
@@ -242,8 +346,13 @@ class PlaywrightSurface:
     def expose(self) -> SessionHandle:
         if self._cdp_url is None:
             raise SurfaceError("this session has no debugging endpoint; it cannot be handed over")
+        if self._target_id is None:
+            self._target_id = _target_id(self._page)
         return SessionHandle(
-            cdp_url=self._cdp_url, page_url=self._page.url, viewport=self._viewport
+            cdp_url=self._cdp_url,
+            page_url=self._page.url,
+            viewport=self._viewport,
+            target_id=self._target_id,
         )
 
     # -- perception --------------------------------------------------------
@@ -734,6 +843,152 @@ class PlaywrightSurface:
 
     def _count_navigation(self, frame: Frame) -> None:
         self._navigations[frame] = self._navigations.get(frame, 0) + 1
+
+
+class BrowserProcess:
+    """A Chromium started as a process of its own, reachable over its
+    debugging port, with a throwaway profile.
+
+    Started in its own process group, so a Ctrl+C meant for the run that
+    started it does not reach it: stopping to wait for a person must not take
+    the person's session down too.
+    """
+
+    def __init__(self, pid: int, cdp_url: str, profile: Path) -> None:
+        self.pid = pid
+        self.cdp_url = cdp_url
+        self.profile = profile
+
+    @classmethod
+    def start(
+        cls, executable: str, *, port: int, headless: bool, viewport: Viewport
+    ) -> BrowserProcess:
+        profile = Path(tempfile.mkdtemp(prefix="cua-session-"))
+        args = [
+            executable,
+            f"--remote-debugging-port={port}",
+            f"--user-data-dir={profile}",
+            "--no-first-run",
+            "--no-default-browser-check",
+            f"--window-size={viewport.w},{viewport.h}",
+        ]
+        if headless:
+            args.append("--headless=new")
+        args.append("about:blank")
+        new_group: dict[str, Any] = (
+            {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+            if sys.platform == "win32"
+            else {"start_new_session": True}
+        )
+        proc = subprocess.Popen(
+            args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **new_group
+        )
+        browser = cls(proc.pid, f"http://127.0.0.1:{port}", profile)
+        deadline = _deadline(CDP_START_TIMEOUT_S)
+        while _now() < deadline:
+            if proc.poll() is not None:
+                raise SurfaceError(f"Chromium exited on start (code {proc.returncode})")
+            try:
+                with urllib.request.urlopen(f"{browser.cdp_url}/json/version", timeout=1):
+                    return browser
+            except OSError:
+                time.sleep(0.1)
+        browser.kill()
+        raise SurfaceError(f"Chromium did not open its debugging port on {browser.cdp_url}")
+
+    def open_page(self, playwright: Playwright) -> str:
+        """Open the page a run will drive, in a browser context of its own;
+        returns its target id.
+
+        Not the profile's default context. Measured on Chromium 149: in a
+        regular profile, clicks and keys sent over CDP into the frames of a
+        ``<frameset>`` never reach them — even in a persistent context
+        Playwright launched itself — while a separate context, or the
+        headless shell, takes them normally. And not a context Playwright
+        creates either, since those are disposed when the connection that
+        made them drops, which is exactly what a handoff must survive. So the
+        context is made over raw CDP with ``disposeOnDetach: false``, and the
+        profile's own start page is closed.
+        """
+        browser = playwright.chromium.connect_over_cdp(self.cdp_url)
+        try:
+            cdp = browser.new_browser_cdp_session()
+            context = cdp.send("Target.createBrowserContext", {"disposeOnDetach": False})
+            context_id = context["browserContextId"]
+            created = cdp.send(
+                "Target.createTarget", {"url": "about:blank", "browserContextId": context_id}
+            )
+            target = str(created["targetId"])
+            cdp.send(
+                "Browser.setDownloadBehavior",
+                {"behavior": "deny", "browserContextId": context_id},
+            )
+            for info in cdp.send("Target.getTargets")["targetInfos"]:
+                if info["type"] == "page" and info["targetId"] != target:
+                    cdp.send("Target.closeTarget", {"targetId": info["targetId"]})
+        finally:
+            browser.close()
+        return target
+
+    def alive(self) -> bool:
+        try:
+            with urllib.request.urlopen(f"{self.cdp_url}/json/version", timeout=1):
+                return True
+        except OSError:
+            return False
+
+    def kill(self) -> None:
+        kill_browser(self.pid, self.profile)
+
+    def describe(self) -> dict[str, Any]:
+        return {"pid": self.pid, "cdp_url": self.cdp_url, "profile": self.profile.as_posix()}
+
+
+def kill_browser(pid: int, profile: Path | None = None) -> None:
+    """End a detached browser and everything it started, then its profile."""
+    if sys.platform == "win32":
+        subprocess.run(
+            ["taskkill", "/PID", str(pid), "/T", "/F"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    else:
+        try:
+            os.killpg(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    if profile is not None:
+        for _ in range(20):  # Windows holds the profile's files a moment longer
+            shutil.rmtree(profile, ignore_errors=True)
+            if not profile.exists():
+                break
+            time.sleep(0.1)
+
+
+def _page_for(browser: Browser, target_id: str | None) -> Page:
+    pages = [p for c in browser.contexts for p in c.pages]
+    if target_id is not None:
+        for page in pages:
+            if _target_id(page) == target_id:
+                return page
+        raise SurfaceError(f"the page {target_id} is no longer open in this browser")
+    if pages:
+        return pages[0]
+    context = browser.contexts[0] if browser.contexts else browser.new_context()
+    return context.new_page()
+
+
+def _target_id(page: Page) -> str | None:
+    try:
+        session = page.context.new_cdp_session(page)
+        try:
+            info = session.send("Target.getTargetInfo")
+        finally:
+            session.detach()
+        return str(info["targetInfo"]["targetId"])
+    except PlaywrightError:
+        return None
 
 
 def _implements_the_protocol(surface: PlaywrightSurface) -> Surface:

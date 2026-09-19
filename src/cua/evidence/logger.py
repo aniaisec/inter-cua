@@ -48,7 +48,9 @@ class RunLog:
         self.dir.mkdir(parents=True, exist_ok=True)
         (self.dir / "observations").mkdir(exist_ok=True)
         (self.dir / "screenshots").mkdir(exist_ok=True)
-        self._seq = 0
+        log = self.dir / "log.jsonl"
+        # A run carried on by another process (``cua resume``) keeps counting.
+        self._seq = len(log.read_text(encoding="utf-8").splitlines()) if log.is_file() else 0
         self._scrub: Callable[[str], str] | None = None
 
     def scrub_with(self, scrub: Callable[[str], str]) -> None:
@@ -68,14 +70,22 @@ class RunLog:
         record = {"seq": self._seq, "ts": utc_now(), "event": kind, **fields}
         _append(self.dir / "log.jsonl", self._clean(record))
 
+    def append(self, name: str, record: dict[str, Any]) -> None:
+        """One line of some other JSONL file in the run directory."""
+        path = self.dir / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _append(path, self._clean({"ts": utc_now(), **record}))
+
     def model_call(self, **fields: Any) -> None:
         _append(self.dir / "model_calls.jsonl", self._clean({"ts": utc_now(), **fields}))
 
-    def observation(self, turn: int, observation: Observation) -> dict[str, str]:
+    def observation(
+        self, turn: int, observation: Observation, *, suffix: str = ""
+    ) -> dict[str, str]:
         """Store the tree and, if taken, the screenshot. Returns their paths,
         relative to the run dir, for the log line that refers to them."""
         paths: dict[str, str] = {}
-        name = f"{turn:04d}"
+        name = f"{turn:04d}{suffix}"
         tree = Path("observations") / f"{name}.json"
         _write(self.dir / tree, self._dumps(observation.model_dump(mode="json"), indent=1))
         paths["observation"] = tree.as_posix()
@@ -87,6 +97,7 @@ class RunLog:
 
     def write_json(self, name: str, data: BaseModel | dict[str, Any]) -> Path:
         path = self.dir / name
+        path.parent.mkdir(parents=True, exist_ok=True)
         raw = data.model_dump(mode="json") if isinstance(data, BaseModel) else data
         _write(path, self._dumps(raw, indent=2))
         return path
@@ -116,6 +127,12 @@ class RunLog:
 
 def _write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8", newline="\n")
+
+
+def append_jsonl(path: Path, record: dict[str, Any]) -> None:
+    """One line of JSON, LF-terminated. For writers outside a run's own
+    process (the operator console), which scrub before they call this."""
+    _append(path, record)
 
 
 def _append(path: Path, record: dict[str, Any]) -> None:

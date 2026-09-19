@@ -96,13 +96,21 @@ class Recovery(_Model):
 
 
 class Handoff(_Model):
-    """A stretch of the run a human was in control of (M6)."""
+    """One request to a human, and how it ended."""
 
     request_id: str
     reason: EscalationReason
+    step_id: str | None = None
+    """Where the run was when it asked."""
+    decision: Literal["hand_back", "retry_step", "approve", "abort", "unanswered"] | None = None
+    decided_by: str | None = None
     human_actions_count: int = 0
+    """Things the person did in the browser (clicks, typing, key presses)."""
     resumed_at: str | None = None
+    """The step the automation carried on with; ``done`` when only the outputs
+    were left; None when it did not carry on."""
     resumed_after_checkpoint: str | None = None
+    """The checkpoint the resume-state search found holding."""
 
 
 class Evidence(_Model):
@@ -171,9 +179,12 @@ class Failure(_Common):
     relogin that could not find the sign-on form is reported as that, not as
     a sign-on step failing out of nowhere."""
     escalation_reason: EscalationReason | None = None
-    """Set when this fault is one a human should have been asked about, and
-    no one could be (``budget.allow_escalation`` is false, or no operator
-    console is attached). The failure is returned in the escalation's place."""
+    """Set when this fault is one a person should have been asked about.
+    With no handoff channel attached, the fault is returned as is, under its
+    own code. With one, ``ESCALATION_ABORTED`` says the escalation itself was
+    ended: ``budget.allow_escalation`` is false (nobody was asked), the
+    operator aborted, or the request expired; the fault underneath is named
+    in ``message``."""
 
 
 class Escalated(_Common):
@@ -181,10 +192,16 @@ class Escalated(_Common):
     reason: EscalationReason
     step_id: str | None = None
     message: str = ""
-    side_effect: Literal["none", "committed"] = "none"
+    side_effect: SideEffect = "none"
+    """``unknown`` too: a commit that may have happened is exactly what a
+    person is asked to go and look at."""
     request_id: str
     resume_token: str
+    """Hand it to ``cua resume`` once the person hands back."""
     operator_url: str | None = None
+    outputs: dict[str, OutputValue] = Field(default_factory=dict)
+    """Anything already read — above all a reference number captured the
+    moment a commit landed."""
 
 
 ReplayResult: TypeAlias = Annotated[

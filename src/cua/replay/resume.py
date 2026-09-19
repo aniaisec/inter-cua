@@ -16,6 +16,11 @@ the run there without replaying a single step.
 The search never resumes *before* a step the run has already committed: an
 irreversible step that happened is not re-done because an earlier screen
 happens to still be showing.
+
+The done checkpoint says only that the outputs could be read, which is true of
+any screen that shows *an* answer. So it counts only together with the
+checkpoint before it: after a person has driven the session, a balance read off
+another member's page must not end the run as this member's.
 """
 
 from __future__ import annotations
@@ -65,16 +70,27 @@ def find_resume_point(
     inputs: Mapping[str, str],
     outputs: Mapping[str, object] | None = None,
     not_before: int = 0,
+    only: str | None = None,
 ) -> ResumePoint | None:
     """The newest checkpoint that holds on this screen, or None.
 
     ``not_before``: the run must not resume at a step earlier than this — the
     step after the last irreversible step that is known to have happened.
+    ``only``: consider this checkpoint alone (an operator named where to resume).
     """
-    for checkpoint in reversed(capability.checkpoints):
+    checkpoints = capability.checkpoints
+    for i in reversed(range(len(checkpoints))):
+        checkpoint = checkpoints[i]
+        if only is not None and checkpoint.id != only:
+            continue
         nxt = next_step_after(capability, checkpoint)
         if nxt < not_before:
             continue
-        if holds(checkpoint, observation, evaluator, inputs=inputs, outputs=outputs):
-            return ResumePoint(checkpoint=checkpoint.id, next_step=nxt)
+        if not holds(checkpoint, observation, evaluator, inputs=inputs, outputs=outputs):
+            continue
+        if checkpoint.after_step == DONE and i > 0:
+            before = checkpoints[i - 1]
+            if not holds(before, observation, evaluator, inputs=inputs, outputs=outputs):
+                continue
+        return ResumePoint(checkpoint=checkpoint.id, next_step=nxt)
     return None

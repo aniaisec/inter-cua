@@ -3,13 +3,13 @@
 Goal-driven UI discovery → a reviewable capability artifact → deterministic
 replay with no model in the loop → human handoff on the live session.
 
-**Status: M4.** The mock target app, the Surface layer (perception, the
+**Status: M6.** The mock target app, the Surface layer (perception, the
 locator ladder, the condition vocabulary), goal-driven discovery
 (`cua discover`), the capability artifact (`cua record`, `cua describe`,
-`cua approve`) and deterministic replay (`cua replay`) are in. Handoff to a
-human (`cua resume`, `cua operator`) lands in M6; `cua --help` names the
-milestone for every subcommand that is not wired up yet. `README.md` gets its
-real treatment at M8.
+`cua approve`), deterministic replay (`cua replay`), the safety policy, and
+handoff to a person on the live session (`--handoff`, `cua operator`,
+`cua resume`) are in. `cua --help` names the milestone for every subcommand
+that is not wired up yet. `README.md` gets its real treatment at M8.
 
 ## Setup
 
@@ -58,8 +58,9 @@ and a masked screenshot, calls one of `click`, `type`, `press`, `read`, `done`
 or `stuck`, and the policy is checked before the action happens. It ends
 `done` (every declared output named by ref and read back by the runner, exit
 0), `escalated` (`stuck`, a dead end of three unchanged screens, or a risky
-action with no approval, exit 3; the human handoff lands in M6), or `stopped`
-(step or time limit, exit 1). A run cut short by Ctrl+C or a crash still
+action with no approval, exit 3; with `--handoff` each of these is first put
+to a person on the operator console), or `stopped` (step or time limit, or an
+operator's abort, exit 1). A run cut short by Ctrl+C or a crash still
 writes `result.json`, as `interrupted` (exit 130). Credentials reach the model only as
 `${credentials.app_login.password}` placeholders, and a typed password, which
 the accessibility tree reports back as the field's value, is scrubbed from
@@ -261,7 +262,8 @@ the discovery loop and by replay alike (`cua.policy.allowlist.check`):
   on.
 - **Risk.** `risky_rules` (button name, and where it sits) mark a control that
   commits something. It needs approval: a signed token for this invocation, or
-  a human (the handoff lands in M6). A block is never lifted by an approval.
+  a person on the operator console (`--handoff`). A block is never lifted by an
+  approval.
 - **Approval tokens.** `cua approval-token` signs consent for exactly one
   capability version and content, one tenant, one set of inputs, for a limited
   time (HMAC with the tenant's `secret://<tenant>/cua/approval-signing-key`;
@@ -277,6 +279,67 @@ the discovery loop and by replay alike (`cua.policy.allowlist.check`):
   shaped like an SSN or a 9-16 digit account or card number (`scrub_patterns`)
   is masked everywhere, including a kept trace. The run log applies the same
   scrub to every line it writes, as a net under the rest.
+
+## Handoff to a person
+
+With `--handoff`, a fault a person could help with does not end the run: a
+locator that no longer resolves, a step that needs approval and has no token,
+a recovery that ran out, a commit whose outcome is `unknown`, a server error.
+The run writes an **intervention request** (capability, step, reason, the
+fault, what was expected, a scrubbed excerpt of what the screen showed, a
+masked screenshot, and the DevTools endpoint and page of the live browser),
+gives up the controls, and waits. Its step timers and budget stop while it
+does.
+
+```bash
+cua operator                      # the console, on http://127.0.0.1:8100
+cua replay capabilities/member_savings_balance.json --input member_id=10003 \
+  --inject renamed_button --handoff --headed
+```
+
+On the console a person can **Take control** (and work in the browser window;
+for a headless session the request links the page in the browser's own
+DevTools, which shows it and takes clicks), **Resume** (optionally naming where
+to carry on), **Retry step**, **Approve action**, or **Abort**. Who holds the
+controls is one record per run, `control.json`, with a lease the replay
+checks before every action it takes; every change of hands is a line of
+`state_transitions.jsonl`:
+
+```
+AUTOMATION -> PAUSED -> HUMAN_IN_CONTROL -> RESUMING -> AUTOMATION
+                 |              |               \-> PAUSED   (nothing holds: ask again)
+                 \-> ABORTED    \-> ABORTED
+```
+
+While a person has the controls, the console attaches to the same browser over
+CDP and records what they do in `human_actions.jsonl`: clicks, changes (which
+control and how many characters, never the value), key presses, navigations.
+They are recorded, not policy-checked: the person is the escalation path for
+what the policy did not foresee.
+
+When they hand back, the run takes nobody's word for where it is. It reads
+whatever outputs the screen shows, tests its checkpoints newest first, and
+carries on after the newest one that holds; an operator's "resume at" only
+narrows which checkpoint is tested. It never goes back before a commit that
+has happened — or may have — and if the person committed it, the result says
+so (`side_effect: committed`, `performed_by: person` in the log). If no
+checkpoint holds, it asks again.
+
+A caller is never stuck waiting on a person. `--handoff-wait 0` (or nobody
+picking the request up in time, or Ctrl+C) returns `escalated` with a
+`resume_token`, exit 3. The browser runs as a process of its own, so the
+session outlives the replay; once the person has handed back on the console,
+`cua resume <token>` attaches to it and carries the run on (or, called before
+anyone has, is the handback itself). A request nobody answers is aborted after
+`--handoff-ttl`. Without `--handoff`, a fault that should have gone to a
+person is a `failure` naming the escalation it replaced (`escalation_reason`);
+with `--budget allow_escalation=false` it is `ESCALATION_ABORTED` and nobody
+is asked.
+
+`cua discover --handoff` puts a risky action, `stuck` and a dead end to the
+same console: an approval lets the action through; a handback lets the agent
+carry on from the screen the person left (a run a person acted in is not
+recorded as a capability; its transcript is not the whole story).
 
 ## License
 
