@@ -1,0 +1,363 @@
+{
+ "observed_at": "2026-09-19T05:08:41.406260Z",
+ "location": "http://127.0.0.1:8000/",
+ "title": "MockCore 1.0",
+ "viewport": {
+  "w": 1280,
+  "h": 800
+ },
+ "frames": [
+  {
+   "name": "",
+   "url": "http://127.0.0.1:8000/",
+   "status": 200
+  },
+  {
+   "name": "nav",
+   "url": "http://127.0.0.1:8000/nav",
+   "status": 200
+  },
+  {
+   "name": "main",
+   "url": "http://127.0.0.1:8000/member/10003",
+   "status": 500
+  }
+ ],
+ "nodes": [
+  {
+   "ref": "n315",
+   "role": "text",
+   "name": "Functions",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 0.0,
+    "y": 0.0,
+    "w": 180.0,
+    "h": 21.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n316",
+   "role": "table",
+   "name": "",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n317",
+   "role": "rowgroup",
+   "name": "",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n316",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n318",
+   "role": "row",
+   "name": "Member Search",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n317",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n319",
+   "role": "cell",
+   "name": "Member Search",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 14.0,
+    "y": 31.0,
+    "w": 99.421875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n318",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n320",
+   "role": "link",
+   "name": "Member Search",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 20.0,
+    "y": 34.0,
+    "w": 86.5625,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n319",
+   "ordinal": 0,
+   "attrs": {
+    "url": "javascript:parent.main.location='/search'"
+   }
+  },
+  {
+   "ref": "n321",
+   "role": "row",
+   "name": "Account Inquiry",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n317",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n322",
+   "role": "cell",
+   "name": "Account Inquiry",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 14.0,
+    "y": 50.0,
+    "w": 99.421875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n321",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n323",
+   "role": "link",
+   "name": "Account Inquiry",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 20.0,
+    "y": 53.0,
+    "w": 87.421875,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n322",
+   "ordinal": 1,
+   "attrs": {
+    "url": "javascript:parent.main.location='/search'"
+   }
+  },
+  {
+   "ref": "n324",
+   "role": "row",
+   "name": "Reports",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n317",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n325",
+   "role": "cell",
+   "name": "Reports",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 14.0,
+    "y": 69.0,
+    "w": 99.421875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n324",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n326",
+   "role": "link",
+   "name": "Reports",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 20.0,
+    "y": 72.0,
+    "w": 42.234375,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n325",
+   "ordinal": 2,
+   "attrs": {
+    "url": "javascript:void(0)"
+   }
+  },
+  {
+   "ref": "n327",
+   "role": "row",
+   "name": "Sign Off",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n317",
+   "ordinal": 3,
+   "attrs": {}
+  },
+  {
+   "ref": "n328",
+   "role": "cell",
+   "name": "Sign Off",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 14.0,
+    "y": 88.0,
+    "w": 99.421875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n327",
+   "ordinal": 3,
+   "attrs": {}
+  },
+  {
+   "ref": "n329",
+   "role": "link",
+   "name": "Sign Off",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 20.0,
+    "y": 91.0,
+    "w": 44.625,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n328",
+   "ordinal": 3,
+   "attrs": {
+    "url": "/logoff"
+   }
+  },
+  {
+   "ref": "n330",
+   "role": "row",
+   "name": "Vendor Support",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n317",
+   "ordinal": 4,
+   "attrs": {}
+  },
+  {
+   "ref": "n331",
+   "role": "cell",
+   "name": "Vendor Support",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 14.0,
+    "y": 107.0,
+    "w": 99.421875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n330",
+   "ordinal": 4,
+   "attrs": {}
+  },
+  {
+   "ref": "n332",
+   "role": "link",
+   "name": "Vendor Support",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 20.0,
+    "y": 110.0,
+    "w": 86.484375,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n331",
+   "ordinal": 4,
+   "attrs": {
+    "url": "https://support.mockcore.example/kb"
+   }
+  },
+  {
+   "ref": "n333",
+   "role": "heading",
+   "name": "Internal Server Error",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 16.0,
+    "w": 1071.0,
+    "h": 16.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {
+    "level": "3"
+   }
+  },
+  {
+   "ref": "n334",
+   "role": "paragraph",
+   "name": "The MockCore application encountered an unexpected condition (CICS ABEND ASRA).",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 43.0,
+    "w": 1071.0,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n335",
+   "role": "paragraph",
+   "name": "Transaction MBRI01 has been rolled back. Contact operations.",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 67.0,
+    "w": 1071.0,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 1,
+   "attrs": {}
+  }
+ ],
+ "dialogs": []
+}

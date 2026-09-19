@@ -1,0 +1,33 @@
+{
+  "run_id": "run_01M2W120S5Q5BSVJAYAF3XAH83",
+  "kind": "replay",
+  "started_at": "2026-09-19T05:08:37.798Z",
+  "capability": {
+    "id": "cap_01M2TEFQZ16QEA602CSCCY8GJX",
+    "name": "member_savings_balance",
+    "version": 3,
+    "approval_state": "approved",
+    "approved_by": "anil",
+    "content_sha256": "cb63dcb3e726211deaef0ab4b5562937e7104a1756069f8d160936f1e9d8d3de"
+  },
+  "tenant": {
+    "id": "local",
+    "app_family": "legacy-core",
+    "base_url": "http://127.0.0.1:8000"
+  },
+  "request": {
+    "inputs": {
+      "member_id": "10003"
+    },
+    "idempotency_key": null,
+    "approval": null,
+    "budget": {
+      "timeout_s": 120.0,
+      "max_recoveries": 3,
+      "allow_escalation": true
+    },
+    "inject": "server_error"
+  },
+  "allow_draft": false,
+  "handoff": null
+}

@@ -1,0 +1,131 @@
+goal: Look up a member by id and return the current savings balance
+steps:
+- tool: type
+  target:
+  - strategy: near_text
+    text: User ID
+    role: textbox
+    exact: true
+    within:
+      frame: ''
+  - strategy: bbox
+    x: 83.671875
+    y: 64.0
+    w: 154.0
+    h: 20.0
+    role: textbox
+    confidence: low
+    within:
+      frame: ''
+  text: ${credentials.app_login.username}
+  reason: Enter username for authentication.
+- tool: type
+  target:
+  - strategy: near_text
+    text: Password
+    role: textbox
+    exact: true
+    within:
+      frame: ''
+  - strategy: bbox
+    x: 83.671875
+    y: 90.0
+    w: 154.0
+    h: 20.0
+    role: textbox
+    confidence: low
+    within:
+      frame: ''
+  text: ${credentials.app_login.password}
+  reason: Enter password for authentication.
+- tool: click
+  target:
+  - strategy: role_name
+    role: button
+    name: Sign On
+    exact: true
+    within:
+      frame: ''
+  - strategy: bbox
+    x: 83.671875
+    y: 116.0
+    w: 67.84375
+    h: 19.0
+    role: button
+    confidence: low
+    within:
+      frame: ''
+  reason: Submit sign on credentials.
+- tool: type
+  target:
+  - strategy: near_text
+    text: Member ID
+    role: textbox
+    exact: true
+    within:
+      frame: main
+  - strategy: bbox
+    x: 274.609375
+    y: 64.0
+    w: 68.0
+    h: 20.0
+    role: textbox
+    confidence: low
+    within:
+      frame: main
+  text: '10003'
+  reason: Enter member ID to search for the member.
+- tool: click
+  target:
+  - strategy: role_name
+    role: button
+    name: Search
+    exact: true
+    within:
+      frame: main
+  - strategy: bbox
+    x: 354.609375
+    y: 64.5
+    w: 62.078125
+    h: 19.0
+    role: button
+    confidence: low
+    within:
+      frame: main
+  reason: Search for member ID 10003.
+- tool: done
+  outputs:
+    savings_balance:
+    - strategy: table_cell
+      row_contains: Savings
+      column_header: Balance
+      exact: true
+      within:
+        frame: main
+    - strategy: bbox
+      x: 267.78125
+      y: 182.5
+      w: 77.96875
+      h: 20.0
+      role: cell
+      confidence: low
+      within:
+        frame: main
+    member_name:
+    - strategy: near_text
+      text: Name
+      role: cell
+      direction: right
+      exact: true
+      within:
+        frame: main
+    - strategy: bbox
+      x: 268.609375
+      y: 80.0
+      w: 100.5625
+      h: 19.0
+      role: cell
+      confidence: low
+      within:
+        frame: main
+  reason: The member details and savings balance are displayed on screen.

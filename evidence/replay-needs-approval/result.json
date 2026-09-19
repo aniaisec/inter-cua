@@ -1,0 +1,58 @@
+{
+  "run_id": "run_01M2W12HJ75SBQA9FP36BK04PJ",
+  "capability": "open_subaccount",
+  "capability_version": 3,
+  "idempotency_key": null,
+  "duration_ms": 11869,
+  "locator_rungs_used": {
+    "login.username": "near_text",
+    "login.password": "near_text",
+    "login.submit": "role_name",
+    "search.member_id": "near_text",
+    "search.submit": "role_name",
+    "member.open_sub_account": "role_name",
+    "subaccount.initial_deposit": "near_text",
+    "subaccount.submit": "role_name",
+    "review.submit": "role_name",
+    "outputs.reference_number": "table_cell"
+  },
+  "recoveries": [],
+  "handoffs": [
+    {
+      "request_id": "req_01M2W12WQVHV0TQ29T26XWWD9Z",
+      "reason": "NEEDS_APPROVAL",
+      "step_id": "review.submit",
+      "decision": "approve",
+      "decided_by": "evidence-bot",
+      "human_actions_count": 0,
+      "resumed_at": "review.submit",
+      "resumed_after_checkpoint": null
+    }
+  ],
+  "warnings": [],
+  "evidence": {
+    "run_dir": "evidence/runs/_build/run_01M2W12HJ75SBQA9FP36BK04PJ",
+    "screenshots": [
+      "screenshots/0001.png",
+      "screenshots/0002.png",
+      "screenshots/0003.png",
+      "screenshots/0004.png",
+      "screenshots/0005.png",
+      "screenshots/0006.png",
+      "screenshots/0007.png",
+      "screenshots/0008.png",
+      "screenshots/0009.png",
+      "screenshots/0010.png",
+      "screenshots/0011.png"
+    ],
+    "trace": null,
+    "intervention": "interventions/req_01M2W12WQVHV0TQ29T26XWWD9Z.json"
+  },
+  "cached": false,
+  "kind": "success",
+  "outputs": {
+    "reference_number": "REF-10003-0001"
+  },
+  "step_id": "review.submit",
+  "side_effect": "committed"
+}

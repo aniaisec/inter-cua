@@ -32,8 +32,8 @@ lint:
 typecheck:
 	$(PY) -m mypy
 
-evidence: ## Regenerate the evidence package (M7)
-	$(PY) -m cua.cli replay --help
+evidence: ## Regenerate the replay evidence (needs :8000 free); discovery runs are kept
+	$(PY) -m cua.evidence.build
 
 clean:
 	rm -rf .pytest_cache .ruff_cache .mypy_cache

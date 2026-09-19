@@ -1,0 +1,2 @@
+cua replay capabilities/member_savings_balance.json --input member_id=10003 --runs-dir evidence/runs/_build
+  -> exit 0, stdout in cli-replay.json

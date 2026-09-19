@@ -1,0 +1,37 @@
+{
+  "run_id": "run_01M2W11WPG0VY7Q8R8WXZVPA2S",
+  "capability": "member_savings_balance",
+  "capability_version": 3,
+  "idempotency_key": null,
+  "duration_ms": 3332,
+  "locator_rungs_used": {
+    "login.username": "near_text",
+    "login.password": "near_text",
+    "login.submit": "role_name",
+    "search.member_id": "near_text",
+    "search.submit": "role_name"
+  },
+  "recoveries": [],
+  "handoffs": [],
+  "warnings": [],
+  "evidence": {
+    "run_dir": "evidence/runs/_build/run_01M2W11WPG0VY7Q8R8WXZVPA2S",
+    "screenshots": [
+      "screenshots/0001.png",
+      "screenshots/0002.png",
+      "screenshots/0003.png",
+      "screenshots/0004.png",
+      "screenshots/0005.png"
+    ],
+    "trace": null,
+    "intervention": null
+  },
+  "cached": false,
+  "kind": "business_outcome",
+  "code": "NOT_FOUND",
+  "payload": {},
+  "message": "No matching member",
+  "outputs": {},
+  "step_id": "search.submit",
+  "side_effect": "none"
+}

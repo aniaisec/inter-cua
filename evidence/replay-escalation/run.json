@@ -1,0 +1,43 @@
+{
+  "run_id": "run_01M2W130N9ASJXYN8SP1SWEH4P",
+  "kind": "replay",
+  "started_at": "2026-09-19T05:09:10.442Z",
+  "capability": {
+    "id": "cap_01M2TMXZ2QK22AEHTVPG6FENDY",
+    "name": "open_subaccount",
+    "version": 3,
+    "approval_state": "approved",
+    "approved_by": "anil",
+    "content_sha256": "ed8cbbbea6146a25650a0f954244359fe339fce468ef99c10304cf5196dba61f"
+  },
+  "tenant": {
+    "id": "local",
+    "app_family": "legacy-core",
+    "base_url": "http://127.0.0.1:8000"
+  },
+  "request": {
+    "inputs": {
+      "member_id": "10003",
+      "initial_deposit": "250.00"
+    },
+    "idempotency_key": null,
+    "approval": {
+      "approved_by": null,
+      "token_sha256": "b5e57f8842a5"
+    },
+    "budget": {
+      "timeout_s": 120.0,
+      "max_recoveries": 3,
+      "allow_escalation": true
+    },
+    "inject": "modal_dialog"
+  },
+  "allow_draft": false,
+  "handoff": {
+    "wait_s": 120.0,
+    "ttl_s": 1800.0,
+    "operator_url": "http://127.0.0.1:63276",
+    "poll_s": 0.25,
+    "announce": true
+  }
+}

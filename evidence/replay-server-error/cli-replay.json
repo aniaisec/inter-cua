@@ -1,0 +1,40 @@
+{
+  "kind": "failure",
+  "code": "APP_ERROR",
+  "step_id": "search.submit",
+  "side_effect": "none",
+  "outputs": {},
+  "message": "APP_ERROR: error banner present (main returned HTTP 500)",
+  "run_id": "run_01M2W120S5Q5BSVJAYAF3XAH83",
+  "capability": "member_savings_balance",
+  "capability_version": 3,
+  "idempotency_key": null,
+  "duration_ms": 3214,
+  "locator_rungs_used": {
+    "login.username": "near_text",
+    "login.password": "near_text",
+    "login.submit": "role_name",
+    "search.member_id": "near_text",
+    "search.submit": "role_name"
+  },
+  "recoveries": [],
+  "handoffs": [],
+  "warnings": [],
+  "evidence": {
+    "run_dir": "evidence/runs/_build/run_01M2W120S5Q5BSVJAYAF3XAH83",
+    "screenshots": [
+      "screenshots/0001.png",
+      "screenshots/0002.png",
+      "screenshots/0003.png",
+      "screenshots/0004.png",
+      "screenshots/0005.png"
+    ],
+    "trace": "trace.zip",
+    "intervention": null
+  },
+  "cached": false,
+  "expected": "location matches '/member/[0-9]+$'",
+  "observed": "[top] http://127.0.0.1:8000/ (200) [nav] http://127.0.0.1:8000/nav (200) [main] http://127.0.0.1:8000/member/10003 (500)\n[nav] http://127.0.0.1:8000/nav\n  n294 text \"Functions\"\n  row: n299 link \"Member Search\"\n  row: n302 link \"Account Inquiry\"\n  row: n305 link \"Reports\"\n  row: n308 link \"Sign Off\"\n  row: n311 link \"Vendor Support\"\n[main] http://127.0.0.1:8000/member/10003\n  n312 heading \"Internal Server Error\"\n  n313 paragraph \"The MockCore application encountered an unexpected condition (CICS ABEND ASRA).\"\n  n314 paragraph \"Transaction MBRI01 has been rolled back. Contact operations.\"",
+  "during_recovery": null,
+  "escalation_reason": "UNRECOVERABLE"
+}

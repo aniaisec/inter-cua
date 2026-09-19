@@ -104,3 +104,23 @@ def test_a_known_secret_is_masked_wherever_it_appears() -> None:
 
 def test_a_longer_secret_is_masked_whole_before_a_shorter_one_inside_it() -> None:
     assert Redactor(["pass", "password1"]).text("x password1 y") == "x *** y"
+
+
+def test_a_secret_reference_is_a_name_and_is_never_masked() -> None:
+    """The mock's secret://local/mockcore/operator holds ``operator``; masking
+    the name recorded capabilities whose credential resolved to nothing."""
+    r = Redactor(["operator"])
+    assert r.text("secret://local/mockcore/operator") == "secret://local/mockcore/operator"
+    assert r.text("operator via secret://local/mockcore/operator") == (
+        "*** via secret://local/mockcore/operator"
+    )
+
+
+def test_committed_capabilities_name_credentials_that_resolve() -> None:
+    import json
+    from pathlib import Path
+
+    for path in (Path(__file__).parents[2] / "capabilities").glob("*.json"):
+        creds = json.loads(path.read_text(encoding="utf-8")).get("credentials", {})
+        for name, spec in creds.items():
+            assert MASK not in spec["ref"], f"{path.name}: {name} -> {spec['ref']}"

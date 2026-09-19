@@ -1,0 +1,58 @@
+{
+  "kind": "success",
+  "step_id": "review.submit",
+  "side_effect": "committed",
+  "outputs": {
+    "reference_number": "REF-10003-0001"
+  },
+  "run_id": "run_01M2W130N9ASJXYN8SP1SWEH4P",
+  "capability": "open_subaccount",
+  "capability_version": 3,
+  "idempotency_key": null,
+  "duration_ms": 23594,
+  "locator_rungs_used": {
+    "login.username": "near_text",
+    "login.password": "near_text",
+    "login.submit": "role_name",
+    "search.member_id": "near_text",
+    "search.submit": "role_name",
+    "member.open_sub_account": "role_name",
+    "subaccount.initial_deposit": "near_text",
+    "subaccount.submit": "role_name",
+    "review.submit": "role_name",
+    "outputs.reference_number": "table_cell"
+  },
+  "recoveries": [],
+  "handoffs": [
+    {
+      "request_id": "req_01M2W13HZH5D8CKTVFKN4F5YXJ",
+      "reason": "STUCK",
+      "step_id": "member.open_sub_account",
+      "decision": "hand_back",
+      "decided_by": "evidence-bot",
+      "human_actions_count": 1,
+      "resumed_at": "member.open_sub_account",
+      "resumed_after_checkpoint": "cp.member_detail"
+    }
+  ],
+  "warnings": [],
+  "evidence": {
+    "run_dir": "evidence/runs/_build/run_01M2W130N9ASJXYN8SP1SWEH4P",
+    "screenshots": [
+      "screenshots/0001.png",
+      "screenshots/0002.png",
+      "screenshots/0003.png",
+      "screenshots/0004.png",
+      "screenshots/0005.png",
+      "screenshots/0006.png",
+      "screenshots/0007.png",
+      "screenshots/0008.png",
+      "screenshots/0009.png",
+      "screenshots/0010.png",
+      "screenshots/0011.png"
+    ],
+    "trace": null,
+    "intervention": "interventions/req_01M2W13HZH5D8CKTVFKN4F5YXJ.json"
+  },
+  "cached": false
+}

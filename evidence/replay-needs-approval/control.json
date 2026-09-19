@@ -1,0 +1,20 @@
+{
+  "run_id": "run_01M2W12HJ75SBQA9FP36BK04PJ",
+  "state": "AUTOMATION",
+  "lease": {
+    "holder": "automation",
+    "since": "2026-09-19T05:09:06.622Z",
+    "request_id": "req_01M2W12WQVHV0TQ29T26XWWD9Z"
+  },
+  "request_id": "req_01M2W12WQVHV0TQ29T26XWWD9Z",
+  "decision": {
+    "kind": "hand_back",
+    "by": "evidence-bot",
+    "resume_at": null,
+    "retry": false,
+    "approved": true,
+    "why": ""
+  },
+  "seq": 5,
+  "ended": "success"
+}

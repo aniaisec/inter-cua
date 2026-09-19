@@ -1,0 +1,38 @@
+{"seq": 1, "ts": "2026-09-19T05:08:28.769Z", "event": "run.start", "capability": "member_savings_balance", "capability_id": "cap_01M2TEFQZ16QEA602CSCCY8GJX", "version": 3, "content_sha256": "cb63dcb3e726211deaef0ab4b5562937e7104a1756069f8d160936f1e9d8d3de", "approval_state": "approved", "tenant": "local", "entry": "http://127.0.0.1:8000/login"}
+{"seq": 2, "ts": "2026-09-19T05:08:28.770Z", "event": "navigate", "url": "http://127.0.0.1:8000/login"}
+{"seq": 3, "ts": "2026-09-19T05:08:28.828Z", "event": "step.start", "step": "login.username", "action": "type", "mode": "run"}
+{"seq": 4, "ts": "2026-09-19T05:08:28.990Z", "event": "locator.resolved", "target": "login.username", "rung": "near_text", "recorded": "near_text", "attempts": [{"rung": "near_text", "matches": 1, "refs": ["n8"], "refused": null}]}
+{"seq": 5, "ts": "2026-09-19T05:08:28.993Z", "event": "screenshot.mask_added", "step": "login.username", "target": "near_text \"User ID\" textbox > bbox (84,64 154x20)"}
+{"seq": 6, "ts": "2026-09-19T05:08:29.030Z", "event": "action.done", "step": "login.username", "action": "type", "ms": 32, "dialogs": []}
+{"seq": 7, "ts": "2026-09-19T05:08:29.156Z", "event": "step.passed", "step": "login.username"}
+{"seq": 8, "ts": "2026-09-19T05:08:29.321Z", "event": "observe", "label": "login.username", "location": "http://127.0.0.1:8000/login", "observation": "observations/0001.json", "screenshot": "screenshots/0001.png"}
+{"seq": 9, "ts": "2026-09-19T05:08:29.324Z", "event": "step.start", "step": "login.password", "action": "type", "mode": "run"}
+{"seq": 10, "ts": "2026-09-19T05:08:29.446Z", "event": "locator.resolved", "target": "login.password", "rung": "near_text", "recorded": "near_text", "attempts": [{"rung": "near_text", "matches": 1, "refs": ["n63"], "refused": null}]}
+{"seq": 11, "ts": "2026-09-19T05:08:29.450Z", "event": "screenshot.mask_added", "step": "login.password", "target": "near_text \"Password\" textbox > bbox (84,90 154x20)"}
+{"seq": 12, "ts": "2026-09-19T05:08:29.480Z", "event": "action.done", "step": "login.password", "action": "type", "ms": 27, "dialogs": []}
+{"seq": 13, "ts": "2026-09-19T05:08:29.610Z", "event": "step.passed", "step": "login.password"}
+{"seq": 14, "ts": "2026-09-19T05:08:29.756Z", "event": "observe", "label": "login.password", "location": "http://127.0.0.1:8000/login", "observation": "observations/0002.json", "screenshot": "screenshots/0002.png"}
+{"seq": 15, "ts": "2026-09-19T05:08:29.760Z", "event": "step.start", "step": "login.submit", "action": "click", "mode": "run"}
+{"seq": 16, "ts": "2026-09-19T05:08:29.875Z", "event": "locator.resolved", "target": "login.submit", "rung": "role_name", "recorded": "role_name", "attempts": [{"rung": "role_name", "matches": 1, "refs": ["n118"], "refused": null}]}
+{"seq": 17, "ts": "2026-09-19T05:08:29.930Z", "event": "action.done", "step": "login.submit", "action": "click", "ms": 51, "dialogs": []}
+{"seq": 18, "ts": "2026-09-19T05:08:30.371Z", "event": "checkpoint.passed", "checkpoint": "cp.logged_in", "step": "login.submit"}
+{"seq": 19, "ts": "2026-09-19T05:08:30.375Z", "event": "step.passed", "step": "login.submit"}
+{"seq": 20, "ts": "2026-09-19T05:08:30.621Z", "event": "observe", "label": "login.submit", "location": "http://127.0.0.1:8000/", "observation": "observations/0003.json", "screenshot": "screenshots/0003.png"}
+{"seq": 21, "ts": "2026-09-19T05:08:30.624Z", "event": "step.start", "step": "search.member_id", "action": "type", "mode": "run"}
+{"seq": 22, "ts": "2026-09-19T05:08:30.833Z", "event": "locator.resolved", "target": "search.member_id", "rung": "near_text", "recorded": "near_text", "attempts": [{"rung": "near_text", "matches": 1, "refs": ["n203"], "refused": null}]}
+{"seq": 23, "ts": "2026-09-19T05:08:30.867Z", "event": "action.done", "step": "search.member_id", "action": "type", "ms": 30, "dialogs": []}
+{"seq": 24, "ts": "2026-09-19T05:08:31.080Z", "event": "step.passed", "step": "search.member_id"}
+{"seq": 25, "ts": "2026-09-19T05:08:31.320Z", "event": "observe", "label": "search.member_id", "location": "http://127.0.0.1:8000/", "observation": "observations/0004.json", "screenshot": "screenshots/0004.png"}
+{"seq": 26, "ts": "2026-09-19T05:08:31.323Z", "event": "step.start", "step": "search.submit", "action": "click", "mode": "run"}
+{"seq": 27, "ts": "2026-09-19T05:08:31.526Z", "event": "locator.resolved", "target": "search.submit", "rung": "role_name", "recorded": "role_name", "attempts": [{"rung": "role_name", "matches": 1, "refs": ["n292"], "refused": null}]}
+{"seq": 28, "ts": "2026-09-19T05:08:31.562Z", "event": "action.done", "step": "search.submit", "action": "click", "ms": 32, "dialogs": []}
+{"seq": 29, "ts": "2026-09-19T05:08:31.948Z", "event": "checkpoint.passed", "checkpoint": "cp.member_detail", "step": "search.submit"}
+{"seq": 30, "ts": "2026-09-19T05:08:31.951Z", "event": "step.passed", "step": "search.submit"}
+{"seq": 31, "ts": "2026-09-19T05:08:32.323Z", "event": "observe", "label": "search.submit", "location": "http://127.0.0.1:8000/", "observation": "observations/0005.json", "screenshot": "screenshots/0005.png"}
+{"seq": 32, "ts": "2026-09-19T05:08:32.703Z", "event": "locator.resolved", "target": "outputs.savings_balance", "rung": "table_cell", "recorded": "table_cell", "attempts": [{"rung": "table_cell", "matches": 1, "refs": ["n448"], "refused": null}]}
+{"seq": 33, "ts": "2026-09-19T05:08:32.707Z", "event": "output.extracted", "name": "savings_balance", "rung": "table_cell"}
+{"seq": 34, "ts": "2026-09-19T05:08:32.718Z", "event": "locator.resolved", "target": "outputs.member_name", "rung": "near_text", "recorded": "near_text", "attempts": [{"rung": "near_text", "matches": 1, "refs": ["n435"], "refused": null}]}
+{"seq": 35, "ts": "2026-09-19T05:08:32.722Z", "event": "output.extracted", "name": "member_name", "rung": "near_text"}
+{"seq": 36, "ts": "2026-09-19T05:08:32.726Z", "event": "checkpoint.passed", "checkpoint": "cp.done", "step": "done"}
+{"seq": 37, "ts": "2026-09-19T05:08:33.122Z", "event": "observe", "label": "done", "location": "http://127.0.0.1:8000/", "observation": "observations/0006.json", "screenshot": "screenshots/0006.png"}
+{"seq": 38, "ts": "2026-09-19T05:08:33.127Z", "event": "run.end", "kind": "success", "code": null}

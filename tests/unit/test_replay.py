@@ -59,7 +59,7 @@ from tests.unit.fakes import FakeSurface
 REPO = Path(__file__).resolve().parents[2]
 GOAL1 = REPO / "capabilities" / "member_savings_balance.json"
 GOAL2 = REPO / "capabilities" / "open_subaccount.json"
-GOAL2_RUN = REPO / "tests" / "fixtures" / "runs" / "goal2-scripted"
+GOAL2_RUN = REPO / "evidence" / "discovery-open-subaccount"  # the real run it came from
 BASE = "http://127.0.0.1:8000"
 SHELL = f"{BASE}/"
 TENANT = Tenant(id="local", app_family="legacy-core", base_url=BASE)

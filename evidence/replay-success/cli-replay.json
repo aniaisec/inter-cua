@@ -1,0 +1,40 @@
+{
+  "kind": "success",
+  "step_id": "search.submit",
+  "side_effect": "none",
+  "outputs": {
+    "savings_balance": "1411.21",
+    "member_name": "Test Member 03"
+  },
+  "run_id": "run_01M2W11QHVQASF56K67GCVK62M",
+  "capability": "member_savings_balance",
+  "capability_version": 3,
+  "idempotency_key": null,
+  "duration_ms": 4357,
+  "locator_rungs_used": {
+    "login.username": "near_text",
+    "login.password": "near_text",
+    "login.submit": "role_name",
+    "search.member_id": "near_text",
+    "search.submit": "role_name",
+    "outputs.savings_balance": "table_cell",
+    "outputs.member_name": "near_text"
+  },
+  "recoveries": [],
+  "handoffs": [],
+  "warnings": [],
+  "evidence": {
+    "run_dir": "evidence/runs/_build/run_01M2W11QHVQASF56K67GCVK62M",
+    "screenshots": [
+      "screenshots/0001.png",
+      "screenshots/0002.png",
+      "screenshots/0003.png",
+      "screenshots/0004.png",
+      "screenshots/0005.png",
+      "screenshots/0006.png"
+    ],
+    "trace": null,
+    "intervention": null
+  },
+  "cached": false
+}

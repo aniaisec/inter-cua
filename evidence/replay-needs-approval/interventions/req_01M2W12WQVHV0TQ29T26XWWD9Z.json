@@ -1,0 +1,62 @@
+{
+  "id": "req_01M2W12WQVHV0TQ29T26XWWD9Z",
+  "run_id": "run_01M2W12HJ75SBQA9FP36BK04PJ",
+  "kind": "replay",
+  "capability": "open_subaccount",
+  "capability_version": 3,
+  "tenant": "local",
+  "step_id": "review.submit",
+  "reason_code": "NEEDS_APPROVAL",
+  "code": "POLICY_BLOCKED",
+  "message": "review.submit commits a change and needs approval; none was supplied",
+  "expected": "an approval for this step (--approval-token), or a human to give one",
+  "a11y_excerpt": "[top] http://127.0.0.1:8000/ (200) [nav] http://127.0.0.1:8000/nav (200) [main] http://127.0.0.1:8000/review/10003 (200)\n[nav] http://127.0.0.1:8000/nav\n  n861 text \"Functions\"\n  row: n866 link \"Member Search\"\n  row: n869 link \"Account Inquiry\"\n  row: n872 link \"Reports\"\n  row: n875 link \"Sign Off\"\n  row: n878 link \"Vendor Support\"\n[main] http://127.0.0.1:8000/review/10003\n  n879 text \"MockCore Member Services 1.0\"\n  n880 heading \"Review Sub-account\"\n  n881 paragraph \"Review the application below. Selecting Confirm will open the account.\"\n  row: n885 columnheader \"Field\" | n886 columnheader \"Value\"\n  row: n888 cell \"Member ID\" | n889 cell \"10003\"\n  row: n891 cell \"Name\" | n892 cell \"Test Member 03\"\n  row: n894 cell \"Account Type\" | n895 cell \"Savings\"\n  row: n897 cell \"Initial Deposit\" | n898 cell \"250.00\"\n  row: n903 button \"Confirm\"\n  row: n908 link \"Back\"",
+  "masked_screenshot": "screenshots/0009.png",
+  "side_effect": "none",
+  "options": [
+    "take_control",
+    "resume",
+    "approve",
+    "abort"
+  ],
+  "resume_points": [
+    {
+      "step_id": "login.username",
+      "after_checkpoint": null,
+      "label": "start over from the entry"
+    },
+    {
+      "step_id": "search.member_id",
+      "after_checkpoint": "cp.logged_in",
+      "label": "after cp.logged_in: carry on with search.member_id"
+    },
+    {
+      "step_id": "member.open_sub_account",
+      "after_checkpoint": "cp.member_detail",
+      "label": "after cp.member_detail: carry on with member.open_sub_account"
+    },
+    {
+      "step_id": "subaccount.initial_deposit",
+      "after_checkpoint": "cp.open_sub_account",
+      "label": "after cp.open_sub_account: carry on with subaccount.initial_deposit"
+    },
+    {
+      "step_id": "review.submit",
+      "after_checkpoint": "cp.review_sub_account",
+      "label": "after cp.review_sub_account: carry on with review.submit"
+    },
+    {
+      "step_id": "done",
+      "after_checkpoint": "cp.sub_account_opened",
+      "label": "after cp.sub_account_opened: read the outputs and finish"
+    }
+  ],
+  "attempt": 1,
+  "cdp_url": "http://127.0.0.1:55793",
+  "target_id": "89476E64EB858FA99610019C1372324D",
+  "page_url": "http://127.0.0.1:8000/",
+  "devtools_url": "http://127.0.0.1:55793/devtools/inspector.html?ws=127.0.0.1:55793/devtools/page/89476E64EB858FA99610019C1372324D",
+  "operator_url": "http://127.0.0.1:63276/requests/req_01M2W12WQVHV0TQ29T26XWWD9Z",
+  "created_at": "2026-09-19T05:09:06.427Z",
+  "expires_at": "2026-09-19T05:39:06.427Z"
+}

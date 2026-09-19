@@ -1,0 +1,5 @@
+{"ts": "2026-09-19T05:08:56.743Z", "seq": 0, "from": null, "to": "AUTOMATION", "holder": "automation", "by": "automation", "request_id": null, "note": "run started"}
+{"ts": "2026-09-19T05:09:06.430Z", "seq": 1, "from": "AUTOMATION", "to": "PAUSED", "holder": "none", "by": "automation", "request_id": "req_01M2W12WQVHV0TQ29T26XWWD9Z", "note": "NEEDS_APPROVAL at review.submit: POLICY_BLOCKED"}
+{"ts": "2026-09-19T05:09:06.616Z", "seq": 2, "from": "PAUSED", "to": "HUMAN_IN_CONTROL", "holder": "human", "by": "evidence-bot", "request_id": "req_01M2W12WQVHV0TQ29T26XWWD9Z", "note": "approve from the console"}
+{"ts": "2026-09-19T05:09:06.623Z", "seq": 3, "from": "HUMAN_IN_CONTROL", "to": "RESUMING", "holder": "automation", "by": "evidence-bot", "request_id": "req_01M2W12WQVHV0TQ29T26XWWD9Z", "decision": {"kind": "hand_back", "by": "evidence-bot", "approved": true}, "note": "approve from the console"}
+{"ts": "2026-09-19T05:09:06.711Z", "seq": 4, "from": "RESUMING", "to": "AUTOMATION", "holder": "automation", "by": "automation", "request_id": "req_01M2W12WQVHV0TQ29T26XWWD9Z", "note": "resume-state search: carry on with review.submit"}

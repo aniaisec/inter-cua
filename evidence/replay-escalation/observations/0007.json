@@ -1,0 +1,785 @@
+{
+ "observed_at": "2026-09-19T05:09:31.719372Z",
+ "location": "http://127.0.0.1:8000/",
+ "title": "MockCore 1.0",
+ "viewport": {
+  "w": 1280,
+  "h": 800
+ },
+ "frames": [
+  {
+   "name": "",
+   "url": "http://127.0.0.1:8000/",
+   "status": 200
+  },
+  {
+   "name": "nav",
+   "url": "http://127.0.0.1:8000/nav",
+   "status": 200
+  },
+  {
+   "name": "main",
+   "url": "http://127.0.0.1:8000/subaccount/10003",
+   "status": 200
+  }
+ ],
+ "nodes": [
+  {
+   "ref": "n788",
+   "role": "text",
+   "name": "Functions",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 0.0,
+    "y": 0.0,
+    "w": 180.0,
+    "h": 21.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n789",
+   "role": "table",
+   "name": "",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n790",
+   "role": "rowgroup",
+   "name": "",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n789",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n791",
+   "role": "row",
+   "name": "Member Search",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n790",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n792",
+   "role": "cell",
+   "name": "Member Search",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 14.0,
+    "y": 31.0,
+    "w": 99.421875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n791",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n793",
+   "role": "link",
+   "name": "Member Search",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 20.0,
+    "y": 34.0,
+    "w": 86.5625,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n792",
+   "ordinal": 0,
+   "attrs": {
+    "url": "javascript:parent.main.location='/search'"
+   }
+  },
+  {
+   "ref": "n794",
+   "role": "row",
+   "name": "Account Inquiry",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n790",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n795",
+   "role": "cell",
+   "name": "Account Inquiry",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 14.0,
+    "y": 50.0,
+    "w": 99.421875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n794",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n796",
+   "role": "link",
+   "name": "Account Inquiry",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 20.0,
+    "y": 53.0,
+    "w": 87.421875,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n795",
+   "ordinal": 1,
+   "attrs": {
+    "url": "javascript:parent.main.location='/search'"
+   }
+  },
+  {
+   "ref": "n797",
+   "role": "row",
+   "name": "Reports",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n790",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n798",
+   "role": "cell",
+   "name": "Reports",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 14.0,
+    "y": 69.0,
+    "w": 99.421875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n797",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n799",
+   "role": "link",
+   "name": "Reports",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 20.0,
+    "y": 72.0,
+    "w": 42.234375,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n798",
+   "ordinal": 2,
+   "attrs": {
+    "url": "javascript:void(0)"
+   }
+  },
+  {
+   "ref": "n800",
+   "role": "row",
+   "name": "Sign Off",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n790",
+   "ordinal": 3,
+   "attrs": {}
+  },
+  {
+   "ref": "n801",
+   "role": "cell",
+   "name": "Sign Off",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 14.0,
+    "y": 88.0,
+    "w": 99.421875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n800",
+   "ordinal": 3,
+   "attrs": {}
+  },
+  {
+   "ref": "n802",
+   "role": "link",
+   "name": "Sign Off",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 20.0,
+    "y": 91.0,
+    "w": 44.625,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n801",
+   "ordinal": 3,
+   "attrs": {
+    "url": "/logoff"
+   }
+  },
+  {
+   "ref": "n803",
+   "role": "row",
+   "name": "Vendor Support",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n790",
+   "ordinal": 4,
+   "attrs": {}
+  },
+  {
+   "ref": "n804",
+   "role": "cell",
+   "name": "Vendor Support",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 14.0,
+    "y": 107.0,
+    "w": 99.421875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n803",
+   "ordinal": 4,
+   "attrs": {}
+  },
+  {
+   "ref": "n805",
+   "role": "link",
+   "name": "Vendor Support",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 20.0,
+    "y": 110.0,
+    "w": 86.484375,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n804",
+   "ordinal": 4,
+   "attrs": {
+    "url": "https://support.mockcore.example/kb"
+   }
+  },
+  {
+   "ref": "n806",
+   "role": "text",
+   "name": "MockCore Member Services 1.0",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 181.0,
+    "y": 0.0,
+    "w": 1099.0,
+    "h": 21.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n807",
+   "role": "heading",
+   "name": "Open Sub-account",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 37.0,
+    "w": 1071.0,
+    "h": 16.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {
+    "level": "3"
+   }
+  },
+  {
+   "ref": "n808",
+   "role": "table",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n809",
+   "role": "rowgroup",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n808",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n810",
+   "role": "row",
+   "name": "Member ID 10003",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n809",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n811",
+   "role": "cell",
+   "name": "Member ID",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 61.0,
+    "w": 73.609375,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n810",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n812",
+   "role": "cell",
+   "name": "10003",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 268.609375,
+    "y": 61.0,
+    "w": 100.5625,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n810",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n813",
+   "role": "row",
+   "name": "Name Test Member 03",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n809",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n814",
+   "role": "cell",
+   "name": "Name",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 80.0,
+    "w": 73.609375,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n813",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n815",
+   "role": "cell",
+   "name": "Test Member 03",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 268.609375,
+    "y": 80.0,
+    "w": 100.5625,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n813",
+   "ordinal": 3,
+   "attrs": {}
+  },
+  {
+   "ref": "n816",
+   "role": "table",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": null,
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n817",
+   "role": "rowgroup",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n816",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n818",
+   "role": "row",
+   "name": "Account Type Savings",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n817",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n819",
+   "role": "cell",
+   "name": "Account Type",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 112.0,
+    "w": 89.109375,
+    "h": 28.0
+   },
+   "near_text": null,
+   "parent": "n818",
+   "ordinal": 4,
+   "attrs": {}
+  },
+  {
+   "ref": "n820",
+   "role": "cell",
+   "name": "Savings",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 284.109375,
+    "y": 112.0,
+    "w": 127.0,
+    "h": 28.0
+   },
+   "near_text": null,
+   "parent": "n818",
+   "ordinal": 5,
+   "attrs": {}
+  },
+  {
+   "ref": "n821",
+   "role": "combobox",
+   "name": "",
+   "value": "Savings",
+   "frame": "main",
+   "bbox": {
+    "x": 290.109375,
+    "y": 115.0,
+    "w": 115.0,
+    "h": 22.0
+   },
+   "near_text": "Account Type",
+   "parent": "n820",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n822",
+   "role": "option",
+   "name": "Savings",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n821",
+   "ordinal": 0,
+   "attrs": {
+    "selected": "true"
+   }
+  },
+  {
+   "ref": "n823",
+   "role": "option",
+   "name": "Checking",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n821",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n824",
+   "role": "option",
+   "name": "Money Market",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n821",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n825",
+   "role": "row",
+   "name": "Initial Deposit",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n817",
+   "ordinal": 3,
+   "attrs": {}
+  },
+  {
+   "ref": "n826",
+   "role": "cell",
+   "name": "Initial Deposit",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 140.0,
+    "w": 89.109375,
+    "h": 26.0
+   },
+   "near_text": null,
+   "parent": "n825",
+   "ordinal": 6,
+   "attrs": {}
+  },
+  {
+   "ref": "n827",
+   "role": "cell",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 284.109375,
+    "y": 140.0,
+    "w": 127.0,
+    "h": 26.0
+   },
+   "near_text": null,
+   "parent": "n825",
+   "ordinal": 7,
+   "attrs": {}
+  },
+  {
+   "ref": "n828",
+   "role": "textbox",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 290.109375,
+    "y": 143.0,
+    "w": 97.0,
+    "h": 20.0
+   },
+   "near_text": "Initial Deposit",
+   "parent": "n827",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n829",
+   "role": "row",
+   "name": "Continue",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n817",
+   "ordinal": 4,
+   "attrs": {}
+  },
+  {
+   "ref": "n830",
+   "role": "cell",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 166.0,
+    "w": 89.109375,
+    "h": 25.0
+   },
+   "near_text": null,
+   "parent": "n829",
+   "ordinal": 8,
+   "attrs": {}
+  },
+  {
+   "ref": "n831",
+   "role": "cell",
+   "name": "Continue",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 284.109375,
+    "y": 166.0,
+    "w": 127.0,
+    "h": 25.0
+   },
+   "near_text": null,
+   "parent": "n829",
+   "ordinal": 9,
+   "attrs": {}
+  },
+  {
+   "ref": "n832",
+   "role": "button",
+   "name": "Continue",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 290.109375,
+    "y": 169.0,
+    "w": 73.15625,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n831",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n833",
+   "role": "table",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": null,
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n834",
+   "role": "rowgroup",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n833",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n835",
+   "role": "row",
+   "name": "Cancel",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n834",
+   "ordinal": 5,
+   "attrs": {}
+  },
+  {
+   "ref": "n836",
+   "role": "cell",
+   "name": "Cancel",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 202.0,
+    "w": 48.5625,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n835",
+   "ordinal": 10,
+   "attrs": {}
+  },
+  {
+   "ref": "n837",
+   "role": "link",
+   "name": "Cancel",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 201.0,
+    "y": 205.0,
+    "w": 36.5625,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n836",
+   "ordinal": 0,
+   "attrs": {
+    "url": "/member/10003"
+   }
+  }
+ ],
+ "dialogs": []
+}

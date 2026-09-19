@@ -1,0 +1,221 @@
+{
+  "saved": {
+    "escalation": {
+      "run_id": null,
+      "capability": "member_savings_balance",
+      "capability_version": 3,
+      "idempotency_key": null,
+      "duration_ms": 0,
+      "locator_rungs_used": {},
+      "recoveries": [],
+      "handoffs": [],
+      "warnings": [],
+      "evidence": {
+        "run_dir": null,
+        "screenshots": [],
+        "trace": null,
+        "intervention": null
+      },
+      "cached": false,
+      "kind": "failure",
+      "code": "LOCATOR_UNRESOLVED",
+      "step_id": "search.submit",
+      "expected": "exactly one control for role_name button \"Search\" > bbox (355,64 62x19)",
+      "observed": "[top] http://127.0.0.1:8000/ (200) [nav] http://127.0.0.1:8000/nav (200) [main] http://127.0.0.1:8000/search (200)\n[nav] http://127.0.0.1:8000/nav\n  n410 text \"Functions\"\n  row: n415 link \"Member Search\"\n  row: n418 link \"Account Inquiry\"\n  row: n421 link \"Reports\"\n  row: n424 link \"Sign Off\"\n  row: n427 link \"Vendor Support\"\n[main] http://127.0.0.1:8000/search\n  n428 text \"MockCore Member Services 1.0\"\n  n429 heading \"Member Search\"\n  row: n433 cell \"Member ID\" | n435 textbox ='10003' ~'Member ID' | n437 button \"Find\"\n  n438 paragraph \"Enter a five digit member number.\"",
+      "message": "role_name: 0 matches; bbox: 1 match, not trusted to act on unattended (pixels only)",
+      "side_effect": "none",
+      "outputs": {},
+      "during_recovery": null,
+      "escalation_reason": "STUCK"
+    },
+    "index": 4,
+    "attempt": 1,
+    "ticket": {
+      "request_id": "req_01M2W14572TK0FFWM6HFSG9M7P",
+      "resume_token": "rsm_jrWbzdKE1eFV_pW303wMPU-UQb8c_Zwo",
+      "operator_url": "http://127.0.0.1:63276/requests/req_01M2W14572TK0FFWM6HFSG9M7P",
+      "intervention": "interventions/req_01M2W14572TK0FFWM6HFSG9M7P.json"
+    },
+    "committed_through": null,
+    "in_flight": null,
+    "passed": [
+      "cp.logged_in"
+    ],
+    "outputs": {},
+    "rungs": {
+      "login.username": "near_text",
+      "login.password": "near_text",
+      "login.submit": "role_name",
+      "search.member_id": "near_text"
+    },
+    "warnings": [],
+    "recoveries": [],
+    "recoveries_by_step": {},
+    "recoveries_by_detector": [],
+    "handoffs": [],
+    "screenshots": [
+      "screenshots/0001.png",
+      "screenshots/0002.png",
+      "screenshots/0003.png",
+      "screenshots/0004.png",
+      "screenshots/0005.png"
+    ],
+    "shots": 5,
+    "masks_added": [
+      [
+        {
+          "strategy": "near_text",
+          "text": "User ID",
+          "role": "textbox",
+          "direction": null,
+          "exact": true,
+          "within": {
+            "frame": ""
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 83.671875,
+          "y": 64.0,
+          "w": 154.0,
+          "h": 20.0,
+          "role": "textbox",
+          "confidence": "low",
+          "within": {
+            "frame": ""
+          }
+        }
+      ],
+      [
+        {
+          "strategy": "near_text",
+          "text": "Password",
+          "role": "textbox",
+          "direction": null,
+          "exact": true,
+          "within": {
+            "frame": ""
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 83.671875,
+          "y": 90.0,
+          "w": 154.0,
+          "h": 20.0,
+          "role": "textbox",
+          "confidence": "low",
+          "within": {
+            "frame": ""
+          }
+        }
+      ]
+    ],
+    "used_s": 8.165920899977209
+  },
+  "capability_path": "capabilities/member_savings_balance.json",
+  "content_sha256": "cb63dcb3e726211deaef0ab4b5562937e7104a1756069f8d160936f1e9d8d3de",
+  "tenant": {
+    "id": "local",
+    "app_family": "legacy-core",
+    "base_url": "http://127.0.0.1:8000",
+    "secrets": {
+      "mockcore/operator": {
+        "provider": "env",
+        "var": "CUA_SECRET_MOCKCORE_OPERATOR",
+        "path": null,
+        "format": "username:password"
+      },
+      "cua/approval-signing-key": {
+        "provider": "file",
+        "var": null,
+        "path": ".cua/approval-signing.key",
+        "format": "value"
+      }
+    },
+    "overlay": null
+  },
+  "policy": {
+    "allowed_origins": [
+      "http://127.0.0.1:8000"
+    ],
+    "allowed_paths": [
+      "^/$",
+      "^/(login|logoff|notice|nav|search)$",
+      "^/(member|subaccount|review)/[0-9]+$"
+    ],
+    "allowed_actions": [
+      "click",
+      "type",
+      "press",
+      "read",
+      "select"
+    ],
+    "blocked_actions": [
+      "download",
+      "external_navigation"
+    ],
+    "download_pattern": "(?i)\\.(csv|pdf|xlsx?|docx?|zip|exe|msi|dmg)$",
+    "risky_rules": [
+      {
+        "id": "commit_on_review",
+        "role": "button",
+        "name": "^(Confirm|Submit|Approve|Transfer|Post|Delete)$",
+        "location": "/review/",
+        "reason": "commits a change on the core system of record"
+      }
+    ],
+    "screenshot_masks": [
+      [
+        {
+          "strategy": "near_text",
+          "text": "Password",
+          "role": "textbox",
+          "direction": null,
+          "exact": true,
+          "within": null
+        }
+      ]
+    ],
+    "sensitive_labels": "(?i)password|passcode|\\bpin\\b|ssn|social security",
+    "scrub_patterns": [
+      {
+        "id": "ssn",
+        "pattern": "(?<![0-9])[0-9]{3}-[0-9]{2}-[0-9]{4}(?![0-9])"
+      },
+      {
+        "id": "long_number",
+        "pattern": "(?<![0-9A-Za-z-])(?:[0-9]{9,16}|[0-9]{4}(?:[ -][0-9]{4}){2,3})(?![0-9A-Za-z])"
+      }
+    ]
+  },
+  "inputs": {
+    "member_id": "10003"
+  },
+  "sensitive": [],
+  "idempotency_key": null,
+  "budget": {
+    "timeout_s": 120.0,
+    "max_recoveries": 3,
+    "allow_escalation": true
+  },
+  "config": {
+    "step_timeout_s": 3.0,
+    "screenshots": true,
+    "trust_low_confidence_rungs": false
+  },
+  "allow_draft": false,
+  "handoff": {
+    "wait_s": 0.0,
+    "ttl_s": 1800.0,
+    "operator_url": "http://127.0.0.1:63276",
+    "poll_s": 0.25,
+    "announce": true
+  },
+  "session": {
+    "cdp_url": "http://127.0.0.1:59047",
+    "target_id": "12265E2D4AB1EB51CA49CD0181C2E958",
+    "pid": 30532,
+    "profile": "<temp profile>"
+  }
+}

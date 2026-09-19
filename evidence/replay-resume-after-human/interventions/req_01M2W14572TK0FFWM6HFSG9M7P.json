@@ -1,0 +1,47 @@
+{
+  "id": "req_01M2W14572TK0FFWM6HFSG9M7P",
+  "run_id": "run_01M2W13W4YA30HCNJRBXGYSY64",
+  "kind": "replay",
+  "capability": "member_savings_balance",
+  "capability_version": 3,
+  "tenant": "local",
+  "step_id": "search.submit",
+  "reason_code": "STUCK",
+  "code": "LOCATOR_UNRESOLVED",
+  "message": "role_name: 0 matches; bbox: 1 match, not trusted to act on unattended (pixels only)",
+  "expected": "exactly one control for role_name button \"Search\" > bbox (355,64 62x19)",
+  "a11y_excerpt": "[top] http://127.0.0.1:8000/ (200) [nav] http://127.0.0.1:8000/nav (200) [main] http://127.0.0.1:8000/search (200)\n[nav] http://127.0.0.1:8000/nav\n  n410 text \"Functions\"\n  row: n415 link \"Member Search\"\n  row: n418 link \"Account Inquiry\"\n  row: n421 link \"Reports\"\n  row: n424 link \"Sign Off\"\n  row: n427 link \"Vendor Support\"\n[main] http://127.0.0.1:8000/search\n  n428 text \"MockCore Member Services 1.0\"\n  n429 heading \"Member Search\"\n  row: n433 cell \"Member ID\" | n435 textbox ='10003' ~'Member ID' | n437 button \"Find\"\n  n438 paragraph \"Enter a five digit member number.\"",
+  "masked_screenshot": "screenshots/0005.png",
+  "side_effect": "none",
+  "options": [
+    "take_control",
+    "resume",
+    "retry_step",
+    "abort"
+  ],
+  "resume_points": [
+    {
+      "step_id": "login.username",
+      "after_checkpoint": null,
+      "label": "start over from the entry"
+    },
+    {
+      "step_id": "search.member_id",
+      "after_checkpoint": "cp.logged_in",
+      "label": "after cp.logged_in: carry on with search.member_id"
+    },
+    {
+      "step_id": "done",
+      "after_checkpoint": "cp.member_detail",
+      "label": "after cp.member_detail: read the outputs and finish"
+    }
+  ],
+  "attempt": 1,
+  "cdp_url": "http://127.0.0.1:59047",
+  "target_id": "12265E2D4AB1EB51CA49CD0181C2E958",
+  "page_url": "http://127.0.0.1:8000/",
+  "devtools_url": "http://127.0.0.1:59047/devtools/inspector.html?ws=127.0.0.1:59047/devtools/page/12265E2D4AB1EB51CA49CD0181C2E958",
+  "operator_url": "http://127.0.0.1:63276/requests/req_01M2W14572TK0FFWM6HFSG9M7P",
+  "created_at": "2026-09-19T05:09:47.874Z",
+  "expires_at": "2026-09-19T05:39:47.874Z"
+}

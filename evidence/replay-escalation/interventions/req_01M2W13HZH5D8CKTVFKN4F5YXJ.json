@@ -1,0 +1,62 @@
+{
+  "id": "req_01M2W13HZH5D8CKTVFKN4F5YXJ",
+  "run_id": "run_01M2W130N9ASJXYN8SP1SWEH4P",
+  "kind": "replay",
+  "capability": "open_subaccount",
+  "capability_version": 3,
+  "tenant": "local",
+  "step_id": "member.open_sub_account",
+  "reason_code": "STUCK",
+  "code": "ACTION_FAILED",
+  "message": "click on link \"Open Sub-account\" failed: Locator.click: Timeout 10000ms exceeded.",
+  "expected": "click to be accepted",
+  "a11y_excerpt": "[top] http://127.0.0.1:8000/ (200) [nav] http://127.0.0.1:8000/nav (200) [main] http://127.0.0.1:8000/member/10003 (200)\n[nav] http://127.0.0.1:8000/nav\n  n492 text \"Functions\"\n  row: n497 link \"Member Search\"\n  row: n500 link \"Account Inquiry\"\n  row: n503 link \"Reports\"\n  row: n506 link \"Sign Off\"\n  row: n509 link \"Vendor Support\"\n[main] http://127.0.0.1:8000/member/10003\n  n510 text \"MockCore Member Services 1.0\"\n  n511 heading \"Member Detail\"\n  row: n515 cell \"Member ID\" | n516 cell \"10003\"\n  row: n518 cell \"Name\" | n519 cell \"Test Member 03\"\n  row: n521 cell \"Branch\" | n522 cell \"Fremont\"\n  n523 heading \"Balances\"\n  row: n527 columnheader \"Account\" | n528 columnheader \"Balance\" | n529 columnheader \"Status\"\n  row: n531 cell \"Savings\" | n532 cell \"$1,411.21\" | n533 cell \"Open\"\n  row: n535 cell \"Checking\" | n536 cell \"$323.39\" | n537 cell \"Open\"\n  row: n542 link \"Open Sub-account\"\n  row: n545 link \"Back to Member Search\"\n  row: n548 link \"Download Statement\"\n  row: n552 cell \"MockCore Notice\"\n  row: n554 cell \"Batch posting is running. Balances may be as of last night.\"\n  row: n557 button \"OK\"",
+  "masked_screenshot": "screenshots/0006.png",
+  "side_effect": "none",
+  "options": [
+    "take_control",
+    "resume",
+    "retry_step",
+    "abort"
+  ],
+  "resume_points": [
+    {
+      "step_id": "login.username",
+      "after_checkpoint": null,
+      "label": "start over from the entry"
+    },
+    {
+      "step_id": "search.member_id",
+      "after_checkpoint": "cp.logged_in",
+      "label": "after cp.logged_in: carry on with search.member_id"
+    },
+    {
+      "step_id": "member.open_sub_account",
+      "after_checkpoint": "cp.member_detail",
+      "label": "after cp.member_detail: carry on with member.open_sub_account"
+    },
+    {
+      "step_id": "subaccount.initial_deposit",
+      "after_checkpoint": "cp.open_sub_account",
+      "label": "after cp.open_sub_account: carry on with subaccount.initial_deposit"
+    },
+    {
+      "step_id": "review.submit",
+      "after_checkpoint": "cp.review_sub_account",
+      "label": "after cp.review_sub_account: carry on with review.submit"
+    },
+    {
+      "step_id": "done",
+      "after_checkpoint": "cp.sub_account_opened",
+      "label": "after cp.sub_account_opened: read the outputs and finish"
+    }
+  ],
+  "attempt": 1,
+  "cdp_url": "http://127.0.0.1:64674",
+  "target_id": "983126FFC07202F34517EC58BD3F7548",
+  "page_url": "http://127.0.0.1:8000/",
+  "devtools_url": "http://127.0.0.1:64674/devtools/inspector.html?ws=127.0.0.1:64674/devtools/page/983126FFC07202F34517EC58BD3F7548",
+  "operator_url": "http://127.0.0.1:63276/requests/req_01M2W13HZH5D8CKTVFKN4F5YXJ",
+  "created_at": "2026-09-19T05:09:28.177Z",
+  "expires_at": "2026-09-19T05:39:28.177Z"
+}

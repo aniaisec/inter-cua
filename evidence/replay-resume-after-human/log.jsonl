@@ -1,0 +1,43 @@
+{"seq": 1, "ts": "2026-09-19T05:09:39.722Z", "event": "run.start", "capability": "member_savings_balance", "capability_id": "cap_01M2TEFQZ16QEA602CSCCY8GJX", "version": 3, "content_sha256": "cb63dcb3e726211deaef0ab4b5562937e7104a1756069f8d160936f1e9d8d3de", "approval_state": "approved", "tenant": "local", "entry": "http://127.0.0.1:8000/login"}
+{"seq": 2, "ts": "2026-09-19T05:09:39.723Z", "event": "navigate", "url": "http://127.0.0.1:8000/login"}
+{"seq": 3, "ts": "2026-09-19T05:09:39.865Z", "event": "step.start", "step": "login.username", "action": "type", "mode": "run"}
+{"seq": 4, "ts": "2026-09-19T05:09:40.150Z", "event": "locator.resolved", "target": "login.username", "rung": "near_text", "recorded": "near_text", "attempts": [{"rung": "near_text", "matches": 1, "refs": ["n8"], "refused": null}]}
+{"seq": 5, "ts": "2026-09-19T05:09:40.153Z", "event": "screenshot.mask_added", "step": "login.username", "target": "near_text \"User ID\" textbox > bbox (84,64 154x20)"}
+{"seq": 6, "ts": "2026-09-19T05:09:40.202Z", "event": "action.done", "step": "login.username", "action": "type", "ms": 45, "dialogs": []}
+{"seq": 7, "ts": "2026-09-19T05:09:40.360Z", "event": "step.passed", "step": "login.username"}
+{"seq": 8, "ts": "2026-09-19T05:09:40.616Z", "event": "observe", "label": "login.username", "location": "http://127.0.0.1:8000/login?inject=renamed_button", "observation": "observations/0001.json", "screenshot": "screenshots/0001.png"}
+{"seq": 9, "ts": "2026-09-19T05:09:40.620Z", "event": "step.start", "step": "login.password", "action": "type", "mode": "run"}
+{"seq": 10, "ts": "2026-09-19T05:09:40.779Z", "event": "locator.resolved", "target": "login.password", "rung": "near_text", "recorded": "near_text", "attempts": [{"rung": "near_text", "matches": 1, "refs": ["n63"], "refused": null}]}
+{"seq": 11, "ts": "2026-09-19T05:09:40.782Z", "event": "screenshot.mask_added", "step": "login.password", "target": "near_text \"Password\" textbox > bbox (84,90 154x20)"}
+{"seq": 12, "ts": "2026-09-19T05:09:40.820Z", "event": "action.done", "step": "login.password", "action": "type", "ms": 35, "dialogs": []}
+{"seq": 13, "ts": "2026-09-19T05:09:40.981Z", "event": "step.passed", "step": "login.password"}
+{"seq": 14, "ts": "2026-09-19T05:09:41.198Z", "event": "observe", "label": "login.password", "location": "http://127.0.0.1:8000/login?inject=renamed_button", "observation": "observations/0002.json", "screenshot": "screenshots/0002.png"}
+{"seq": 15, "ts": "2026-09-19T05:09:41.202Z", "event": "step.start", "step": "login.submit", "action": "click", "mode": "run"}
+{"seq": 16, "ts": "2026-09-19T05:09:41.350Z", "event": "locator.resolved", "target": "login.submit", "rung": "role_name", "recorded": "role_name", "attempts": [{"rung": "role_name", "matches": 1, "refs": ["n118"], "refused": null}]}
+{"seq": 17, "ts": "2026-09-19T05:09:41.400Z", "event": "action.done", "step": "login.submit", "action": "click", "ms": 45, "dialogs": []}
+{"seq": 18, "ts": "2026-09-19T05:09:42.052Z", "event": "checkpoint.passed", "checkpoint": "cp.logged_in", "step": "login.submit"}
+{"seq": 19, "ts": "2026-09-19T05:09:42.056Z", "event": "step.passed", "step": "login.submit"}
+{"seq": 20, "ts": "2026-09-19T05:09:42.523Z", "event": "observe", "label": "login.submit", "location": "http://127.0.0.1:8000/", "observation": "observations/0003.json", "screenshot": "screenshots/0003.png"}
+{"seq": 21, "ts": "2026-09-19T05:09:42.527Z", "event": "step.start", "step": "search.member_id", "action": "type", "mode": "run"}
+{"seq": 22, "ts": "2026-09-19T05:09:42.971Z", "event": "locator.resolved", "target": "search.member_id", "rung": "near_text", "recorded": "near_text", "attempts": [{"rung": "near_text", "matches": 1, "refs": ["n203"], "refused": null}]}
+{"seq": 23, "ts": "2026-09-19T05:09:43.050Z", "event": "action.done", "step": "search.member_id", "action": "type", "ms": 74, "dialogs": []}
+{"seq": 24, "ts": "2026-09-19T05:09:43.523Z", "event": "step.passed", "step": "search.member_id"}
+{"seq": 25, "ts": "2026-09-19T05:09:44.044Z", "event": "observe", "label": "search.member_id", "location": "http://127.0.0.1:8000/", "observation": "observations/0004.json", "screenshot": "screenshots/0004.png"}
+{"seq": 26, "ts": "2026-09-19T05:09:44.048Z", "event": "step.start", "step": "search.submit", "action": "click", "mode": "run"}
+{"seq": 27, "ts": "2026-09-19T05:09:47.323Z", "event": "replay.fault", "code": "LOCATOR_UNRESOLVED", "detector": null, "step": "search.submit", "expected": "exactly one control for role_name button \"Search\" > bbox (355,64 62x19)", "message": "role_name: 0 matches; bbox: 1 match, not trusted to act on unattended (pixels only)", "side_effect": "none", "during_recovery": null, "escalation_reason": "STUCK"}
+{"seq": 28, "ts": "2026-09-19T05:09:47.869Z", "event": "observe", "label": "search.submit.escalated", "location": "http://127.0.0.1:8000/", "observation": "observations/0005.json", "screenshot": "screenshots/0005.png"}
+{"seq": 29, "ts": "2026-09-19T05:09:47.883Z", "event": "escalation.requested", "request": "req_01M2W14572TK0FFWM6HFSG9M7P", "reason": "STUCK", "code": "LOCATOR_UNRESOLVED", "step": "search.submit", "attempt": 1, "intervention": "interventions/req_01M2W14572TK0FFWM6HFSG9M7P.json", "operator_url": "http://127.0.0.1:63276/requests/req_01M2W14572TK0FFWM6HFSG9M7P"}
+{"seq": 30, "ts": "2026-09-19T05:09:47.893Z", "event": "escalation.pending", "request": "req_01M2W14572TK0FFWM6HFSG9M7P", "why": "nobody took the request within 0s"}
+{"seq": 31, "ts": "2026-09-19T05:09:47.900Z", "event": "run.end", "kind": "escalated", "code": null}
+{"seq": 32, "ts": "2026-09-19T05:09:50.442Z", "event": "run.resumed", "capability": "member_savings_balance", "version": 3, "content_sha256": "cb63dcb3e726211deaef0ab4b5562937e7104a1756069f8d160936f1e9d8d3de", "request": "req_01M2W14572TK0FFWM6HFSG9M7P"}
+{"seq": 33, "ts": "2026-09-19T05:09:50.443Z", "event": "handoff.handed_back", "request": "req_01M2W14572TK0FFWM6HFSG9M7P", "by": "evidence-bot", "decision": "hand_back", "resume_at": null, "human_actions": 3}
+{"seq": 34, "ts": "2026-09-19T05:09:51.301Z", "event": "handoff.located", "checkpoint": "cp.done", "next": 5}
+{"seq": 35, "ts": "2026-09-19T05:09:51.305Z", "event": "checkpoint.passed", "checkpoint": "cp.done", "step": "handback"}
+{"seq": 36, "ts": "2026-09-19T05:09:51.309Z", "event": "handoff.resumed", "request": "req_01M2W14572TK0FFWM6HFSG9M7P", "at": "done", "after": "cp.done"}
+{"seq": 37, "ts": "2026-09-19T05:09:51.998Z", "event": "locator.resolved", "target": "outputs.savings_balance", "rung": "table_cell", "recorded": "table_cell", "attempts": [{"rung": "table_cell", "matches": 1, "refs": ["n98"], "refused": null}]}
+{"seq": 38, "ts": "2026-09-19T05:09:52.004Z", "event": "output.extracted", "name": "savings_balance", "rung": "table_cell"}
+{"seq": 39, "ts": "2026-09-19T05:09:52.025Z", "event": "locator.resolved", "target": "outputs.member_name", "rung": "near_text", "recorded": "near_text", "attempts": [{"rung": "near_text", "matches": 1, "refs": ["n85"], "refused": null}]}
+{"seq": 40, "ts": "2026-09-19T05:09:52.029Z", "event": "output.extracted", "name": "member_name", "rung": "near_text"}
+{"seq": 41, "ts": "2026-09-19T05:09:52.033Z", "event": "checkpoint.passed", "checkpoint": "cp.done", "step": "done"}
+{"seq": 42, "ts": "2026-09-19T05:09:52.716Z", "event": "observe", "label": "done", "location": "http://127.0.0.1:8000/", "observation": "observations/0006.json", "screenshot": "screenshots/0006.png"}
+{"seq": 43, "ts": "2026-09-19T05:09:52.723Z", "event": "run.end", "kind": "success", "code": null}

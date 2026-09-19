@@ -1,0 +1,5 @@
+{"ts": "2026-09-19T05:06:40.178Z", "seq": 0, "from": null, "to": "AUTOMATION", "holder": "automation", "by": "automation", "request_id": null, "note": "run started"}
+{"ts": "2026-09-19T05:07:01.369Z", "seq": 1, "from": "AUTOMATION", "to": "PAUSED", "holder": "none", "by": "automation", "request_id": "req_01M2W0Z2KHE3352BBN0TGVMG19", "note": "NEEDS_APPROVAL at turn 9: POLICY_BLOCKED"}
+{"ts": "2026-09-19T05:07:27.663Z", "seq": 2, "from": "PAUSED", "to": "HUMAN_IN_CONTROL", "holder": "human", "by": "anil", "request_id": "req_01M2W0Z2KHE3352BBN0TGVMG19", "note": "approve from the console"}
+{"ts": "2026-09-19T05:07:27.674Z", "seq": 3, "from": "HUMAN_IN_CONTROL", "to": "RESUMING", "holder": "automation", "by": "anil", "request_id": "req_01M2W0Z2KHE3352BBN0TGVMG19", "decision": {"kind": "hand_back", "by": "anil", "approved": true}, "note": "approve from the console"}
+{"ts": "2026-09-19T05:07:27.754Z", "seq": 4, "from": "RESUMING", "to": "AUTOMATION", "holder": "automation", "by": "automation", "request_id": "req_01M2W0Z2KHE3352BBN0TGVMG19", "note": "resume-state search: carry on with turn 10"}

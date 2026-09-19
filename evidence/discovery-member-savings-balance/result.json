@@ -1,0 +1,108 @@
+{
+  "kind": "done",
+  "reason": null,
+  "message": "The member details and savings balance are displayed on screen.",
+  "outputs": {
+    "savings_balance": {
+      "name": "savings_balance",
+      "type": "decimal",
+      "ref": "n150",
+      "value": "$1,411.21",
+      "normalized": "1411.21",
+      "node": {
+        "ref": "n150",
+        "role": "cell",
+        "name": "$1,411.21",
+        "value": null,
+        "frame": "main",
+        "bbox": {
+          "x": 267.78125,
+          "y": 182.5,
+          "w": 77.96875,
+          "h": 20.0
+        },
+        "near_text": null,
+        "parent": "n148",
+        "ordinal": 7,
+        "attrs": {}
+      },
+      "ladder": [
+        {
+          "strategy": "table_cell",
+          "row_contains": "Savings",
+          "column_header": "Balance",
+          "exact": true,
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 267.78125,
+          "y": 182.5,
+          "w": 77.96875,
+          "h": 20.0,
+          "role": "cell",
+          "confidence": "low",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ]
+    },
+    "member_name": {
+      "name": "member_name",
+      "type": "string",
+      "ref": "n137",
+      "value": "Test Member 03",
+      "normalized": "Test Member 03",
+      "node": {
+        "ref": "n137",
+        "role": "cell",
+        "name": "Test Member 03",
+        "value": null,
+        "frame": "main",
+        "bbox": {
+          "x": 268.609375,
+          "y": 80.0,
+          "w": 100.5625,
+          "h": 19.0
+        },
+        "near_text": null,
+        "parent": "n135",
+        "ordinal": 3,
+        "attrs": {}
+      },
+      "ladder": [
+        {
+          "strategy": "near_text",
+          "text": "Name",
+          "role": "cell",
+          "direction": "right",
+          "exact": true,
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 268.609375,
+          "y": 80.0,
+          "w": 100.5625,
+          "h": 19.0,
+          "role": "cell",
+          "confidence": "low",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ]
+    }
+  },
+  "steps": 6,
+  "run_id": "run_01M2W042TVDW140KRYAHXFGMT3",
+  "run_dir": "evidence/runs/run_01M2W042TVDW140KRYAHXFGMT3",
+  "duration_ms": 22222,
+  "handoffs": [],
+  "human_assisted": false
+}

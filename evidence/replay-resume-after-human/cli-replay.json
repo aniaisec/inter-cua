@@ -1,0 +1,49 @@
+{
+  "kind": "escalated",
+  "reason": "STUCK",
+  "step_id": "search.submit",
+  "side_effect": "none",
+  "outputs": {},
+  "message": "LOCATOR_UNRESOLVED: role_name: 0 matches; bbox: 1 match, not trusted to act on unattended (pixels only)",
+  "run_id": "run_01M2W13W4YA30HCNJRBXGYSY64",
+  "capability": "member_savings_balance",
+  "capability_version": 3,
+  "idempotency_key": null,
+  "duration_ms": 8172,
+  "locator_rungs_used": {
+    "login.username": "near_text",
+    "login.password": "near_text",
+    "login.submit": "role_name",
+    "search.member_id": "near_text"
+  },
+  "recoveries": [],
+  "handoffs": [
+    {
+      "request_id": "req_01M2W14572TK0FFWM6HFSG9M7P",
+      "reason": "STUCK",
+      "step_id": "search.submit",
+      "decision": "unanswered",
+      "decided_by": null,
+      "human_actions_count": 0,
+      "resumed_at": null,
+      "resumed_after_checkpoint": null
+    }
+  ],
+  "warnings": [],
+  "evidence": {
+    "run_dir": "evidence/runs/_build/run_01M2W13W4YA30HCNJRBXGYSY64",
+    "screenshots": [
+      "screenshots/0001.png",
+      "screenshots/0002.png",
+      "screenshots/0003.png",
+      "screenshots/0004.png",
+      "screenshots/0005.png"
+    ],
+    "trace": null,
+    "intervention": "interventions/req_01M2W14572TK0FFWM6HFSG9M7P.json"
+  },
+  "cached": false,
+  "request_id": "req_01M2W14572TK0FFWM6HFSG9M7P",
+  "resume_token": "rsm_jrWbzdKE1eFV_pW303wMPU-UQb8c_Zwo",
+  "operator_url": "http://127.0.0.1:63276/requests/req_01M2W14572TK0FFWM6HFSG9M7P"
+}

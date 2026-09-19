@@ -1,0 +1,48 @@
+{
+  "kind": "failure",
+  "code": "TIMEOUT",
+  "step_id": "review.submit",
+  "side_effect": "unknown",
+  "outputs": {},
+  "message": "review.submit did not land within 3.0s (review.submit is not retryable (irreversible))",
+  "run_id": "run_01M2W1254X0W79MBG36ZSWQJZH",
+  "capability": "open_subaccount",
+  "capability_version": 3,
+  "idempotency_key": null,
+  "duration_ms": 11251,
+  "locator_rungs_used": {
+    "login.username": "near_text",
+    "login.password": "near_text",
+    "login.submit": "role_name",
+    "search.member_id": "near_text",
+    "search.submit": "role_name",
+    "member.open_sub_account": "role_name",
+    "subaccount.initial_deposit": "near_text",
+    "subaccount.submit": "role_name",
+    "review.submit": "role_name"
+  },
+  "recoveries": [],
+  "handoffs": [],
+  "warnings": [],
+  "evidence": {
+    "run_dir": "evidence/runs/_build/run_01M2W1254X0W79MBG36ZSWQJZH",
+    "screenshots": [
+      "screenshots/0001.png",
+      "screenshots/0002.png",
+      "screenshots/0003.png",
+      "screenshots/0004.png",
+      "screenshots/0005.png",
+      "screenshots/0006.png",
+      "screenshots/0007.png",
+      "screenshots/0008.png",
+      "screenshots/0009.png"
+    ],
+    "trace": "trace.zip",
+    "intervention": null
+  },
+  "cached": false,
+  "expected": "location matches '/review/[0-9]+$' and region 'Sub-account Opened' present",
+  "observed": "[top] http://127.0.0.1:8000/ (200) [nav] http://127.0.0.1:8000/nav (200) [main] http://127.0.0.1:8000/review/10003 (200)\n[nav] http://127.0.0.1:8000/nav\n  n909 text \"Functions\"\n  row: n914 link \"Member Search\"\n  row: n917 link \"Account Inquiry\"\n  row: n920 link \"Reports\"\n  row: n923 link \"Sign Off\"\n  row: n926 link \"Vendor Support\"\n[main] http://127.0.0.1:8000/review/10003\n  n927 text \"MockCore Member Services 1.0\"\n  n928 heading \"Review Sub-account\"\n  n929 paragraph \"Review the application below. Selecting Confirm will open the account.\"\n  row: n933 columnheader \"Field\" | n934 columnheader \"Value\"\n  row: n936 cell \"Member ID\" | n937 cell \"10003\"\n  row: n939 cell \"Name\" | n940 cell \"Test Member 03\"\n  row: n942 cell \"Account Type\" | n943 cell \"Savings\"\n  row: n945 cell \"Initial Deposit\" | n946 cell \"250.00\"\n  row: n951 button \"Confirm\"\n  row: n956 link \"Back\"",
+  "during_recovery": null,
+  "escalation_reason": "STUCK"
+}

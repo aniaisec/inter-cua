@@ -1,0 +1,2 @@
+cua replay capabilities/member_savings_balance.json --input member_id=99999 --inject not_found --runs-dir evidence/runs/_build
+  -> exit 2, stdout in cli-replay.json

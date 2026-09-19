@@ -1,0 +1,501 @@
+{
+ "observed_at": "2026-09-19T05:08:37.330291Z",
+ "location": "http://127.0.0.1:8000/",
+ "title": "MockCore 1.0",
+ "viewport": {
+  "w": 1280,
+  "h": 800
+ },
+ "frames": [
+  {
+   "name": "",
+   "url": "http://127.0.0.1:8000/",
+   "status": 200
+  },
+  {
+   "name": "nav",
+   "url": "http://127.0.0.1:8000/nav",
+   "status": 200
+  },
+  {
+   "name": "main",
+   "url": "http://127.0.0.1:8000/search",
+   "status": 200
+  }
+ ],
+ "nodes": [
+  {
+   "ref": "n324",
+   "role": "text",
+   "name": "Functions",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 0.0,
+    "y": 0.0,
+    "w": 180.0,
+    "h": 21.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n325",
+   "role": "table",
+   "name": "",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n326",
+   "role": "rowgroup",
+   "name": "",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n325",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n327",
+   "role": "row",
+   "name": "Member Search",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n326",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n328",
+   "role": "cell",
+   "name": "Member Search",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 14.0,
+    "y": 31.0,
+    "w": 99.421875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n327",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n329",
+   "role": "link",
+   "name": "Member Search",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 20.0,
+    "y": 34.0,
+    "w": 86.5625,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n328",
+   "ordinal": 0,
+   "attrs": {
+    "url": "javascript:parent.main.location='/search'"
+   }
+  },
+  {
+   "ref": "n330",
+   "role": "row",
+   "name": "Account Inquiry",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n326",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n331",
+   "role": "cell",
+   "name": "Account Inquiry",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 14.0,
+    "y": 50.0,
+    "w": 99.421875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n330",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n332",
+   "role": "link",
+   "name": "Account Inquiry",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 20.0,
+    "y": 53.0,
+    "w": 87.421875,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n331",
+   "ordinal": 1,
+   "attrs": {
+    "url": "javascript:parent.main.location='/search'"
+   }
+  },
+  {
+   "ref": "n333",
+   "role": "row",
+   "name": "Reports",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n326",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n334",
+   "role": "cell",
+   "name": "Reports",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 14.0,
+    "y": 69.0,
+    "w": 99.421875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n333",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n335",
+   "role": "link",
+   "name": "Reports",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 20.0,
+    "y": 72.0,
+    "w": 42.234375,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n334",
+   "ordinal": 2,
+   "attrs": {
+    "url": "javascript:void(0)"
+   }
+  },
+  {
+   "ref": "n336",
+   "role": "row",
+   "name": "Sign Off",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n326",
+   "ordinal": 3,
+   "attrs": {}
+  },
+  {
+   "ref": "n337",
+   "role": "cell",
+   "name": "Sign Off",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 14.0,
+    "y": 88.0,
+    "w": 99.421875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n336",
+   "ordinal": 3,
+   "attrs": {}
+  },
+  {
+   "ref": "n338",
+   "role": "link",
+   "name": "Sign Off",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 20.0,
+    "y": 91.0,
+    "w": 44.625,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n337",
+   "ordinal": 3,
+   "attrs": {
+    "url": "/logoff"
+   }
+  },
+  {
+   "ref": "n339",
+   "role": "row",
+   "name": "Vendor Support",
+   "value": null,
+   "frame": "nav",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n326",
+   "ordinal": 4,
+   "attrs": {}
+  },
+  {
+   "ref": "n340",
+   "role": "cell",
+   "name": "Vendor Support",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 14.0,
+    "y": 107.0,
+    "w": 99.421875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n339",
+   "ordinal": 4,
+   "attrs": {}
+  },
+  {
+   "ref": "n341",
+   "role": "link",
+   "name": "Vendor Support",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 20.0,
+    "y": 110.0,
+    "w": 86.484375,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n340",
+   "ordinal": 4,
+   "attrs": {
+    "url": "https://support.mockcore.example/kb"
+   }
+  },
+  {
+   "ref": "n342",
+   "role": "text",
+   "name": "MockCore Member Services 1.0",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 181.0,
+    "y": 0.0,
+    "w": 1099.0,
+    "h": 21.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n343",
+   "role": "heading",
+   "name": "Member Search",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 37.0,
+    "w": 1071.0,
+    "h": 16.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {
+    "level": "3"
+   }
+  },
+  {
+   "ref": "n344",
+   "role": "paragraph",
+   "name": "No matching member",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 64.0,
+    "w": 1071.0,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n345",
+   "role": "table",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n346",
+   "role": "rowgroup",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n345",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n347",
+   "role": "row",
+   "name": "Member ID 99999 Search",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n346",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n348",
+   "role": "cell",
+   "name": "Member ID",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 88.0,
+    "w": 73.609375,
+    "h": 26.0
+   },
+   "near_text": null,
+   "parent": "n347",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n349",
+   "role": "cell",
+   "name": "99999",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 268.609375,
+    "y": 88.0,
+    "w": 80.0,
+    "h": 26.0
+   },
+   "near_text": null,
+   "parent": "n347",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n350",
+   "role": "textbox",
+   "name": "",
+   "value": "99999",
+   "frame": "main",
+   "bbox": {
+    "x": 274.609375,
+    "y": 91.0,
+    "w": 68.0,
+    "h": 20.0
+   },
+   "near_text": "Member ID",
+   "parent": "n349",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n351",
+   "role": "cell",
+   "name": "Search",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 348.609375,
+    "y": 88.0,
+    "w": 74.078125,
+    "h": 26.0
+   },
+   "near_text": null,
+   "parent": "n347",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n352",
+   "role": "button",
+   "name": "Search",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 354.609375,
+    "y": 91.5,
+    "w": 62.078125,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n351",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n353",
+   "role": "paragraph",
+   "name": "Enter a five digit member number.",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 125.0,
+    "w": 1071.0,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 1,
+   "attrs": {}
+  }
+ ],
+ "dialogs": []
+}

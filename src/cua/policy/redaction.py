@@ -17,6 +17,12 @@ as well, before it is rendered for the model or written to evidence:
 The same scrub is the last thing every run log line goes through
 (``RunLog.scrub_with``), so a value that reaches the log by a path nobody
 thought to redact is still caught.
+
+A ``secret://`` reference is left as it is. It is the name of a secret, public
+in the tenant's config, and the recorder copies it from the run into the
+capability: masking a value that happens to appear in the name (the mock app's
+``secret://local/mockcore/operator`` holds ``operator``) would record a
+reference that resolves to nothing.
 """
 
 from __future__ import annotations
@@ -31,6 +37,8 @@ if TYPE_CHECKING:
     from cua.policy.allowlist import Policy
 
 MASK = "***"
+
+_SECRET_REF = re.compile(r"(secret://[^\s\"'<>]*)")
 
 
 class Redactor:
@@ -55,6 +63,12 @@ class Redactor:
         )
 
     def text(self, value: str) -> str:
+        if "secret://" in value:
+            parts = _SECRET_REF.split(value)  # odd indexes are the references
+            return "".join(p if i % 2 else self._scrub(p) for i, p in enumerate(parts))
+        return self._scrub(value)
+
+    def _scrub(self, value: str) -> str:
         for secret in self._secrets:
             value = value.replace(secret, MASK)
         for pattern in self._patterns:

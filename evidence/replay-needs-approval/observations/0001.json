@@ -1,0 +1,285 @@
+{
+ "observed_at": "2026-09-19T05:08:57.488806Z",
+ "location": "http://127.0.0.1:8000/login",
+ "title": "MockCore 1.0 - Sign On",
+ "viewport": {
+  "w": 1280,
+  "h": 800
+ },
+ "frames": [
+  {
+   "name": "",
+   "url": "http://127.0.0.1:8000/login",
+   "status": 200
+  }
+ ],
+ "nodes": [
+  {
+   "ref": "n35",
+   "role": "text",
+   "name": "MockCore Member Services 1.0",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 0.0,
+    "y": 0.0,
+    "w": 1280.0,
+    "h": 21.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n36",
+   "role": "heading",
+   "name": "Sign On",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 14.0,
+    "y": 37.0,
+    "w": 1252.0,
+    "h": 16.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {
+    "level": "3"
+   }
+  },
+  {
+   "ref": "n37",
+   "role": "table",
+   "name": "",
+   "value": null,
+   "frame": "",
+   "bbox": null,
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n38",
+   "role": "rowgroup",
+   "name": "",
+   "value": null,
+   "frame": "",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n37",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n39",
+   "role": "row",
+   "name": "User ID ***",
+   "value": null,
+   "frame": "",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n38",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n40",
+   "role": "cell",
+   "name": "User ID",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 14.0,
+    "y": 61.0,
+    "w": 63.671875,
+    "h": 26.0
+   },
+   "near_text": null,
+   "parent": "n39",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n41",
+   "role": "cell",
+   "name": "***",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 77.671875,
+    "y": 61.0,
+    "w": 166.0,
+    "h": 26.0
+   },
+   "near_text": null,
+   "parent": "n39",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n42",
+   "role": "textbox",
+   "name": "",
+   "value": "***",
+   "frame": "",
+   "bbox": {
+    "x": 83.671875,
+    "y": 64.0,
+    "w": 154.0,
+    "h": 20.0
+   },
+   "near_text": "User ID",
+   "parent": "n41",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n43",
+   "role": "row",
+   "name": "Password",
+   "value": null,
+   "frame": "",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n38",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n44",
+   "role": "cell",
+   "name": "Password",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 14.0,
+    "y": 87.0,
+    "w": 63.671875,
+    "h": 26.0
+   },
+   "near_text": null,
+   "parent": "n43",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n45",
+   "role": "cell",
+   "name": "",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 77.671875,
+    "y": 87.0,
+    "w": 166.0,
+    "h": 26.0
+   },
+   "near_text": null,
+   "parent": "n43",
+   "ordinal": 3,
+   "attrs": {}
+  },
+  {
+   "ref": "n46",
+   "role": "textbox",
+   "name": "",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 83.671875,
+    "y": 90.0,
+    "w": 154.0,
+    "h": 20.0
+   },
+   "near_text": "Password",
+   "parent": "n45",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n47",
+   "role": "row",
+   "name": "Sign On",
+   "value": null,
+   "frame": "",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n38",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n48",
+   "role": "cell",
+   "name": "",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 14.0,
+    "y": 113.0,
+    "w": 63.671875,
+    "h": 25.0
+   },
+   "near_text": null,
+   "parent": "n47",
+   "ordinal": 4,
+   "attrs": {}
+  },
+  {
+   "ref": "n49",
+   "role": "cell",
+   "name": "Sign On",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 77.671875,
+    "y": 113.0,
+    "w": 166.0,
+    "h": 25.0
+   },
+   "near_text": null,
+   "parent": "n47",
+   "ordinal": 5,
+   "attrs": {}
+  },
+  {
+   "ref": "n50",
+   "role": "button",
+   "name": "Sign On",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 83.671875,
+    "y": 116.0,
+    "w": 67.84375,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n49",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n51",
+   "role": "paragraph",
+   "name": "MockCore is a simulated core banking system. All member data is synthetic.",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 14.0,
+    "y": 149.0,
+    "w": 1252.0,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  }
+ ],
+ "dialogs": []
+}

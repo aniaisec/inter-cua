@@ -1,0 +1,50 @@
+{
+  "kind": "success",
+  "step_id": "search.submit",
+  "side_effect": "none",
+  "outputs": {
+    "savings_balance": "1411.21",
+    "member_name": "Test Member 03"
+  },
+  "run_id": "run_01M2W13W4YA30HCNJRBXGYSY64",
+  "capability": "member_savings_balance",
+  "capability_version": 3,
+  "idempotency_key": null,
+  "duration_ms": 10444,
+  "locator_rungs_used": {
+    "login.username": "near_text",
+    "login.password": "near_text",
+    "login.submit": "role_name",
+    "search.member_id": "near_text",
+    "outputs.savings_balance": "table_cell",
+    "outputs.member_name": "near_text"
+  },
+  "recoveries": [],
+  "handoffs": [
+    {
+      "request_id": "req_01M2W14572TK0FFWM6HFSG9M7P",
+      "reason": "STUCK",
+      "step_id": "search.submit",
+      "decision": "hand_back",
+      "decided_by": "evidence-bot",
+      "human_actions_count": 3,
+      "resumed_at": "done",
+      "resumed_after_checkpoint": "cp.done"
+    }
+  ],
+  "warnings": [],
+  "evidence": {
+    "run_dir": "evidence/runs/_build/run_01M2W13W4YA30HCNJRBXGYSY64",
+    "screenshots": [
+      "screenshots/0001.png",
+      "screenshots/0002.png",
+      "screenshots/0003.png",
+      "screenshots/0004.png",
+      "screenshots/0005.png",
+      "screenshots/0006.png"
+    ],
+    "trace": null,
+    "intervention": "interventions/req_01M2W14572TK0FFWM6HFSG9M7P.json"
+  },
+  "cached": false
+}

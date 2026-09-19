@@ -1,0 +1,2 @@
+cua replay capabilities/open_subaccount.json --input member_id=10003 --input initial_deposit=250.00 --approval-token <approval token> --inject modal_dialog --handoff --handoff-wait 120 --runs-dir evidence/runs/_build --operator-url http://127.0.0.1:63276
+  -> exit 0, stdout in cli-replay.json
