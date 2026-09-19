@@ -64,7 +64,18 @@ from cua.surface.protocol import (
     Viewport,
 )
 
+SUPPORTED_SURFACES: frozenset[str] = frozenset({"web", "legacy_web"})
+"""The ``target.surface`` kinds this build can actually drive.
+
+Both are driven by ``PlaywrightSurface``: a legacy web app is still a web page,
+frameset and all. ``desktop`` is the declared but unbuilt case — it needs a
+``Surface`` over UIA or AX — so a capability that names it is refused before a
+browser starts, rather than handed to the wrong adapter. A new adapter joins
+the set here, and nothing above the surface layer changes.
+"""
+
 __all__ = [
+    "SUPPORTED_SURFACES",
     "Action",
     "ActionFailed",
     "ActionResult",

@@ -145,8 +145,10 @@ and its conditions are surface-neutral.
   still has an accessibility tree.
 - **Desktop** swaps `PlaywrightSurface` for a UIA or AX surface. Control
   types map to roles, `location_matches` reads the window title, and
-  `region_present` looks for a named pane. `target.surface` selects the
-  adapter.
+  `region_present` looks for a named pane. `target.surface` is what picks the
+  adapter: this build registers `web` and `legacy_web`, and a capability
+  naming any other surface is refused before a browser starts rather than
+  driven by the wrong one.
 - **The limit** is a surface with no tree, such as a canvas or a Citrix/RDP
   session. Only a vision-grounded `bbox` rung would work there, and I cut it.
 
@@ -211,8 +213,10 @@ of hands is written to `state_transitions.jsonl`.
 **Same live session.** Chromium runs as its own process and replay attaches
 to it over CDP. The person works in that window, or through the DevTools link
 in the request if it is headless. The console attaches to the same browser
-and records into `human_actions.jsonl`: clicks, changes (which control and how
-many characters, never the value), key presses and navigations. The person's
+and records into `human_actions.jsonl`: clicks, the fields they edit
+themselves (which control and how many characters, never the value), key
+presses and navigations. A field the automation filled before handing over is
+not credited to them when their first click makes it lose focus. The person's
 actions are recorded, not policy-checked: they are the escalation path for
 what the policy did not foresee.
 

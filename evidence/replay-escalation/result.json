@@ -1,9 +1,9 @@
 {
-  "run_id": "run_01M2W130N9ASJXYN8SP1SWEH4P",
+  "run_id": "run_01M2XZD3CJ54KWZ8TVEX3W5CQ8",
   "capability": "open_subaccount",
   "capability_version": 3,
   "idempotency_key": null,
-  "duration_ms": 23594,
+  "duration_ms": 28731,
   "locator_rungs_used": {
     "login.username": "near_text",
     "login.password": "near_text",
@@ -19,7 +19,7 @@
   "recoveries": [],
   "handoffs": [
     {
-      "request_id": "req_01M2W13HZH5D8CKTVFKN4F5YXJ",
+      "request_id": "req_01M2XZDQ4WBDY7TD0J0GC87P1Z",
       "reason": "STUCK",
       "step_id": "member.open_sub_account",
       "decision": "hand_back",
@@ -31,7 +31,7 @@
   ],
   "warnings": [],
   "evidence": {
-    "run_dir": "evidence/runs/_build/run_01M2W130N9ASJXYN8SP1SWEH4P",
+    "run_dir": "evidence/runs/_build/run_01M2XZD3CJ54KWZ8TVEX3W5CQ8",
     "screenshots": [
       "screenshots/0001.png",
       "screenshots/0002.png",
@@ -46,7 +46,7 @@
       "screenshots/0011.png"
     ],
     "trace": null,
-    "intervention": "interventions/req_01M2W13HZH5D8CKTVFKN4F5YXJ.json"
+    "intervention": "interventions/req_01M2XZDQ4WBDY7TD0J0GC87P1Z.json"
   },
   "cached": false,
   "kind": "success",

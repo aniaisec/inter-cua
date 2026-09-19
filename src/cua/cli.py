@@ -619,6 +619,8 @@ def _catalog_list(args: argparse.Namespace) -> int:
             print(f"    business outcomes: {', '.join(sorted(cap.contract.outcomes))}")
         if cap.contract.may_escalate:
             print("    needs consent to commit: an approval token, or a person on the console")
+        if not e.invocable and cap.approval_state == "approved":
+            print(f"    not invocable here: this build has no {cap.target.surface} adapter")
         print(f"    {link(e.path, stream=sys.stdout)}")
     hidden = len(entries) - len(shown)
     if hidden:
@@ -640,7 +642,7 @@ def _catalog_invoke(args: argparse.Namespace) -> int:
             text = (
                 sys.stdin.read()
                 if args.request == "-"
-                else Path(args.request).read_text(encoding="utf-8")
+                else Path(args.request).read_text(encoding="utf-8-sig")
             )
             request = catalog.parse_request(text)
         asked = request.get("capability")

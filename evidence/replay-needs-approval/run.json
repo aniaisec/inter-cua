@@ -1,7 +1,7 @@
 {
-  "run_id": "run_01M2W12HJ75SBQA9FP36BK04PJ",
+  "run_id": "run_01M2XZCFM3D3GG7GGPN3R41FHW",
   "kind": "replay",
-  "started_at": "2026-09-19T05:08:54.984Z",
+  "started_at": "2026-09-19T23:17:52.389Z",
   "capability": {
     "id": "cap_01M2TMXZ2QK22AEHTVPG6FENDY",
     "name": "open_subaccount",
@@ -33,7 +33,7 @@
   "handoff": {
     "wait_s": 120.0,
     "ttl_s": 1800.0,
-    "operator_url": "http://127.0.0.1:63276",
+    "operator_url": "http://127.0.0.1:64104",
     "poll_s": 0.25,
     "announce": true
   }

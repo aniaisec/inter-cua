@@ -1,5 +1,4 @@
-{"ts": "2026-09-19T05:09:48.161Z", "request_id": "req_01M2W14572TK0FFWM6HFSG9M7P", "source": "console", "by": "evidence-bot", "action": "take_control"}
-{"ts": "2026-09-19T05:09:48.979Z", "request_id": "req_01M2W14572TK0FFWM6HFSG9M7P", "source": "browser", "action": "type", "target": {"role": "textbox", "name": "", "near_text": "Member ID"}, "chars": 5, "frame": "main", "url": "http://127.0.0.1:8000/search"}
-{"ts": "2026-09-19T05:09:48.987Z", "request_id": "req_01M2W14572TK0FFWM6HFSG9M7P", "source": "browser", "action": "click", "target": {"role": "button", "name": "Find"}, "x": 197, "y": 74, "frame": "main", "url": "http://127.0.0.1:8000/search"}
-{"ts": "2026-09-19T05:09:49.041Z", "request_id": "req_01M2W14572TK0FFWM6HFSG9M7P", "source": "browser", "action": "navigate", "frame": "main", "url": "http://127.0.0.1:8000/member/10003"}
-{"ts": "2026-09-19T05:09:49.606Z", "request_id": "req_01M2W14572TK0FFWM6HFSG9M7P", "source": "console", "by": "evidence-bot", "action": "resume"}
+{"ts": "2026-09-19T23:18:56.489Z", "request_id": "req_01M2XZEDTH98B8MP5PY76HVTMR", "source": "console", "by": "evidence-bot", "action": "take_control"}
+{"ts": "2026-09-19T23:18:57.477Z", "request_id": "req_01M2XZEDTH98B8MP5PY76HVTMR", "source": "browser", "action": "click", "target": {"role": "button", "name": "Find"}, "x": 197, "y": 74, "frame": "main", "url": "http://127.0.0.1:8000/search"}
+{"ts": "2026-09-19T23:18:57.492Z", "request_id": "req_01M2XZEDTH98B8MP5PY76HVTMR", "source": "browser", "action": "navigate", "frame": "main", "url": "http://127.0.0.1:8000/member/10003"}
+{"ts": "2026-09-19T23:18:58.388Z", "request_id": "req_01M2XZEDTH98B8MP5PY76HVTMR", "source": "console", "by": "evidence-bot", "action": "resume"}

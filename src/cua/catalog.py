@@ -7,9 +7,10 @@ handed the catalog as its toolbox. ``cua catalog invoke`` is the other half:
 call one by name, with the arguments a model would produce, and get a
 ``ReplayResult`` back.
 
-Only approved capabilities are offered as tools. A draft is listed (with
-``--all``) so a person can see it is there, but an agent is never shown
-something that unattended replay would refuse to run.
+Only capabilities unattended replay would actually accept are offered as
+tools: approved, and naming a surface this build has an adapter for. A draft
+is listed (with ``--all``) so a person can see it is there, but an agent is
+never shown something that would be refused the moment it called it.
 
 Arguments are typed. A model's tool call carries JSON values, and the types
 are checked here, before anything else: a ``decimal`` may come as a number or a
@@ -31,6 +32,7 @@ from typing import Any
 from cua.artifact.schema import Capability, InputSpec
 from cua.artifact.store import ArtifactError, open_capability
 from cua.replay.result import Failure
+from cua.surface import SUPPORTED_SURFACES
 
 
 @dataclass(frozen=True)
@@ -41,7 +43,12 @@ class Entry:
 
     @property
     def invocable(self) -> bool:
-        return self.capability.approval_state == "approved"
+        """What ``cua replay`` would accept without an override: approved, and
+        on a surface this build can drive."""
+        return (
+            self.capability.approval_state == "approved"
+            and self.capability.target.surface in SUPPORTED_SURFACES
+        )
 
 
 @dataclass(frozen=True)
@@ -251,8 +258,11 @@ def parse_arguments(text: str) -> dict[str, Any]:
 
 
 def _object(text: str, what: str) -> dict[str, Any]:
+    # A byte-order mark rides in front of the text on Windows: PowerShell 5.1
+    # puts one on anything it pipes, and editors save files with one. It is
+    # invisible, it is not the caller's mistake, and json.loads refuses it.
     try:
-        data = json.loads(text, parse_float=Decimal)
+        data = json.loads(text.lstrip("\ufeff"), parse_float=Decimal)
     except json.JSONDecodeError as exc:
         raise ValueError(f"{what} is not JSON: {exc}") from None
     if not isinstance(data, dict):

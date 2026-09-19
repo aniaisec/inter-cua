@@ -5,16 +5,20 @@ In order, and each check before anything more expensive:
 1. load the capability (a hand-edited file loads as a new draft);
 2. **approval gate** — unattended replay runs only an ``approved`` capability.
    A draft is ``POLICY_BLOCKED`` unless the operator overrides it explicitly;
-3. **input shape** — ``INPUT_INVALID`` with no browser started;
-4. **approval token**, if one came — signature, expiry, and that it covers
+3. **this deployment can carry it out** — the tenant runs the capability's app
+   family, and this build has a ``Surface`` adapter for the surface it names.
+   Either mismatch is ``POLICY_BLOCKED``, because the alternative is driving
+   the wrong thing with the wrong adapter;
+4. **input shape** — ``INPUT_INVALID`` with no browser started;
+5. **approval token**, if one came — signature, expiry, and that it covers
    this capability, content, tenant and inputs. Any mismatch is
    ``POLICY_BLOCKED``: consent for something else is not consent;
-5. **idempotency** — the same key and request returns the stored result;
-6. **spent token** — a token that already went into a commit is refused, so
+6. **idempotency** — the same key and request returns the stored result;
+7. **spent token** — a token that already went into a commit is refused, so
    one consent is one commit (a caller retrying after a lost answer retries
-   with its idempotency key, and step 5 answers it);
-7. credentials resolved from the tenant binding (held in memory only);
-8. a fresh browser session, traced; the engine runs; a failed run keeps its
+   with its idempotency key, and step 6 answers it);
+8. credentials resolved from the tenant binding (held in memory only);
+9. a fresh browser session, traced; the engine runs; a failed run keeps its
    trace, scrubbed of secrets. If the run reached a risky step, its token is
    spent, whatever the result.
 
@@ -80,6 +84,7 @@ from cua.replay.result import (
     fingerprint,
 )
 from cua.secrets.resolver import Credential, SecretError, resolve
+from cua.surface import SUPPORTED_SURFACES
 from cua.surface.playwright_surface import BrowserProcess, PlaywrightSurface, kill_browser
 from cua.surface.protocol import Surface
 from cua.tenant import Tenant
@@ -172,6 +177,16 @@ def replay(
             "POLICY_BLOCKED",
             f"{cap.name} is for app family {cap.target.app_family!r}; tenant {tenant.id!r} "
             f"runs {tenant.app_family!r}",
+        )
+    if cap.target.surface not in SUPPORTED_SURFACES:
+        return _refused(
+            cap,
+            invocation,
+            "POLICY_BLOCKED",
+            f"{cap.name} drives a {cap.target.surface!r} surface, and this build has an "
+            f"adapter for {', '.join(sorted(SUPPORTED_SURFACES))} only. Driving it with the "
+            "browser adapter would act on the wrong thing; a desktop surface needs a "
+            "Surface of its own (UIA or AX).",
         )
 
     problems = validate_inputs(cap, invocation.inputs)

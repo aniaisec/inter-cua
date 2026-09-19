@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from cua import catalog
-from cua.artifact.store import load
+from cua.artifact.store import load, save, with_changes
 from cua.cli import main
 from tests.conftest import REPO_ROOT
 
@@ -58,6 +58,24 @@ def test_the_catalog_offers_only_what_unattended_replay_would_run(with_draft: Pa
         "open_subaccount",
     ]
     assert len(catalog.tools(entries, include_drafts=True)) == 3
+
+
+def test_a_capability_this_build_cannot_drive_is_not_offered_as_a_tool(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Approved is not enough: the catalog offers only what unattended replay
+    would accept, and replay refuses a surface it has no adapter for."""
+    cap = load(GOAL1)
+    target = cap.target.model_dump(mode="json")
+    target["surface"] = "desktop"
+    save(with_changes(cap, target=target), tmp_path / "desktop.json")
+
+    (entry,) = catalog.scan(tmp_path)[0]
+    assert entry.capability.approval_state == "approved" and not entry.edited_outside
+    assert not entry.invocable and catalog.tools([entry]) == []
+
+    code, out, _ = run(["catalog", "--all", "--capabilities-dir", str(tmp_path)], capsys)
+    assert code == 0 and "no desktop adapter" in out
 
 
 def test_a_tool_definition_carries_the_typed_inputs_and_the_contract() -> None:
@@ -122,6 +140,25 @@ def test_a_request_is_an_object_with_known_fields_and_exact_numbers() -> None:
         catalog.parse_request("[]")
     with pytest.raises(ValueError, match="not JSON"):
         catalog.parse_arguments("{member_id: 1}")
+
+
+def test_a_request_is_read_through_a_byte_order_mark(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Windows PowerShell puts a BOM in front of anything it pipes, and editors
+    save files with one. It is invisible, and it is not the caller's mistake."""
+    assert catalog.parse_request('\ufeff{"capability": "x"}')["capability"] == "x"
+    assert catalog.parse_arguments('\ufeff{"member_id": "10003"}') == {"member_id": "10003"}
+
+    path = tmp_path / "request.json"
+    path.write_text(
+        json.dumps({"capability": "member_savings_balance", "inputs": {"member_id": 10003}}),
+        encoding="utf-8-sig",
+    )
+    code, out, _ = run(["catalog", "invoke", "--request", str(path)], capsys)
+    # Read, then refused for the number it holds — not for the mark in front.
+    assert code == 1
+    assert json.loads(out)["code"] == "INPUT_INVALID"
 
 
 def test_a_wrongly_typed_call_fails_input_invalid_with_no_browser(

@@ -1,6 +1,6 @@
 {
-  "id": "req_01M2W12WQVHV0TQ29T26XWWD9Z",
-  "run_id": "run_01M2W12HJ75SBQA9FP36BK04PJ",
+  "id": "req_01M2XZCXWCJ1F2SA0MW5HGE68Y",
+  "run_id": "run_01M2XZCFM3D3GG7GGPN3R41FHW",
   "kind": "replay",
   "capability": "open_subaccount",
   "capability_version": 3,
@@ -52,11 +52,11 @@
     }
   ],
   "attempt": 1,
-  "cdp_url": "http://127.0.0.1:55793",
-  "target_id": "89476E64EB858FA99610019C1372324D",
+  "cdp_url": "http://127.0.0.1:61405",
+  "target_id": "A68F96C417CDEB10868DF2A5DD2D6653",
   "page_url": "http://127.0.0.1:8000/",
-  "devtools_url": "http://127.0.0.1:55793/devtools/inspector.html?ws=127.0.0.1:55793/devtools/page/89476E64EB858FA99610019C1372324D",
-  "operator_url": "http://127.0.0.1:63276/requests/req_01M2W12WQVHV0TQ29T26XWWD9Z",
-  "created_at": "2026-09-19T05:09:06.427Z",
-  "expires_at": "2026-09-19T05:39:06.427Z"
+  "devtools_url": "http://127.0.0.1:61405/devtools/inspector.html?ws=127.0.0.1:61405/devtools/page/A68F96C417CDEB10868DF2A5DD2D6653",
+  "operator_url": "http://127.0.0.1:64104/requests/req_01M2XZCXWCJ1F2SA0MW5HGE68Y",
+  "created_at": "2026-09-19T23:18:06.988Z",
+  "expires_at": "2026-09-19T23:48:06.988Z"
 }

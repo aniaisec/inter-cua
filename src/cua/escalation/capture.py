@@ -7,7 +7,7 @@ installed in each document, every click, change and Enter/Tab/Escape. Each one
 becomes a line of ``human_actions.jsonl`` in the run directory, tagged with the
 request it happened under.
 
-Two deliberate limits:
+Three deliberate limits:
 
 * **Recorded, not policy-checked.** The person is outside the allowlist by
   design: they are the escalation path for exactly the situations the policy
@@ -16,6 +16,12 @@ Two deliberate limits:
 * **No typed values.** A change is recorded as which control and how many
   characters, never what was typed. The console holds no redactor for the
   tenant's secrets, and a person fixing a sign-on types a password.
+* **Only what the person did.** A ``change`` event fires when a field loses
+  focus, which is the person's first click anywhere — and the value it carries
+  may be one the automation typed before it handed over. A field is credited
+  to the person only once they have edited it themselves while holding the
+  controls. An audit trail that says someone typed something they did not is
+  worse than one that says nothing.
 
 Playwright's sync API is bound to the thread that started it, so each capture
 runs a connection of its own on a thread of its own, and pumps that
@@ -70,11 +76,18 @@ _LISTENER = """
   };
   const control = (el) =>
     (el && el.closest && el.closest("a,button,input,select,textarea,[onclick]")) || el;
+  // Fields this person has edited since the listener was installed. A change
+  // event on any other field is a value that was already there when they took
+  // control - the automation's - surfacing now only because the field lost
+  // focus.
+  const edited = new WeakSet();
+  document.addEventListener("input", (e) => { if (e.target) edited.add(e.target); }, true);
   document.addEventListener("click", (e) => {
     send({ action: "click", target: describe(control(e.target)), x: e.clientX, y: e.clientY });
   }, true);
   document.addEventListener("change", (e) => {
     const el = e.target;
+    if (!edited.has(el)) return;
     const tag = el && el.tagName ? el.tagName.toLowerCase() : "";
     send({ action: tag === "select" ? "select" : "type", target: describe(el),
            chars: (el && el.value ? String(el.value).length : 0) });

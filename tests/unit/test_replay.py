@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from cua.artifact.schema import Capability
-from cua.artifact.store import load
+from cua.artifact.store import load, save, with_changes
 from cua.evidence.logger import RunLog
 from cua.policy.allowlist import load_policy
 from cua.policy.tokens import Approval
@@ -47,6 +47,7 @@ from cua.replay.result import (
     to_json,
 )
 from cua.replay.resume import find_resume_point
+from cua.replay.runner import replay
 from cua.secrets.resolver import Credential
 from cua.surface.conditions import LocationMatches, TextPresent
 from cua.surface.evaluators import WebEvaluator
@@ -249,6 +250,34 @@ def test_the_logged_request_never_carries_the_token() -> None:
     logged = json.dumps(request_summary(invocation, cap))
     assert "s3cret-token" not in logged
     assert '"approved_by": "ops"' in logged
+
+
+def test_a_surface_this_build_cannot_drive_is_refused_before_a_browser(tmp_path: Path) -> None:
+    """A capability names the kind of surface it drives, and only a build with
+    an adapter for it may run it. Handing a desktop capability to the browser
+    adapter would act on whatever the browser happened to be showing."""
+    cap = goal1()
+    target = cap.target.model_dump(mode="json")
+    target["surface"] = "desktop"
+    path = tmp_path / "desktop.json"
+    saved = save(with_changes(cap, target=target), path)
+    assert saved.approval_state == "approved"  # approved, and still refused here
+
+    def no_browser():
+        raise AssertionError("a browser was started")
+
+    result = replay(
+        path,
+        tenant=TENANT,
+        policy=POLICY,
+        invocation=Invocation(inputs={"member_id": "10003"}),
+        runs_dir=tmp_path / "runs",
+        surface=no_browser,
+    )
+    assert isinstance(result, Failure)
+    assert result.code == "POLICY_BLOCKED"
+    assert "desktop" in result.message
+    assert not (tmp_path / "runs").exists()
 
 
 def test_budget_rejects_nonsense() -> None:

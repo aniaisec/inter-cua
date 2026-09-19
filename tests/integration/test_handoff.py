@@ -30,7 +30,7 @@ import pytest
 import uvicorn
 from playwright.sync_api import Page, sync_playwright
 
-from cua.escalation.capture import find_page
+from cua.escalation.capture import CaptureSession, find_page
 from cua.escalation.channel import HandoffSettings
 from cua.escalation.controller import ControlStore
 from cua.escalation.operator_app import create_app
@@ -306,6 +306,9 @@ def test_row16_the_person_finishes_and_resume_carries_on_from_cp_done(
     actions = h.human_actions(result)
     assert any(a.get("action") == "click" and a["target"]["name"] == "Find" for a in actions)
     assert not any("10003" in json.dumps(a.get("target", {})) for a in actions)  # no values
+    # The member id was typed by the automation before the handoff. The field
+    # loses focus under the person's click, which is not the person typing it.
+    assert not [a for a in actions if a.get("action") == "type"]
     assert h.transitions(result)[-1] == ("RESUMING", "AUTOMATION")
     again = resume(first.resume_token, runs_dir=h.runs, surface=same_page, environ=ENV)
     assert isinstance(again, Success) and again.cached  # the answer, not a second run
@@ -329,6 +332,39 @@ def test_the_waiting_replay_carries_on_in_process_when_the_person_hands_back(
         ("HUMAN_IN_CONTROL", "RESUMING"),
         ("RESUMING", "AUTOMATION"),
     ]
+
+
+# -- what the capture credits to the person --------------------------------------------
+
+
+def test_the_capture_records_what_the_person_edits_and_nothing_they_inherited(
+    h: HandoffHarness,
+) -> None:
+    """A ``change`` event fires when a field loses focus, and reports whatever
+    the field holds — including a value the automation typed before anyone
+    took control. Only a field the person edits themselves is theirs."""
+    page = h.page
+    page.goto(f"{h.base_url}/login")
+    page.get_by_role("textbox").first.fill("operator")  # the automation, before the handoff
+
+    records: list[dict[str, Any]] = []
+    session = CaptureSession(cdp_url=h.cdp_url, target_id=None, sink=records.append)
+    session.start()
+    try:
+        password = page.locator("input[type=password]")
+        password.click()  # the User ID field loses focus here
+        password.fill("wrong-pw")  # the person's own typing
+        page.keyboard.press("Tab")  # and now the password field loses focus
+        page.wait_for_timeout(300)
+    finally:
+        session.stop()
+
+    typed = [r for r in records if r["action"] == "type"]
+    assert len(typed) == 1, records
+    assert typed[0]["target"]["near_text"] == "Password"
+    assert typed[0]["chars"] == len("wrong-pw")  # how much, never what
+    assert "wrong-pw" not in json.dumps(records)
+    assert [r["action"] for r in records if r["action"] in ("click", "press")] == ["click", "press"]
 
 
 # -- row 14: no token, the person approves ---------------------------------------------

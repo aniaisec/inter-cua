@@ -1,4 +1,4 @@
-cua replay capabilities/member_savings_balance.json --input member_id=10003 --inject renamed_button --handoff --handoff-wait 0 --runs-dir evidence/runs/_build --operator-url http://127.0.0.1:63276
+cua replay capabilities/member_savings_balance.json --input member_id=10003 --inject renamed_button --handoff --handoff-wait 0 --runs-dir evidence/runs/_build --operator-url http://127.0.0.1:64104
   -> exit 3, stdout in cli-replay.json
-cua resume rsm_jrWbzdKE1eFV_pW303wMPU-UQb8c_Zwo --runs-dir evidence/runs/_build
+cua resume rsm_R3kfePppZxUQhZFfM1ahmgKKfyF_qBcP --runs-dir evidence/runs/_build
   -> exit 0, stdout in cli-resume.json

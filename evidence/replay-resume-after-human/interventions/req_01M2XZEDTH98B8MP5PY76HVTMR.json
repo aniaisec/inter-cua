@@ -1,6 +1,6 @@
 {
-  "id": "req_01M2W14572TK0FFWM6HFSG9M7P",
-  "run_id": "run_01M2W13W4YA30HCNJRBXGYSY64",
+  "id": "req_01M2XZEDTH98B8MP5PY76HVTMR",
+  "run_id": "run_01M2XZE4QDSTF5YR4Q0A2F6C6Y",
   "kind": "replay",
   "capability": "member_savings_balance",
   "capability_version": 3,
@@ -37,11 +37,11 @@
     }
   ],
   "attempt": 1,
-  "cdp_url": "http://127.0.0.1:59047",
-  "target_id": "12265E2D4AB1EB51CA49CD0181C2E958",
+  "cdp_url": "http://127.0.0.1:53623",
+  "target_id": "BF3026A336F2236204B9D504EB6016B3",
   "page_url": "http://127.0.0.1:8000/",
-  "devtools_url": "http://127.0.0.1:59047/devtools/inspector.html?ws=127.0.0.1:59047/devtools/page/12265E2D4AB1EB51CA49CD0181C2E958",
-  "operator_url": "http://127.0.0.1:63276/requests/req_01M2W14572TK0FFWM6HFSG9M7P",
-  "created_at": "2026-09-19T05:09:47.874Z",
-  "expires_at": "2026-09-19T05:39:47.874Z"
+  "devtools_url": "http://127.0.0.1:53623/devtools/inspector.html?ws=127.0.0.1:53623/devtools/page/BF3026A336F2236204B9D504EB6016B3",
+  "operator_url": "http://127.0.0.1:64104/requests/req_01M2XZEDTH98B8MP5PY76HVTMR",
+  "created_at": "2026-09-19T23:18:56.081Z",
+  "expires_at": "2026-09-19T23:48:56.081Z"
 }

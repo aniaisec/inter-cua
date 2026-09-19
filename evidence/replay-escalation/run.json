@@ -1,7 +1,7 @@
 {
-  "run_id": "run_01M2W130N9ASJXYN8SP1SWEH4P",
+  "run_id": "run_01M2XZD3CJ54KWZ8TVEX3W5CQ8",
   "kind": "replay",
-  "started_at": "2026-09-19T05:09:10.442Z",
+  "started_at": "2026-09-19T23:18:12.628Z",
   "capability": {
     "id": "cap_01M2TMXZ2QK22AEHTVPG6FENDY",
     "name": "open_subaccount",
@@ -23,7 +23,7 @@
     "idempotency_key": null,
     "approval": {
       "approved_by": null,
-      "token_sha256": "b5e57f8842a5"
+      "token_sha256": "c0274cb49235"
     },
     "budget": {
       "timeout_s": 120.0,
@@ -36,7 +36,7 @@
   "handoff": {
     "wait_s": 120.0,
     "ttl_s": 1800.0,
-    "operator_url": "http://127.0.0.1:63276",
+    "operator_url": "http://127.0.0.1:64104",
     "poll_s": 0.25,
     "announce": true
   }

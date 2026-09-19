@@ -1,9 +1,9 @@
 {
-  "run_id": "run_01M2W11WPG0VY7Q8R8WXZVPA2S",
+  "run_id": "run_01M2XZBD7D2YZ4KECKBH4QR7HT",
   "capability": "member_savings_balance",
   "capability_version": 3,
   "idempotency_key": null,
-  "duration_ms": 3332,
+  "duration_ms": 5294,
   "locator_rungs_used": {
     "login.username": "near_text",
     "login.password": "near_text",
@@ -15,7 +15,7 @@
   "handoffs": [],
   "warnings": [],
   "evidence": {
-    "run_dir": "evidence/runs/_build/run_01M2W11WPG0VY7Q8R8WXZVPA2S",
+    "run_dir": "evidence/runs/_build/run_01M2XZBD7D2YZ4KECKBH4QR7HT",
     "screenshots": [
       "screenshots/0001.png",
       "screenshots/0002.png",

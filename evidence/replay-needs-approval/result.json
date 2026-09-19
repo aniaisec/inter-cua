@@ -1,9 +1,9 @@
 {
-  "run_id": "run_01M2W12HJ75SBQA9FP36BK04PJ",
+  "run_id": "run_01M2XZCFM3D3GG7GGPN3R41FHW",
   "capability": "open_subaccount",
   "capability_version": 3,
   "idempotency_key": null,
-  "duration_ms": 11869,
+  "duration_ms": 16458,
   "locator_rungs_used": {
     "login.username": "near_text",
     "login.password": "near_text",
@@ -19,7 +19,7 @@
   "recoveries": [],
   "handoffs": [
     {
-      "request_id": "req_01M2W12WQVHV0TQ29T26XWWD9Z",
+      "request_id": "req_01M2XZCXWCJ1F2SA0MW5HGE68Y",
       "reason": "NEEDS_APPROVAL",
       "step_id": "review.submit",
       "decision": "approve",
@@ -31,7 +31,7 @@
   ],
   "warnings": [],
   "evidence": {
-    "run_dir": "evidence/runs/_build/run_01M2W12HJ75SBQA9FP36BK04PJ",
+    "run_dir": "evidence/runs/_build/run_01M2XZCFM3D3GG7GGPN3R41FHW",
     "screenshots": [
       "screenshots/0001.png",
       "screenshots/0002.png",
@@ -46,7 +46,7 @@
       "screenshots/0011.png"
     ],
     "trace": null,
-    "intervention": "interventions/req_01M2W12WQVHV0TQ29T26XWWD9Z.json"
+    "intervention": "interventions/req_01M2XZCXWCJ1F2SA0MW5HGE68Y.json"
   },
   "cached": false,
   "kind": "success",

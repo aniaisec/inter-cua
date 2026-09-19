@@ -1,9 +1,9 @@
 {
-  "run_id": "run_01M2W1254X0W79MBG36ZSWQJZH",
+  "run_id": "run_01M2XZBVNNW2EN689TZDC07099",
   "capability": "open_subaccount",
   "capability_version": 3,
   "idempotency_key": null,
-  "duration_ms": 11251,
+  "duration_ms": 18039,
   "locator_rungs_used": {
     "login.username": "near_text",
     "login.password": "near_text",
@@ -19,7 +19,7 @@
   "handoffs": [],
   "warnings": [],
   "evidence": {
-    "run_dir": "evidence/runs/_build/run_01M2W1254X0W79MBG36ZSWQJZH",
+    "run_dir": "evidence/runs/_build/run_01M2XZBVNNW2EN689TZDC07099",
     "screenshots": [
       "screenshots/0001.png",
       "screenshots/0002.png",

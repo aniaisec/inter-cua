@@ -31,10 +31,10 @@
     "index": 4,
     "attempt": 1,
     "ticket": {
-      "request_id": "req_01M2W14572TK0FFWM6HFSG9M7P",
-      "resume_token": "rsm_jrWbzdKE1eFV_pW303wMPU-UQb8c_Zwo",
-      "operator_url": "http://127.0.0.1:63276/requests/req_01M2W14572TK0FFWM6HFSG9M7P",
-      "intervention": "interventions/req_01M2W14572TK0FFWM6HFSG9M7P.json"
+      "request_id": "req_01M2XZEDTH98B8MP5PY76HVTMR",
+      "resume_token": "rsm_R3kfePppZxUQhZFfM1ahmgKKfyF_qBcP",
+      "operator_url": "http://127.0.0.1:64104/requests/req_01M2XZEDTH98B8MP5PY76HVTMR",
+      "intervention": "interventions/req_01M2XZEDTH98B8MP5PY76HVTMR.json"
     },
     "committed_through": null,
     "in_flight": null,
@@ -111,7 +111,7 @@
         }
       ]
     ],
-    "used_s": 8.165920899977209
+    "used_s": 8.015511100005824
   },
   "capability_path": "capabilities/member_savings_balance.json",
   "content_sha256": "cb63dcb3e726211deaef0ab4b5562937e7104a1756069f8d160936f1e9d8d3de",
@@ -208,14 +208,14 @@
   "handoff": {
     "wait_s": 0.0,
     "ttl_s": 1800.0,
-    "operator_url": "http://127.0.0.1:63276",
+    "operator_url": "http://127.0.0.1:64104",
     "poll_s": 0.25,
     "announce": true
   },
   "session": {
-    "cdp_url": "http://127.0.0.1:59047",
-    "target_id": "12265E2D4AB1EB51CA49CD0181C2E958",
-    "pid": 30532,
+    "cdp_url": "http://127.0.0.1:53623",
+    "target_id": "BF3026A336F2236204B9D504EB6016B3",
+    "pid": 37608,
     "profile": "<temp profile>"
   }
 }

@@ -389,8 +389,9 @@ AUTOMATION -> PAUSED -> HUMAN_IN_CONTROL -> RESUMING -> AUTOMATION
 ```
 
 While a person holds the controls the console attaches to the same browser
-over CDP and records clicks, changes (which control and how many characters,
-never the value), key presses and navigations in `human_actions.jsonl`. When
+over CDP and records clicks, the fields they edit themselves (which control
+and how many characters, never the value), key presses and navigations in
+`human_actions.jsonl`. When
 they hand back, the run tests its checkpoints newest first and carries on
 after the newest that holds. A caller is never blocked on a person:
 `--handoff-wait 0`, or nobody answering in time, returns `escalated` with a

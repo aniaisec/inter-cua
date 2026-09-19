@@ -1,9 +1,9 @@
 {
-  "run_id": "run_01M2W13W4YA30HCNJRBXGYSY64",
+  "run_id": "run_01M2XZE4QDSTF5YR4Q0A2F6C6Y",
   "capability": "member_savings_balance",
   "capability_version": 3,
   "idempotency_key": null,
-  "duration_ms": 10444,
+  "duration_ms": 10347,
   "locator_rungs_used": {
     "login.username": "near_text",
     "login.password": "near_text",
@@ -15,19 +15,19 @@
   "recoveries": [],
   "handoffs": [
     {
-      "request_id": "req_01M2W14572TK0FFWM6HFSG9M7P",
+      "request_id": "req_01M2XZEDTH98B8MP5PY76HVTMR",
       "reason": "STUCK",
       "step_id": "search.submit",
       "decision": "hand_back",
       "decided_by": "evidence-bot",
-      "human_actions_count": 3,
+      "human_actions_count": 2,
       "resumed_at": "done",
       "resumed_after_checkpoint": "cp.done"
     }
   ],
   "warnings": [],
   "evidence": {
-    "run_dir": "evidence/runs/_build/run_01M2W13W4YA30HCNJRBXGYSY64",
+    "run_dir": "evidence/runs/_build/run_01M2XZE4QDSTF5YR4Q0A2F6C6Y",
     "screenshots": [
       "screenshots/0001.png",
       "screenshots/0002.png",
@@ -37,7 +37,7 @@
       "screenshots/0006.png"
     ],
     "trace": null,
-    "intervention": "interventions/req_01M2W14572TK0FFWM6HFSG9M7P.json"
+    "intervention": "interventions/req_01M2XZEDTH98B8MP5PY76HVTMR.json"
   },
   "cached": false,
   "kind": "success",

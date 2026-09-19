@@ -1,12 +1,12 @@
 {
-  "run_id": "run_01M2W13W4YA30HCNJRBXGYSY64",
+  "run_id": "run_01M2XZE4QDSTF5YR4Q0A2F6C6Y",
   "state": "AUTOMATION",
   "lease": {
     "holder": "automation",
-    "since": "2026-09-19T05:09:49.577Z",
-    "request_id": "req_01M2W14572TK0FFWM6HFSG9M7P"
+    "since": "2026-09-19T23:18:58.171Z",
+    "request_id": "req_01M2XZEDTH98B8MP5PY76HVTMR"
   },
-  "request_id": "req_01M2W14572TK0FFWM6HFSG9M7P",
+  "request_id": "req_01M2XZEDTH98B8MP5PY76HVTMR",
   "decision": {
     "kind": "hand_back",
     "by": "evidence-bot",

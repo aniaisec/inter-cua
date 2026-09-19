@@ -1,5 +1,5 @@
 {
- "observed_at": "2026-09-19T05:08:43.220664Z",
+ "observed_at": "2026-09-19T23:17:33.299553Z",
  "location": "http://127.0.0.1:8000/login?inject=slow_confirm",
  "title": "MockCore 1.0 - Sign On",
  "viewport": {

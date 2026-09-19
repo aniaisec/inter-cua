@@ -1,7 +1,7 @@
 {
-  "run_id": "run_01M2W13W4YA30HCNJRBXGYSY64",
+  "run_id": "run_01M2XZE4QDSTF5YR4Q0A2F6C6Y",
   "kind": "replay",
-  "started_at": "2026-09-19T05:09:38.591Z",
+  "started_at": "2026-09-19T23:18:46.767Z",
   "capability": {
     "id": "cap_01M2TEFQZ16QEA602CSCCY8GJX",
     "name": "member_savings_balance",
@@ -32,7 +32,7 @@
   "handoff": {
     "wait_s": 0.0,
     "ttl_s": 1800.0,
-    "operator_url": "http://127.0.0.1:63276",
+    "operator_url": "http://127.0.0.1:64104",
     "poll_s": 0.25,
     "announce": true
   }
