@@ -13,6 +13,8 @@ from typing import Any
 from cua.benchmark.aggregation import aggregate
 from cua.benchmark.models import RunMetrics, Suite
 from cua.benchmark.storage import SessionInfo
+from cua.observability.metrics import BUCKETS, run_metrics
+from cua.observability.recorder import is_run_dir, read_run
 
 STRATEGY_LABEL = {
     "baseline_llm": "Repeated LLM (baseline)",
@@ -31,15 +33,42 @@ def build(
         s.model_dump(mode="json") for s in sessions if s.session_id in wanted
     ]
     summary["scripted"] = any(s.llm == "scripted" for s in sessions if s.session_id in wanted)
+    summary["time"] = time_breakdown(rows)
     return summary
+
+
+def time_breakdown(rows: list[RunMetrics]) -> dict[str, Any]:
+    """Mean seconds per run spent in each part of a run (see
+    ``cua.observability.metrics``), by strategy, read from the run directories
+    still on disk. Run directories are not committed, so a report rebuilt from
+    ``runs.jsonl`` alone has no breakdown; everything else is unchanged."""
+    out: dict[str, Any] = {}
+    for strategy in dict.fromkeys(r.strategy for r in rows):
+        totals: dict[str, float] = {}
+        read = 0
+        for r in rows:
+            if r.strategy != strategy or r.cached or not r.run_dir:
+                continue
+            path = Path(r.run_dir)
+            if not is_run_dir(path):
+                continue
+            for bucket, seconds in run_metrics(read_run(path)).time.items():
+                totals[bucket] = totals.get(bucket, 0.0) + seconds
+            read += 1
+        if read:
+            out[strategy] = {
+                "runs": read,
+                "mean_s": {b: round(totals.get(b, 0.0) / read, 3) for b in BUCKETS},
+            }
+    return out
 
 
 def write(summary: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     js = out_dir / "summary.json"
     md = out_dir / "summary.md"
-    js.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-    md.write_text(markdown(summary), encoding="utf-8")
+    js.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8", newline="\n")
+    md.write_text(markdown(summary), encoding="utf-8", newline="\n")
     return js, md
 
 
@@ -118,6 +147,26 @@ def markdown(summary: dict[str, Any]) -> str:
                 f"| {t['tag']} | {STRATEGY_LABEL.get(t['strategy'], t['strategy'])} | "
                 f"{t['runs']} | {_pct(t['success_rate'])} | {_pct(t['safe_stop_rate'])} | "
                 f"{_pct(t['wrong_rate'])} |"
+            )
+        lines.append("")
+    if summary.get("time"):
+        lines += [
+            "## Where the time goes",
+            "",
+            "Mean seconds per run, split so that the parts add up to the run's wall clock "
+            "(`cua metrics run <run_id>` shows one run). *evidence* is the observation and "
+            "screenshot stored after each step; *verify* waits for the page to settle and "
+            "the checkpoint to hold.",
+            "",
+            "| Strategy | Runs read | " + " | ".join(BUCKETS) + " | Total |",
+            "|---|---:|" + "---:|" * (len(BUCKETS) + 1),
+        ]
+        for name, t in summary["time"].items():
+            means = t["mean_s"]
+            lines.append(
+                f"| {STRATEGY_LABEL.get(name, name)} | {t['runs']} | "
+                + " | ".join(f"{means[b]:.2f}" for b in BUCKETS)
+                + f" | {sum(means.values()):.2f} |"
             )
         lines.append("")
     lines += [

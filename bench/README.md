@@ -101,5 +101,10 @@ model calls and tokens per run, cost per run and per success, success after
 When all three strategies are priced, it adds a model-cost break-even:
 discovery ÷ (baseline per run − replay per run).
 
+When the run directories are still on disk (`bench/runs/`, not committed), the
+report adds *where the time goes*: each strategy's mean seconds per run in model
+waits, acting, locating, settle-and-verify, per-step evidence and startup,
+adding up to the wall clock. `cua metrics run <run_id>` explains one run.
+
 Costs are estimates from `pricing.yaml`, not billing data. A model with no
 entry is reported as unpriced, never as free.

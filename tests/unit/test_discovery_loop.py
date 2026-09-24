@@ -217,6 +217,7 @@ def test_every_decision_is_logged_with_its_reason_and_every_model_call_with_its_
     assert all(d["reason"] for d in decisions)
     calls = [json.loads(line) for line in (log.dir / "model_calls.jsonl").read_text().splitlines()]
     assert [c["response_id"] for c in calls] == [f"scripted_{i:04d}" for i in range(1, 7)]
+    assert all(isinstance(c["ms"], int) and c["ms"] >= 0 for c in calls)
     run_json = json.loads((log.dir / "run.json").read_text())
     assert run_json["recording_env"] == {"viewport": {"w": 1280, "h": 800}, "dpr": 1.0}
     assert (log.dir / "screenshots" / "0000.png").exists()

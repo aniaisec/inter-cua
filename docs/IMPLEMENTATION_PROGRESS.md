@@ -86,3 +86,41 @@ Status: COMPLETE
 
 ### Next
 - Phase 2: observability and cost accounting. Replay's own latency (about 1 s per step in checkpoint and settle waits) is the first thing worth explaining.
+
+## Phase 2 — Observability and cost accounting
+
+Status: COMPLETE
+
+### Changes
+- `src/cua/observability/`: `events.py` (the canonical vocabulary: `run.*`, `step.*`, `llm.*`, `locator.*`, `recovery.*`, `policy.*`, `human.*`, `side_effect.*`), `correlation.py` (run, invocation, tenant, capability id/version from `run.json`), `recorder.py` (every run file read into canonical events, with the mapping from each legacy log name in one table), `metrics.py` (one run explained, with a time breakdown that adds up to the wall clock), `health.py` (per-capability, per-version health), `cost.py` (the price table and usage normalisation, moved from the benchmark so both share them), `cli.py`.
+- `cua metrics run <run_id|dir> [--json|--events]`, `cua metrics capability <name> [--version N]`, `cua metrics report [--out DIR]`.
+- `cua benchmark report` adds "Where the time goes" per strategy when the run directories are on disk; `bench/reports/summary.*` regenerated for the live session with it.
+- The discovery loop now times each model call (`ms` in `model_calls.jsonl`). Older runs get an inferred duration, flagged as such.
+
+### Decisions
+- Canonical events are derived from the run directory, not written beside the log. The log stays the one record: old evidence reads exactly like new, and there is no second writer to drift from the first. Each event names its source file and line (`source`, `source_seq`), and anything inferred rather than read is marked `derived` with its basis.
+- `invocation_id` is `idem:<key>` when the request carried an idempotency key, else the run id: a retried request is one invocation across its runs.
+- Events carry only the fields a question needs: no typed text, no observation trees, no URL query strings (a test plants sentinels to check).
+- A business outcome (NOT_FOUND, PERMISSION_DENIED) is `run.completed`: the capability worked.
+- Health leaves out runs with an injected fault (they measure the fault) and runs refused for want of an approval (the policy protecting the caller). Both are counted beside the rates, not hidden.
+- Cost is priced per call; a model with no price is *unpriced*, never free. Every figure is labelled an estimate.
+
+### Tests
+- `tests/unit/test_observability.py`: every committed evidence run reads into valid, correlated, ordered events whose time breakdown sums to the wall clock; a clean replay, a live discovery (tokens and cost match `model_calls.jsonl` and the price table), a handoff (human wait, actions, commit); built run dirs for drift, locator failure, recovery, a torn line, measured vs inferred model waits, unpriced and scripted models, no leaked values; health rates and exclusions; the CLI.
+- The purity test now also holds `cua.observability` to "imports no model client".
+
+### Results
+- All 520 run directories on this machine (evidence/ and bench/runs/) read without error; the time breakdown sums to the wall clock for every one; `cua metrics report` over them takes about 5 s.
+- Where replay's time goes (live session, 43 runs, mean 11.05 s): verify 3.85 s, evidence 3.19 s, locate 2.59 s, startup 0.59 s, act 0.32 s, recovery 0.23 s. Storing the per-step observation and screenshot is ~29% of a replay; the browser actions themselves ~3%.
+- Baseline (45 runs, 25.07 s): model waits 21.24 s (85%).
+- Two old discovery runs used gemini-3.6/3.7-flash, which have no price entry; they are reported unpriced.
+
+### Known issues
+- For discovery, the `verify` bucket is the loop settling and observing the page after an action (the same work as replay's verify, without a checkpoint).
+- `recovery.retry` has no end event of its own; its span ends when the step passes or fails.
+
+### Commit
+- `feat: add run observability and cost metrics`.
+
+### Next
+- Phase 3: capability registry. Replay's evidence snapshot and locate time are the obvious latency targets.

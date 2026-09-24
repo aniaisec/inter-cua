@@ -30,34 +30,14 @@ from cua.artifact.schema import Capability
 from cua.benchmark.environment import BenchEnv
 from cua.benchmark.metrics import Commits, event_counts, outputs_match
 from cua.benchmark.models import BenchmarkTask, Match, RunMetrics, Strategy
-from cua.benchmark.pricing import PriceTable
 from cua.evidence.logger import RunLog, utc_now
+from cua.observability.cost import PriceTable, normalize_usage
 from cua.secrets.resolver import resolve
 from cua.surface.playwright_surface import PlaywrightSurface
 
 LLMFactory = Callable[[BenchmarkTask], LLMClient]
 MAX_STEPS = 30
 TIMEOUT_S = 300.0
-
-
-def normalize_usage(provider: str, usage: dict[str, int]) -> dict[str, int]:
-    """One shape for both providers. ``input`` is every prompt token.
-
-    Gemini's prompt count already includes cached tokens; Claude's
-    ``input_tokens`` excludes the ones read from or written to the cache,
-    which are reported beside it."""
-    read = usage.get("cache_read_input_tokens", 0)
-    write = usage.get("cache_creation_input_tokens", 0)
-    prompt = usage.get("input_tokens", 0)
-    if provider == "anthropic":
-        prompt += read + write
-    return {
-        "input": prompt,
-        "output": usage.get("output_tokens", 0),
-        "thinking": usage.get("thinking_tokens", 0),
-        "cache_read": read,
-        "cache_write": write,
-    }
 
 
 @dataclass

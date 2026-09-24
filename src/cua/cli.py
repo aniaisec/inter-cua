@@ -38,6 +38,10 @@ def _build_parser() -> argparse.ArgumentParser:
     from cua.benchmark.cli import add_parser as _add_benchmark
 
     _add_benchmark(sub)
+
+    from cua.observability.cli import add_parser as _add_metrics
+
+    _add_metrics(sub)
     return parser
 
 
@@ -367,6 +371,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         from cua.benchmark.cli import main as benchmark
 
         return benchmark(args)
+    if args.command == "metrics":
+        from cua.observability.cli import main as metrics
+
+        return metrics(args)
     if args.command == "catalog":
         if args.catalog_command == "invoke":
             load_dotenv(Path(".env"))

@@ -26,7 +26,6 @@ from cua.artifact.store import load, save
 from cua.benchmark.baseline_runner import run_baseline
 from cua.benchmark.environment import BenchEnv, bench_env, mockapp
 from cua.benchmark.models import BenchmarkTask, RunMetrics, Strategy
-from cua.benchmark.pricing import PRICING_PATH, PriceTable
 from cua.benchmark.replay_runner import consent, run_replay
 from cua.benchmark.storage import (
     REPORTS_DIR,
@@ -35,6 +34,7 @@ from cua.benchmark.storage import (
     append_session,
 )
 from cua.evidence.logger import new_run_id, utc_now
+from cua.observability.cost import PRICING_PATH, PriceTable
 
 BENCH_RUNS = Path("bench/runs")
 Progress = Callable[[RunMetrics], None]

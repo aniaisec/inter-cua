@@ -17,10 +17,9 @@ import pytest
 from cua.agent.llm import Decision, DecisionRequest, Provider
 from cua.agent.loop import DiscoveryOutcome
 from cua.benchmark.aggregation import aggregate, percentile, stats, wilson
-from cua.benchmark.baseline_runner import TimedClient, normalize_usage, score_baseline
+from cua.benchmark.baseline_runner import TimedClient, score_baseline
 from cua.benchmark.metrics import Commits, outputs_match, score_replay
 from cua.benchmark.models import BenchmarkTask, RunMetrics, Suite, Truth
-from cua.benchmark.pricing import ModelPrice, PriceTable, load_prices
 from cua.benchmark.registry import SuiteError, load_suite, select
 from cua.benchmark.report import markdown
 from cua.benchmark.storage import (
@@ -30,6 +29,7 @@ from cua.benchmark.storage import (
     read_runs,
     read_sessions,
 )
+from cua.observability.cost import ModelPrice, PriceTable, load_prices, normalize_usage
 from cua.replay.result import BusinessOutcome, Failure, Success
 from tests.conftest import REPO_ROOT
 
@@ -390,10 +390,12 @@ def test_runs_and_sessions_round_trip_and_the_last_session_record_wins(tmp_path:
 def test_the_replay_strategy_cannot_reach_a_model() -> None:
     """The benchmark's replay side is held to replay's own rule: nothing it
     imports can load a model client or the agent. The CLI parser, which every
-    `cua replay` builds, is held to it too."""
+    `cua replay` builds, is held to it too, and so is observability, which
+    explains replays."""
     code = (
         "import sys\n"
         "import cua.benchmark.replay_runner, cua.benchmark.metrics, cua.benchmark.report\n"
+        "import cua.observability.cli, cua.observability.health\n"
         "import cua.cli; cua.cli._build_parser()\n"
         "bad = [m for m in sys.modules if m == 'anthropic' or m.startswith(('anthropic.',"
         " 'google.genai', 'cua.agent'))]\n"

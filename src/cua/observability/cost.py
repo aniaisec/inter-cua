@@ -5,11 +5,13 @@ code would be wrong silently. ``bench/pricing.yaml`` holds them, each with the
 source it was read from and when. A model with no entry is reported as
 unpriced (``None``), never as free.
 
-Every figure here is an estimate for comparing strategies, not billing data.
+Every figure here is an estimate, for explaining a run and comparing
+strategies. It is never billing data: the provider's invoice is.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from decimal import Decimal
 from pathlib import Path
 
@@ -63,8 +65,8 @@ class PriceTable(BaseModel):
         cache_write_tokens: int = 0,
     ) -> Decimal | None:
         """``input_tokens`` is every prompt token, cached or not (see
-        ``cua.benchmark.baseline_runner.normalize_usage``); the cached and
-        cache-written ones are charged at their own rates when there are any."""
+        ``normalize_usage``); the cached and cache-written ones are charged
+        at their own rates when there are any."""
         if provider == "scripted":
             return Decimal(0)
         price = self.price(provider, model)
@@ -79,6 +81,45 @@ class PriceTable(BaseModel):
             + Decimal(output_tokens + thinking_tokens) * price.output
         ) / MTOK
         return total.quantize(Decimal("0.000001"))
+
+    def cost_of(self, provider: str | None, model: str | None, usage: Usage) -> Decimal | None:
+        return self.cost(
+            provider,
+            model,
+            input_tokens=usage["input"],
+            output_tokens=usage["output"],
+            thinking_tokens=usage["thinking"],
+            cache_read_tokens=usage["cache_read"],
+            cache_write_tokens=usage["cache_write"],
+        )
+
+
+Usage = dict[str, int]
+"""``input`` (every prompt token), ``output``, ``thinking``, ``cache_read``,
+``cache_write``: one shape for every provider."""
+
+USAGE_KEYS = ("input", "output", "thinking", "cache_read", "cache_write")
+
+
+def normalize_usage(provider: str | None, usage: Mapping[str, int]) -> Usage:
+    """A provider's usage block in the one shape. ``input`` is every prompt
+    token.
+
+    Gemini's prompt count already includes cached tokens; Claude's
+    ``input_tokens`` excludes the ones read from or written to the cache,
+    which are reported beside it."""
+    read = usage.get("cache_read_input_tokens", 0)
+    write = usage.get("cache_creation_input_tokens", 0)
+    prompt = usage.get("input_tokens", 0)
+    if provider == "anthropic":
+        prompt += read + write
+    return {
+        "input": prompt,
+        "output": usage.get("output_tokens", 0),
+        "thinking": usage.get("thinking_tokens", 0),
+        "cache_read": read,
+        "cache_write": write,
+    }
 
 
 def load_prices(path: Path = PRICING_PATH) -> PriceTable:

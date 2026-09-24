@@ -2537,5 +2537,49 @@
       "notes": []
     }
   ],
-  "scripted": false
+  "scripted": false,
+  "time": {
+    "baseline_llm": {
+      "runs": 45,
+      "mean_s": {
+        "human": 0.0,
+        "llm": 21.237,
+        "recovery": 0.0,
+        "act": 0.309,
+        "locate": 0.107,
+        "verify": 3.075,
+        "evidence": 0.0,
+        "startup": 0.0,
+        "other": 0.345
+      }
+    },
+    "inter_cua_discovery": {
+      "runs": 2,
+      "mean_s": {
+        "human": 0.0,
+        "llm": 17.345,
+        "recovery": 0.0,
+        "act": 0.341,
+        "locate": 0.139,
+        "verify": 2.865,
+        "evidence": 0.0,
+        "startup": 0.0,
+        "other": 0.268
+      }
+    },
+    "inter_cua_replay": {
+      "runs": 43,
+      "mean_s": {
+        "human": 0.0,
+        "llm": 0.0,
+        "recovery": 0.234,
+        "act": 0.317,
+        "locate": 2.586,
+        "verify": 3.849,
+        "evidence": 3.188,
+        "startup": 0.594,
+        "other": 0.28
+      }
+    }
+  }
 }

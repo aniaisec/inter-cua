@@ -85,8 +85,8 @@ def main(args: argparse.Namespace) -> int:
     if args.benchmark_command == "report":
         return _report(args, suite)
 
-    from cua.benchmark.pricing import load_prices
     from cua.benchmark.runner import Plan, run_session
+    from cua.observability.cost import load_prices
 
     try:
         tasks = select(suite, task_ids=args.task, tags=args.tag)

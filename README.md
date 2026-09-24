@@ -147,6 +147,7 @@ In PowerShell, write `` ` `` instead of `\` at line ends.
 | Replay the committed, approved capabilities | `cua replay capabilities/<name>.json --input ...` | mock app |
 | Regenerate every replay under `evidence/` | `make evidence` | port 8000 free |
 | Benchmark: repeated LLM vs discover-then-replay | `cua benchmark run` then `cua benchmark report --latest` | nothing with the scripted model; a key and money with `--llm` |
+| Explain a run; capability health | `cua metrics run evidence/replay-success`, `cua metrics report` | nothing: reads run directories |
 
 The browser tests start their own mock app on a free port. No test calls a
 model: the discovery tests use the scripted client and recorded fixtures.
@@ -170,6 +171,8 @@ model: the discovery tests use the scripted client and recorded fixtures.
 | `cua catalog invoke <name> --args '<json>' \| --input k=v \| --request <file>` | invoke by name with typed arguments; takes the replay invocation flags | as replay |
 | `cua operator` | the operator console on :8100 | |
 | `cua benchmark list \| run \| report` | run the benchmark suite (`bench/tasks/`) through the repeated-LLM baseline, discovery and replay; aggregate `bench/reports/runs.jsonl` into `summary.md` ([bench/README.md](bench/README.md)) | |
+| `cua metrics run <run_id \| dir> [--json \| --events]` | one run explained: outcome and why, where the time went, model calls, tokens and estimated cost, locators, recoveries, human intervention; `--events` prints its canonical events | |
+| `cua metrics capability <name> [--version N]` \| `cua metrics report [--out DIR]` | health of each approved capability from its replays (success, failure, escalation, human, locator failure, drift, unknown side effect, latency, last success and failure), and model spend | |
 | `cua schema` | regenerate `capabilities/schema/capability-1.1.json` | |
 | `cua mockapp` | the target app on :8000 | |
 
@@ -312,6 +315,8 @@ src/cua/policy/     allowlist and risk, approval gate, approval tokens, redactio
 src/cua/secrets/    secret:// resolver (environment or file, memory only)
 src/cua/escalation/ control lease, state machine, intervention requests, operator console, human-action capture
 src/cua/evidence/   run log, trace, `make evidence` builder
+src/cua/observability/ canonical events read from run directories, run metrics, capability health, cost
+src/cua/benchmark/  repeated-LLM baseline vs discover-then-replay (`bench/`)
 policies/           allowlist, risk rules, masks and scrub patterns
 tenants/            per-deployment binding: base_url, secret refs, overlay
 capabilities/       approved capabilities, the app-family template, the exported JSON Schema
@@ -398,6 +403,27 @@ they hand back, the run tests its checkpoints newest first and carries on
 after the newest that holds. A caller is never blocked on a person:
 `--handoff-wait 0`, or nobody answering in time, returns `escalated` with a
 `resume_token`, and the browser outlives the process for `cua resume`.
+
+### Observability
+
+A run directory is the record: `log.jsonl`, `model_calls.jsonl`,
+`human_actions.jsonl`, `state_transitions.jsonl`, `result.json`.
+`src/cua/observability/` reads those files into one canonical vocabulary
+(`run.*`, `step.*`, `llm.*`, `locator.*`, `recovery.*`, `policy.*`, `human.*`,
+`side_effect.*`), each event carrying `run_id`, `invocation_id` (a request
+retried under one idempotency key is one invocation), tenant, capability id and
+version, and step, and naming the source line it came from. Events are derived,
+never written beside the log, so old evidence reads the same as new and there
+is no second writer to disagree with the first; nothing is carried that a
+question does not need (no typed text, no query strings).
+
+`cua metrics run` splits a run's wall clock into parts that add up to it:
+`human`, `llm`, `recovery`, `act`, `locate`, `verify` (settle and checkpoint),
+`evidence` (the observation and screenshot kept after each step), `startup` and
+`other`. Model cost is priced per call from `bench/pricing.yaml`; an unknown
+model is *unpriced*, never free, and every figure is an estimate, not billing
+data. Capability health leaves out runs with an injected fault and runs refused
+for want of an approval (counted, not rated), and is kept per version.
 
 ## License
 

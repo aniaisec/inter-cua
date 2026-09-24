@@ -39,6 +39,16 @@ Model spend only, from the configured price table; an estimate, not billing.
 | success | inter-cua discovery (once) | 2 | 100.0% | 0.0% | 0.0% |
 | success | inter-cua replay | 6 | 100.0% | 0.0% | 0.0% |
 
+## Where the time goes
+
+Mean seconds per run, split so that the parts add up to the run's wall clock (`cua metrics run <run_id>` shows one run). *evidence* is the observation and screenshot stored after each step; *verify* waits for the page to settle and the checkpoint to hold.
+
+| Strategy | Runs read | human | llm | recovery | act | locate | verify | evidence | startup | other | Total |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Repeated LLM (baseline) | 45 | 0.00 | 21.24 | 0.00 | 0.31 | 0.11 | 3.08 | 0.00 | 0.00 | 0.34 | 25.07 |
+| inter-cua discovery (once) | 2 | 0.00 | 17.34 | 0.00 | 0.34 | 0.14 | 2.87 | 0.00 | 0.00 | 0.27 | 20.96 |
+| inter-cua replay | 43 | 0.00 | 0.00 | 0.23 | 0.32 | 2.59 | 3.85 | 3.19 | 0.59 | 0.28 | 11.05 |
+
 ## By task
 
 | Task | Strategy | Runs | Success | Safe stop | Wrong | Median s | P95 s | LLM calls | Tokens/run | Cost/run | Outcomes |

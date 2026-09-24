@@ -323,6 +323,7 @@ class DiscoveryLoop:
             transcript=list(self.transcript),
             observation=self.screen,
         )
+        started = time.monotonic()
         try:
             decision = self.llm.decide(request)
         except Exception as exc:  # the SDK's error hierarchy is not ours to enumerate
@@ -339,6 +340,7 @@ class DiscoveryLoop:
             model=decision.model,
             stop_reason=decision.stop_reason,
             usage=decision.usage,
+            ms=round((time.monotonic() - started) * 1000),
         )
         return decision
 
