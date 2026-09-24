@@ -34,6 +34,10 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_replay(sub)
     _add_handoff_commands(sub)
     _add_catalog(sub)
+
+    from cua.benchmark.cli import add_parser as _add_benchmark
+
+    _add_benchmark(sub)
     return parser
 
 
@@ -358,6 +362,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "approval-token":
         load_dotenv(Path(".env"))
         return _approval_token(args)
+    if args.command == "benchmark":
+        load_dotenv(Path(".env"))
+        from cua.benchmark.cli import main as benchmark
+
+        return benchmark(args)
     if args.command == "catalog":
         if args.catalog_command == "invoke":
             load_dotenv(Path(".env"))

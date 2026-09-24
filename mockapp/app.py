@@ -441,6 +441,17 @@ async def debug_session(request: Request) -> dict[str, Any]:
     }
 
 
+@app.get("/_debug/stats")
+async def debug_stats() -> dict[str, int]:
+    # Across every session: the benchmark runs each invocation in a fresh
+    # browser (so a fresh session) and needs the app-wide count to see a
+    # commit made twice by two different runs.
+    return {
+        "sessions": len(SESSIONS),
+        "confirms_total": sum(s["confirm_seq"] for s in SESSIONS.values()),
+    }
+
+
 @app.post("/_debug/reset")
 async def debug_reset(request: Request) -> dict[str, str]:
     session = _session(request)

@@ -1,0 +1,41 @@
+# The operator's path for open_subaccount, as a scripted "model" for
+# `cua benchmark run --llm scripted`. {{member_id}} and {{initial_deposit}} are
+# filled from the task's inputs. It proves the harness runs; it is not a model.
+goal: Open a savings sub-account for a member with an initial deposit
+steps:
+  - tool: type
+    target: [{strategy: near_text, text: User ID, role: textbox}]
+    text: ${credentials.app_login.username}
+    reason: The sign-on screen asks for a user id first.
+  - tool: type
+    target: [{strategy: near_text, text: Password, role: textbox}]
+    text: ${credentials.app_login.password}
+    reason: Then the password.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Sign On}]
+    reason: Submit the sign-on form.
+  - tool: type
+    target: [{strategy: near_text, text: Member ID, role: textbox, within: {frame: main}}]
+    text: "{{member_id}}"
+    reason: Find the member first.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Search, within: {frame: main}}]
+    reason: Run the search.
+  - tool: click
+    target: [{strategy: role_name, role: link, name: Open Sub-account, within: {frame: main}}]
+    reason: The member detail screen links to the sub-account form.
+  - tool: type
+    target: [{strategy: near_text, text: Initial Deposit, role: textbox, within: {frame: main}}]
+    text: "{{initial_deposit}}"
+    reason: The account type defaults to Savings; the deposit is required.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Continue, within: {frame: main}}]
+    reason: Submit the application for review.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Confirm, within: {frame: main}}]
+    reason: Confirm opens the account; this is the step that commits.
+  - tool: done
+    outputs:
+      reference_number:
+        - {strategy: table_cell, row_contains: Reference number, column_header: Value, within: {frame: main}}
+    reason: The confirmation screen shows the new account's reference number.

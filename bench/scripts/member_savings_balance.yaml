@@ -1,0 +1,30 @@
+# The operator's path for member_savings_balance, as a scripted "model" for
+# `cua benchmark run --llm scripted`. {{member_id}} is filled from the task's
+# inputs. It proves the harness runs end to end without a key; it is not a model.
+goal: Look up a member by id and return the current savings balance
+steps:
+  - tool: type
+    target: [{strategy: near_text, text: User ID, role: textbox}]
+    text: ${credentials.app_login.username}
+    reason: The sign-on screen asks for a user id first.
+  - tool: type
+    target: [{strategy: near_text, text: Password, role: textbox}]
+    text: ${credentials.app_login.password}
+    reason: Then the password.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Sign On}]
+    reason: Submit the sign-on form.
+  - tool: type
+    target: [{strategy: near_text, text: Member ID, role: textbox, within: {frame: main}}]
+    text: "{{member_id}}"
+    reason: Member Search takes the five digit member id.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Search, within: {frame: main}}]
+    reason: Run the search.
+  - tool: done
+    outputs:
+      savings_balance:
+        - {strategy: table_cell, row_contains: Savings, column_header: Balance, within: {frame: main}}
+      member_name:
+        - {strategy: near_text, text: Name, role: cell, within: {frame: main}}
+    reason: The member detail screen shows the Savings row of the Balances table.

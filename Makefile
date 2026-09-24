@@ -1,4 +1,4 @@
-.PHONY: help install mockapp discover replay operator test lint typecheck evidence clean
+.PHONY: help install mockapp discover replay operator benchmark test lint typecheck evidence clean
 
 PY ?= python3
 MOCKAPP_PORT ?= 8000
@@ -21,6 +21,10 @@ replay: ## Deterministic replay of a capability (M4)
 
 operator: ## Operator console for handoff (M6)
 	$(PY) -m cua.cli operator $(ARGS)
+
+benchmark: ## Benchmark session (scripted model by default; ARGS="--llm gemini ..." for a live one)
+	$(PY) -m cua.cli benchmark run $(ARGS)
+	$(PY) -m cua.cli benchmark report --latest
 
 test: lint typecheck ## Lint, typecheck, then run the test suite
 	$(PY) -m pytest

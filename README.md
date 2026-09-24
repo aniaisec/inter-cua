@@ -146,6 +146,7 @@ In PowerShell, write `` ` `` instead of `\` at line ends.
 | Discovery with no model | `cua discover --llm scripted --script scripts/discovery/<name>.yaml ...` | mock app |
 | Replay the committed, approved capabilities | `cua replay capabilities/<name>.json --input ...` | mock app |
 | Regenerate every replay under `evidence/` | `make evidence` | port 8000 free |
+| Benchmark: repeated LLM vs discover-then-replay | `cua benchmark run` then `cua benchmark report --latest` | nothing with the scripted model; a key and money with `--llm` |
 
 The browser tests start their own mock app on a free port. No test calls a
 model: the discovery tests use the scripted client and recorded fixtures.
@@ -168,6 +169,7 @@ model: the discovery tests use the scripted client and recorded fixtures.
 | `cua catalog [--json]` | the approved capabilities, typed; `--json` prints them as tool definitions for a model | |
 | `cua catalog invoke <name> --args '<json>' \| --input k=v \| --request <file>` | invoke by name with typed arguments; takes the replay invocation flags | as replay |
 | `cua operator` | the operator console on :8100 | |
+| `cua benchmark list \| run \| report` | run the benchmark suite (`bench/tasks/`) through the repeated-LLM baseline, discovery and replay; aggregate `bench/reports/runs.jsonl` into `summary.md` ([bench/README.md](bench/README.md)) | |
 | `cua schema` | regenerate `capabilities/schema/capability-1.1.json` | |
 | `cua mockapp` | the target app on :8000 | |
 

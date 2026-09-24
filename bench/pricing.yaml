@@ -1,0 +1,24 @@
+# Model prices for the benchmark's cost estimates, in US dollars per million
+# tokens. Estimates for comparing strategies, not billing data. Prices change:
+# check the source and update `as_of` before relying on a number.
+#
+# A model with no entry (matched by id or alias) is reported as "unpriced",
+# never as free. Thinking tokens are charged at the output rate.
+currency: USD
+providers:
+  gemini:
+    gemini-3.8-flash:
+      aliases: [gemini-flash-latest]
+      input: 0.75
+      output: 3.75
+      cache_read: 0.075
+      source: https://ai.google.dev/gemini-api/docs/pricing (paid tier; promotional price through 2026-12-31, doubling on 2027-01-01)
+      as_of: "2026-09-23"
+  anthropic:
+    claude-sonnet-5:
+      input: 2.00
+      output: 10.00
+      cache_read: 0.20
+      cache_write: 2.50
+      source: Anthropic API pricing (first-party); cache read 0.1x and 5-minute cache write 1.25x the input rate
+      as_of: "2026-09-23"

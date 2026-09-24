@@ -21,3 +21,6 @@ dist/
 
 # Local review receipts written by `cua describe`; approvals themselves are committed.
 /.cua/
+
+# Benchmark run directories (screenshots, logs); the raw metrics are in bench/reports/.
+/bench/runs/
