@@ -127,7 +127,7 @@ Status: COMPLETE
 
 ## Phase 3 — Capability registry
 
-Status: COMPLETE (pending your verification)
+Status: COMPLETE
 
 ### Changes
 - `src/cua/registry/`: `models.py` (the ledger entry and the version record: name, version, status, app family, tenant scope, artifact hash, approval, history, health), `lifecycle.py` (the statuses and the transitions allowed between them), `store.py` (the registry on disk: working copies, registered copies, the ledger), `resolver.py` (which version a call runs, and the start and in-flight policy), `health.py` (per-version health from the replays on record), `cli.py`.
