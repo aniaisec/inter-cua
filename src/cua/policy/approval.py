@@ -10,6 +10,12 @@ rather than trusted.
 Receipts live in a local state directory (``.cua/reviews/``), not in the
 artifact: they record what one reviewer saw on one machine, and the approval
 they lead to is what gets committed.
+
+An approved version is registered (``cua.registry``): a sealed copy is kept
+under ``capabilities/registry/`` and the approval is appended to its ledger,
+so the version still runs after the capability is re-recorded. A version the
+registry has deprecated or revoked is not approved again here: reinstating a
+deprecated one is ``cua registry reinstate``, and a revoked one is final.
 """
 
 from __future__ import annotations
@@ -74,11 +80,28 @@ def approve(path: Path, by: str, *, state_dir: Path = STATE_DIR) -> Capability:
     if not by:
         raise ApprovalRefused("say who is approving (--by <name>)")
 
+    from cua.registry.store import Registry, RegistryError  # it reads receipts from here
+
     loaded = open_capability(path)
     capability = loaded.capability
     label = f"{capability.name} v{capability.version}"
-    if capability.approval_state == "approved":
-        return capability
+    registry = Registry.for_path(path, state_dir=state_dir)
+    try:
+        status = registry.status_of(capability)
+        if status == "deprecated":
+            raise ApprovalRefused(
+                f"{label} is deprecated; to offer it again: cua registry reinstate "
+                f"{capability.name} --version {capability.version} --by <your name>"
+            )
+        if status == "revoked":
+            raise ApprovalRefused(
+                f"{label} is revoked, which is final; record and approve a new version"
+            )
+        if capability.approval_state == "approved":
+            registry.register(capability)  # approved before the registry existed
+            return capability
+    except RegistryError as exc:
+        raise ApprovalRefused(str(exc)) from None
 
     review = last_review(capability, state_dir=state_dir)
     if review is None:
@@ -95,7 +118,12 @@ def approve(path: Path, by: str, *, state_dir: Path = STATE_DIR) -> Capability:
     approved = with_changes(
         capability, approval_state="approved", approved_by=by, approved_at=_now()
     )
-    return save(approved, path)
+    saved = save(approved, path)
+    try:
+        registry.register(saved)
+    except RegistryError as exc:
+        raise ApprovalRefused(f"approved in {path.as_posix()}, but not registered: {exc}") from None
+    return saved
 
 
 def _now() -> str:

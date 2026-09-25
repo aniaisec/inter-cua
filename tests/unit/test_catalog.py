@@ -99,7 +99,7 @@ def test_cua_catalog_lists_and_prints_tool_definitions(
     code, out, err = run(["catalog", "--capabilities-dir", str(with_draft)], capsys)
     assert code == 0
     assert "member_savings_balance  v3  approved" in out
-    assert "_copy" not in out and "1 draft(s) not shown" in out
+    assert "_copy" not in out and "(1 not shown: drafts, deprecated or revoked" in out
     assert "broken.json" in err
 
     code, out, _ = run(["catalog", "--json", "--capabilities-dir", str(with_draft)], capsys)

@@ -390,12 +390,13 @@ def test_runs_and_sessions_round_trip_and_the_last_session_record_wins(tmp_path:
 def test_the_replay_strategy_cannot_reach_a_model() -> None:
     """The benchmark's replay side is held to replay's own rule: nothing it
     imports can load a model client or the agent. The CLI parser, which every
-    `cua replay` builds, is held to it too, and so is observability, which
-    explains replays."""
+    `cua replay` builds, is held to it too, and so are observability, which
+    explains replays, and the registry and catalog, which decide what runs."""
     code = (
         "import sys\n"
         "import cua.benchmark.replay_runner, cua.benchmark.metrics, cua.benchmark.report\n"
         "import cua.observability.cli, cua.observability.health\n"
+        "import cua.registry.cli, cua.registry.health, cua.registry.resolver, cua.catalog\n"
         "import cua.cli; cua.cli._build_parser()\n"
         "bad = [m for m in sys.modules if m == 'anthropic' or m.startswith(('anthropic.',"
         " 'google.genai', 'cua.agent'))]\n"

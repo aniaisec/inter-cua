@@ -14,11 +14,16 @@ In order, and each check before anything more expensive:
    this capability, content, tenant and inputs. Any mismatch is
    ``POLICY_BLOCKED``: consent for something else is not consent;
 6. **idempotency** — the same key and request returns the stored result;
-7. **spent token** — a token that already went into a commit is refused, so
+7. **lifecycle** — a version the registry has revoked starts no new run
+   (``POLICY_BLOCKED``); a deprecated one runs, with a warning, because it
+   was named. After the idempotency check on purpose: a stored result starts
+   nothing, and refusing it would tell a caller that a commit which happened
+   did not. ``cua.registry.resolver`` has the whole in-flight policy;
+8. **spent token** — a token that already went into a commit is refused, so
    one consent is one commit (a caller retrying after a lost answer retries
    with its idempotency key, and step 6 answers it);
-8. credentials resolved from the tenant binding (held in memory only);
-9. a fresh browser session, traced; the engine runs; a failed run keeps its
+9. credentials resolved from the tenant binding (held in memory only);
+10. a fresh browser session, traced; the engine runs; a failed run keeps its
    trace, scrubbed of secrets. If the run reached a risky step, its token is
    spent, whatever the result.
 
@@ -65,6 +70,9 @@ from cua.policy import tokens
 from cua.policy.allowlist import Policy
 from cua.policy.redaction import Redactor
 from cua.policy.tokens import Approval, SpentTokens, TokenRefused
+from cua.registry import resolver
+from cua.registry.models import Status
+from cua.registry.store import Registry, RegistryError
 from cua.replay.engine import ReplayConfig, ReplayEngine, SavedRun
 from cua.replay.invocation import (
     ApprovalGrant,
@@ -210,6 +218,14 @@ def replay(
         if cached is not None:
             return cached
 
+    try:
+        lifecycle = Registry.for_path(path).status_of(cap)
+    except RegistryError as exc:
+        return _refused(cap, invocation, "POLICY_BLOCKED", f"lifecycle unknown: {exc}")
+    refusal = resolver.refusal(cap.name, cap.version, lifecycle)
+    if refusal is not None:
+        return _refused(cap, invocation, "POLICY_BLOCKED", refusal)
+
     spent = SpentTokens(runs_dir)
     if approval is not None:
         used_by = spent.spent_by(approval)
@@ -235,6 +251,7 @@ def replay(
         credentials=credentials,
         runs_dir=runs_dir,
         allow_draft=allow_draft,
+        lifecycle=lifecycle,
         config=config or ReplayConfig(),
         surface=surface or (lambda: launched(detached=handoff is not None)),
         handoff=handoff,
@@ -256,6 +273,7 @@ def _run(
     credentials: dict[str, Credential],
     runs_dir: Path,
     allow_draft: bool,
+    lifecycle: Status,
     config: ReplayConfig,
     surface: SurfaceFactory,
     handoff: HandoffSettings | None,
@@ -274,6 +292,7 @@ def _run(
                 "approval_state": cap.approval_state,
                 "approved_by": cap.approved_by,
                 "content_sha256": cap.content_hash(),
+                "lifecycle": lifecycle,
             },
             "tenant": {
                 "id": tenant.id,
@@ -291,6 +310,10 @@ def _run(
             f"WARNING: replaying draft {cap.name} v{cap.version} by --allow-draft override",
             file=sys.stderr,
         )
+    deprecated = resolver.warning(cap.name, cap.version, lifecycle)
+    if deprecated is not None:
+        log.event("policy.deprecated", warning=deprecated)
+        print(f"WARNING: {deprecated}", file=sys.stderr)
 
     def resume_context(engine: ReplayEngine, live: PlaywrightSurface) -> ResumeContext | None:
         if engine.suspended is None or handoff is None:
@@ -499,6 +522,16 @@ def resume(
             f"{ctx.capability_path} has changed since the run started; a run is carried on "
             "only with the capability it began with"
         )
+    try:
+        refusal = resolver.refusal(
+            cap.name, cap.version, Registry.for_path(Path(ctx.capability_path)).status_of(cap)
+        )
+    except RegistryError as exc:
+        refusal = f"lifecycle unknown: {exc}"
+    if refusal is not None:
+        # A paused run is an execution waiting to start again. The person on
+        # the console can still abort it there.
+        raise InvocationError(f"{refusal}; this paused run cannot be carried on")
     values = _restore_inputs(ctx, inputs or {})
     invocation = Invocation(
         inputs=values,

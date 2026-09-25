@@ -34,10 +34,11 @@ from cua.escalation.capture import CaptureSession, find_page
 from cua.escalation.channel import HandoffSettings
 from cua.escalation.controller import ControlStore
 from cua.escalation.operator_app import create_app
+from cua.registry.store import Registry
 from cua.replay.engine import ReplayConfig
 from cua.replay.invocation import ApprovalGrant, Budget, Invocation
 from cua.replay.result import Escalated, Failure, ReplayResult, Success
-from cua.replay.runner import ResumeContext, replay, resume
+from cua.replay.runner import InvocationError, ResumeContext, replay, resume
 from cua.surface.playwright_surface import BrowserProcess, PlaywrightSurface
 from tests.conftest import REPO_ROOT, free_port
 from tests.integration.conftest import BrowserSession
@@ -312,6 +313,24 @@ def test_row16_the_person_finishes_and_resume_carries_on_from_cp_done(
     assert h.transitions(result)[-1] == ("RESUMING", "AUTOMATION")
     again = resume(first.resume_token, runs_dir=h.runs, surface=same_page, environ=ENV)
     assert isinstance(again, Success) and again.cached  # the answer, not a second run
+
+
+def test_a_paused_run_of_a_version_revoked_meanwhile_is_not_carried_on(
+    h: HandoffHarness, console: str
+) -> None:
+    """In-flight policy: a run paused for a person is an execution waiting to
+    start again, so revoking its version stops `cua resume`; the paused run
+    stays as it was, for the person to abort on the console."""
+    first = h.handoff(
+        GOAL1, console=console, inputs={"member_id": "10003"}, inject="renamed_button", wait_s=0
+    )
+    assert isinstance(first, Escalated), first
+    Registry(h.tmp).transition(
+        "member_savings_balance", 3, "revoke", by="sec", reason="reads the wrong account"
+    )
+    with pytest.raises(InvocationError, match="revoked and starts no new execution"):
+        resume(first.resume_token, runs_dir=h.runs, environ=ENV)
+    assert h.transitions(first)[-1] == ("AUTOMATION", "PAUSED")
 
 
 def test_the_waiting_replay_carries_on_in_process_when_the_person_hands_back(

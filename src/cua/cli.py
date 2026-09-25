@@ -42,6 +42,10 @@ def _build_parser() -> argparse.ArgumentParser:
     from cua.observability.cli import add_parser as _add_metrics
 
     _add_metrics(sub)
+
+    from cua.registry.cli import add_parser as _add_registry
+
+    _add_registry(sub)
     return parser
 
 
@@ -265,7 +269,11 @@ def _add_catalog(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> No
         "ReplayResult.",
     )
     c.add_argument("--json", action="store_true", help="Tool definitions, for an agent")
-    c.add_argument("--all", action="store_true", help="Drafts too (they cannot be invoked)")
+    c.add_argument(
+        "--all",
+        action="store_true",
+        help="Drafts, deprecated and revoked capabilities too (not offered as tools)",
+    )
     c.add_argument("--capabilities-dir", type=Path, default=Path("capabilities"))
     csub = c.add_subparsers(dest="catalog_command")
     i = csub.add_parser(
@@ -277,6 +285,12 @@ def _add_catalog(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> No
         "ReplayResult; exit 0 success, 2 business outcome, 1 failure, 3 escalated.",
     )
     i.add_argument("name", nargs="?", help="Capability name (default: the request's)")
+    i.add_argument(
+        "--version",
+        type=int,
+        help="Run this version (default: the highest approved; a deprecated one runs "
+        "only when named)",
+    )
     i.add_argument("--args", metavar="JSON", help='Typed arguments, e.g. {"member_id": "10003"}')
     i.add_argument("--request", metavar="FILE", help="A JSON invocation request; - reads stdin")
     i.add_argument("--tenant", help="tenants/<id>.yaml, or a path to one (default: local)")
@@ -375,6 +389,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         from cua.observability.cli import main as metrics
 
         return metrics(args)
+    if args.command == "registry":
+        from cua.registry.cli import main as registry
+
+        return registry(args)
     if args.command == "catalog":
         if args.catalog_command == "invoke":
             load_dotenv(Path(".env"))
@@ -624,7 +642,7 @@ def _catalog_list(args: argparse.Namespace) -> int:
         print(f"No approved capabilities in {args.capabilities_dir.as_posix()}.")
     for e in shown:
         cap = e.capability
-        state = cap.approval_state + (" (edited by hand)" if e.edited_outside else "")
+        state = e.status + (" (edited by hand)" if e.edited_outside else "")
         ins = ", ".join(f"{n}: {s.type}{'' if s.required else '?'}" for n, s in cap.inputs.items())
         outs = ", ".join(
             f"{n}: {o.type}{'?' if o.optional else ''}" for n, o in cap.outputs.items()
@@ -636,12 +654,17 @@ def _catalog_list(args: argparse.Namespace) -> int:
             print(f"    business outcomes: {', '.join(sorted(cap.contract.outcomes))}")
         if cap.contract.may_escalate:
             print("    needs consent to commit: an approval token, or a person on the console")
-        if not e.invocable and cap.approval_state == "approved":
+        if not e.invocable and e.status == "approved":
             print(f"    not invocable here: this build has no {cap.target.surface} adapter")
+        if e.versions > 1:
+            print(f"    {e.versions} versions: cua registry versions {cap.name}")
         print(f"    {link(e.path, stream=sys.stdout)}")
     hidden = len(entries) - len(shown)
     if hidden:
-        print(f"({hidden} draft(s) not shown: they cannot be invoked. --all lists them.)")
+        print(
+            f"({hidden} not shown: drafts, deprecated or revoked, none of which is offered "
+            "as a tool. --all lists them.)"
+        )
     if shown:
         print("\nInvoke one by name: cua catalog invoke <name> --input name=value")
         print("Tool definitions for an agent: cua catalog --json")
@@ -668,7 +691,7 @@ def _catalog_invoke(args: argparse.Namespace) -> int:
         name = args.name or asked
         if not name:
             raise ValueError("name the capability to invoke (or give one in the request)")
-        path = catalog.find(args.capabilities_dir, name)
+        path = catalog.find(args.capabilities_dir, name, args.version)
         cap = open_capability(path).capability
         arguments: dict[str, Any] = dict(request.get("inputs", {}))
         if args.args is not None:

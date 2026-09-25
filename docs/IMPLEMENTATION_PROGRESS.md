@@ -124,3 +124,45 @@ Status: COMPLETE
 
 ### Next
 - Phase 3: capability registry. Replay's evidence snapshot and locate time are the obvious latency targets.
+
+## Phase 3 — Capability registry
+
+Status: COMPLETE (pending your verification)
+
+### Changes
+- `src/cua/registry/`: `models.py` (the ledger entry and the version record: name, version, status, app family, tenant scope, artifact hash, approval, history, health), `lifecycle.py` (the statuses and the transitions allowed between them), `store.py` (the registry on disk: working copies, registered copies, the ledger), `resolver.py` (which version a call runs, and the start and in-flight policy), `health.py` (per-version health from the replays on record), `cli.py`.
+- `cua registry list | versions | show | health | deprecate | revoke | reinstate | sync`.
+- `cua approve` registers what it approves: a sealed copy under `capabilities/registry/<name>/v<N>.json` and a line in `capabilities/registry/lifecycle.jsonl`. It refuses to re-approve a deprecated (use `reinstate`) or revoked (final) version.
+- `cua catalog` is a view of the registry: one entry per capability, the version a call by name runs. `cua catalog invoke --version N` pins a version.
+- `cua replay` and `cua catalog invoke` refuse a revoked version (`POLICY_BLOCKED`, no browser) and warn on a deprecated one (`policy.deprecated` in the log, mapped to `policy.checked`); `run.json` records the version's lifecycle status. `cua resume` refuses to carry on a paused run of a revoked version.
+- The two committed capabilities are registered (`cua registry sync`).
+
+### Decisions
+- The artifact schema is unchanged (1.1). `approval_state` stays `draft | approved`, sealed into the file by `cua approve`; deprecation and revocation are about a version's standing, not its content, so they live in an append-only ledger beside it. Status = the artifact's approval with the ledger applied. The ledger fails closed: a revocation applies to the name and version whatever file claims to be it, a ledger entry can never approve what the artifact does not, and an unreadable ledger refuses every run.
+- `review` is the existing receipt from `cua describe` (content and version as described on this machine); `draft → review → approved` is the existing gate. The registry owns the transitions after it.
+- `deprecated → revoked` is allowed beyond the listed transitions: revoking a superseded version must not require reinstating it first, which would make it the default for a moment. `revoked` is terminal.
+- Working copies stay at `capabilities/<name>.json`, so every existing path and command keeps working. A registered copy is never changed; one edited by hand is skipped and reported, and registering different content under an existing version is refused.
+- By name, the highest approved version runs. With nothing approved, the highest version is returned so that replay refuses it with a typed result rather than a usage error.
+- In-flight policy: the lifecycle is checked when an execution starts. A run under way when its version is revoked finishes (stopping between a commit and its confirmation turns a known outcome into `side_effect: unknown`); an idempotent retry is answered from the cache before the check, because a stored result starts nothing; a paused run is an execution waiting to start again, so `cua resume` refuses it and the operator can abort it on the console.
+- Tenant scope is the tenants whose deployment runs the capability's app family (`tenants/*.yaml`); restricting a version to some of them is left to tenant isolation.
+- Health is only observed: a version with no replay on record has none. Runs of versions no longer on disk are still shown (`not on disk`).
+
+### Tests
+- `tests/unit/test_registry.py`: identity; sync; versions coexisting after a re-record (the approved one still runs from its registered copy, and becomes the non-default once the next is approved); registered copies never replaced or trusted after a hand edit; the transition table; the ledger never approving; deprecate, reinstate and revoke with who and why; revoke needs a reason; drafts and review; approve refusing retired versions; the default skipping deprecated and revoked; a revoked version starting nothing by working copy or registered path; a cached retry still answered; an unreadable ledger failing closed; catalog and registry agreeing; `catalog invoke --version`; health from the committed evidence; every CLI command; the committed capabilities registered and approved.
+- The purity test also holds `cua.registry` and `cua.catalog` to "imports no model client".
+
+### Results
+- Gate: ruff, `ruff format --check`, `mypy --strict` clean; 542 tests pass (461 without a browser, 81 with one; 509 before this phase), about 9 minutes.
+- `cua registry list` on the repository: member_savings_balance v3 and open_subaccount v3, approved and registered.
+- `cua registry show open_subaccount`: 28 replays on record, 100% success, 25% with a person (the handoff evidence), p95 29.8 s.
+- `cua registry health member_savings_balance`: v1 (22 replays) and v2 (4, 3 of them `AUTH_FAILED`) are not on disk; v3 has 50 replays at 100%, with 100 injected-fault runs left out.
+
+### Known issues
+- Versions before the registry existed (member_savings_balance v1 and v2) are not on disk; their runs are shown in `cua registry health` as `not on disk`.
+- `cua registry show` and `health` read every run directory's `run.json` to find the capability's replays (~5 s over the ~520 runs on this machine).
+
+### Commit
+- `feat: add capability registry and lifecycle`.
+
+### Next
+- Phase 4: capability drift detection and evolution.

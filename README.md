@@ -148,6 +148,7 @@ In PowerShell, write `` ` `` instead of `\` at line ends.
 | Regenerate every replay under `evidence/` | `make evidence` | port 8000 free |
 | Benchmark: repeated LLM vs discover-then-replay | `cua benchmark run` then `cua benchmark report --latest` | nothing with the scripted model; a key and money with `--llm` |
 | Explain a run; capability health | `cua metrics run evidence/replay-success`, `cua metrics report` | nothing: reads run directories |
+| Capability versions, lifecycle and health | `cua registry list`, `cua registry show <name>` | nothing: reads files |
 
 The browser tests start their own mock app on a free port. No test calls a
 model: the discovery tests use the scripted client and recorded fixtures.
@@ -160,7 +161,7 @@ model: the discovery tests use the scripted client and recorded fixtures.
 | `cua discover ... --llm scripted --script <file>` | same loop, no key | as above |
 | `cua record <run_dir>` | turn a finished discovery run into a draft capability | |
 | `cua describe <capability>` | the capability in plain words: inputs, outputs, side effects, steps and how each control is found, possible outcomes | |
-| `cua approve <capability> --by <name>` | draft → approved, only as last described | |
+| `cua approve <capability> --by <name>` | draft → approved, only as last described; registers the version | |
 | `cua replay <capability> --input k=v` | deterministic replay; prints a JSON `ReplayResult` | 0 success, 2 business outcome, 1 failure, 3 escalated |
 | `cua replay ... --inject <mode>` | arm a mock-app failure mode for the run | |
 | `cua replay ... --approval-token <t> --idempotency-key <k> --budget timeout_s=120,max_recoveries=3,allow_escalation=false` | invocation-level consent, retry safety and limits | |
@@ -168,7 +169,10 @@ model: the discovery tests use the scripted client and recorded fixtures.
 | `cua approval-token <capability> --input k=v --by <name>` | sign consent for one invocation's risky step | |
 | `cua resume <resume_token> [--resume-at <step>] [--approval-token <t>]` | carry on an `escalated` run from another process; a token answers `NEEDS_APPROVAL` without the console | as replay |
 | `cua catalog [--json]` | the approved capabilities, typed; `--json` prints them as tool definitions for a model | |
-| `cua catalog invoke <name> --args '<json>' \| --input k=v \| --request <file>` | invoke by name with typed arguments; takes the replay invocation flags | as replay |
+| `cua catalog invoke <name> [--version N] --args '<json>' \| --input k=v \| --request <file>` | invoke by name with typed arguments (the highest approved version unless one is named); takes the replay invocation flags | as replay |
+| `cua registry list \| versions <name> \| show <name> [--version N] \| health <name>` | every version of every capability, its lifecycle status and history, and its health from the replays on record | |
+| `cua registry deprecate \| revoke \| reinstate <name> --version N --by <name> [--reason ...]` | move a version through its lifecycle; recorded in `capabilities/registry/lifecycle.jsonl` | |
+| `cua registry sync` | register approved capabilities that are not registered yet | |
 | `cua operator` | the operator console on :8100 | |
 | `cua benchmark list \| run \| report` | run the benchmark suite (`bench/tasks/`) through the repeated-LLM baseline, discovery and replay; aggregate `bench/reports/runs.jsonl` into `summary.md` ([bench/README.md](bench/README.md)) | |
 | `cua metrics run <run_id \| dir> [--json \| --events]` | one run explained: outcome and why, where the time went, model calls, tokens and estimated cost, locators, recoveries, human intervention; `--events` prints its canonical events | |
@@ -178,8 +182,10 @@ model: the discovery tests use the scripted client and recorded fixtures.
 
 ## Calling a capability from an agent
 
-`cua catalog` is the surface an agent sees. It lists only approved
-capabilities, because those are the only ones unattended replay will run.
+`cua catalog` is the surface an agent sees. It is a view of the capability
+registry: one tool per capability, the highest approved version, because only
+an approved version runs unattended. Deprecated and revoked versions are never
+offered.
 `--json` prints each one as a tool definition (`name`, `description`,
 `input_schema`), the shape a model's tool-calling API takes. The description
 carries the contract: outputs, side effect, whether it is idempotent, and
@@ -255,6 +261,7 @@ mock app in Chromium; `tests/unit` do not).
 | 28 | State machine and lease | | illegal transitions raise; no automation act while a person holds the lease; paused time not counted | `unit/test_escalation.py` |
 | 29 | Resume-state search | | the newest holding checkpoint, never before a commit | `unit/test_replay.py::test_resume_search_*` |
 | – | Catalog (stretch) | | invoke by name → `escalated NEEDS_APPROVAL` → `cua resume` with fresh consent commits once; wrong types fail `INPUT_INVALID` | `integration/test_catalog.py`, `unit/test_catalog.py` |
+| – | Registry | | versions coexist after a re-record; only the allowed lifecycle moves; a revoked version starts nothing, a cached retry still answers; the catalog agrees with the registry | `unit/test_registry.py` |
 
 ## The mock target app
 
@@ -360,6 +367,34 @@ must hold afterwards), compound `checkpoints` that bind the inputs,
 (`capabilities/families/legacy-core.yaml`), and `provenance` naming the
 discovery run. Any change bumps the version and resets it to draft, including
 a hand edit, which the content seal written on every save catches.
+
+### Registry
+
+`capabilities/<name>.json` is the working copy that `cua record` writes and
+`cua describe` reads. `cua approve` also keeps a sealed copy of the version it
+approves under `capabilities/registry/<name>/v<N>.json`, so an approved version
+keeps running after the capability is re-recorded: versions coexist, and a
+call by name runs the highest approved one. A version's status is its
+artifact's own approval with `capabilities/registry/lifecycle.jsonl` applied on
+top: every change after review, by whom, when and why, appended and never
+rewritten.
+
+```
+draft --describe--> review --approve--> approved --deprecate--> deprecated
+                                          |       <--reinstate--    |
+                                          \--revoke--> revoked <--revoke--/
+```
+
+A deprecated version runs only when it is named (`--version`, or its path),
+with a warning; a revoked one starts nothing, and is final. The lifecycle is
+checked when an execution starts: a run already under way when its version is
+revoked finishes (stopping it between a commit and its confirmation would
+leave the caller not knowing whether it happened), a retry answered from the
+idempotency cache still gets its stored answer, and `cua resume` refuses to
+carry on a paused run of a revoked version. A ledger that cannot be read
+refuses every run rather than guessing. Health (`cua registry health`) is only
+ever what the replays on record show; a version with none has no health, not a
+good one.
 
 ### Replay
 

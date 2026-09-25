@@ -1,6 +1,7 @@
 """The capabilities as a calling agent sees them: tools with typed arguments.
 
-``cua catalog`` lists what is in ``capabilities/``; ``--json`` prints each
+``cua catalog`` lists the capability registry (``cua.registry``), one entry
+per capability: the version a call by name runs. ``--json`` prints each
 approved capability as a tool definition (``name``, ``description``,
 ``input_schema``) in the shape tool-calling model APIs take, so an agent can be
 handed the catalog as its toolbox. ``cua catalog invoke`` is the other half:
@@ -30,9 +31,14 @@ from pathlib import Path
 from typing import Any
 
 from cua.artifact.schema import Capability, InputSpec
-from cua.artifact.store import ArtifactError, open_capability
+from cua.registry import lifecycle
+from cua.registry.models import Status, Version
+from cua.registry.resolver import Unresolvable, default_version, resolve
+from cua.registry.store import Registry, Unreadable
 from cua.replay.result import Failure
 from cua.surface import SUPPORTED_SURFACES
+
+__all__ = ["CatalogError", "Entry", "Unreadable", "find", "scan"]
 
 
 @dataclass(frozen=True)
@@ -40,50 +46,46 @@ class Entry:
     path: Path
     capability: Capability
     edited_outside: bool = False
+    status: Status = "draft"
+    versions: int = 1
+    """How many versions of it the registry holds."""
 
     @property
     def invocable(self) -> bool:
-        """What ``cua replay`` would accept without an override: approved, and
-        on a surface this build can drive."""
+        """What ``cua replay`` would accept without an override: approved (not
+        deprecated, not revoked), and on a surface this build can drive."""
         return (
-            self.capability.approval_state == "approved"
+            lifecycle.invocable(self.status)
             and self.capability.target.surface in SUPPORTED_SURFACES
         )
 
 
-@dataclass(frozen=True)
-class Unreadable:
-    path: Path
-    error: str
-
-
 class CatalogError(LookupError):
-    """No capability by that name."""
+    """No capability by that name, or no such version of it."""
 
 
 def scan(directory: Path) -> tuple[list[Entry], list[Unreadable]]:
-    """Every capability file in ``directory`` (not recursive), by name."""
-    entries: list[Entry] = []
-    broken: list[Unreadable] = []
-    for path in sorted(directory.glob("*.json")):
-        try:
-            loaded = open_capability(path)
-        except ArtifactError as exc:
-            broken.append(Unreadable(path, str(exc).splitlines()[0]))
-            continue
-        entries.append(Entry(path, loaded.capability, loaded.edited_outside))
+    """One entry per capability in the registry at ``directory``: the version
+    a call by name would run (``cua.registry.resolver``). The catalog is a
+    view of the registry, never a second list of what exists."""
+    registry = Registry(directory)
+    by_name: dict[str, list[Version]] = {}
+    for v in registry.all_versions():
+        by_name.setdefault(v.record.name, []).append(v)
+    entries = []
+    for mine in by_name.values():
+        v = default_version(mine)
+        entries.append(Entry(v.path, v.capability, v.record.edited_outside, v.status, len(mine)))
     entries.sort(key=lambda e: e.capability.name)
-    return entries, broken
+    return entries, registry.unreadable
 
 
-def find(directory: Path, name: str) -> Path:
-    """The file holding the capability called ``name``."""
-    entries, _ = scan(directory)
-    for entry in entries:
-        if entry.capability.name == name:
-            return entry.path
-    known = ", ".join(e.capability.name for e in entries) or "none"
-    raise CatalogError(f"no capability named {name!r} in {directory.as_posix()} (known: {known})")
+def find(directory: Path, name: str, version: int | None = None) -> Path:
+    """The file holding the version of ``name`` a call would run."""
+    try:
+        return resolve(Registry(directory), name, version).path
+    except Unresolvable as exc:
+        raise CatalogError(str(exc)) from None
 
 
 # --------------------------------------------------------------------------
