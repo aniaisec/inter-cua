@@ -166,3 +166,48 @@ Status: COMPLETE
 
 ### Next
 - Phase 4: capability drift detection and evolution.
+
+## Phase 4 — Capability drift and candidate evolution
+
+Status: COMPLETE
+
+### Changes
+- `src/cua/drift/`: `models.py` (the `DriftEvent`, the eight drift kinds, the candidate record), `detect.py` (a replay run directory read for drift and classified), `aggregate.py` (drift rates), `candidate.py` (a candidate repair proposed from a run's evidence), `checks.py` (the candidate's static security checks), `evaluate.py` (the candidate replayed beside the version it repairs on the benchmark tasks), `store.py` (candidates on disk, their status, the approval gate), `rationale.md` rendering, `cli.py`.
+- `cua drift scan | report | propose | evaluate | candidates | show | reject`.
+- The replay engine logs what each rung found (`attempts`) on a locator failure, as data. The recorder carries rung attempts on `locator.resolved` and `locator.failed`, reads them back out of the message for older runs, and now counts `LOCATOR_AMBIGUOUS` as a locator failure too.
+- `cua approve` accepts a candidate only after its evaluation passed on exactly its content, and never after it was rejected; the ledger notes it as a repair of the version it came from. `Registry.for_path` knows the candidates directory.
+- `cua.benchmark.replay_runner.run_replay` takes `allow_draft`, for evaluating a candidate.
+
+### Decisions
+- Drift events are derived from run directories, like the canonical events: nothing new is written during a run, and old evidence is classified like new. Each event says what its classification rests on: the logged attempts, the attempts read from the failure message (older runs), and the failure screen read against the recorded ladder when that version is on disk.
+- `version` is an int, as everywhere else in the registry (the plan sketched a string).
+- Classification: several matches is `CONTROL_AMBIGUOUS`; the scoped frame gone, or the control answering to its recorded rung in another frame, is `FRAME_CHANGED`; the name rung finding nothing while the pixel rung finds exactly one control of the recorded role is `CONTROL_RENAMED`; nothing there is `CONTROL_MISSING`. A run that survived on a weaker rung is non-fatal drift (`CONTROL_RENAMED` from a name rung, `LAYOUT_CHANGED` from a label or grid rung, `OUTPUT_CHANGED` for an output). `CHECKPOINT_FAILED` is `NAVIGATION_CHANGED` when the checkpoint's location condition fails on the kept screen, else `CHECKPOINT_CHANGED`; `EXTRACTION_FAILED` is `OUTPUT_CHANGED`.
+- Rates: drift events per invocation (a retried request is one invocation), counting only runs that reached the app; by rung, per lookup recorded on that rung. Injected drift is counted and shown in its own column (`--exclude-injected` leaves it out). Registry health's `drift_rate` is unchanged: it is still runs that survived a slip; failures stay under `locator_failure_rate`.
+- Only `CONTROL_RENAMED` is repaired, and without a model: the kept failure screen shows the same control at the recorded place, and the repair names it with `ladder_for` in front of the recorded rungs, which stay, so a tenant still on the old screen is served (with a slip warning). Other kinds are reported with a pointer to re-record.
+- Candidates live in `capabilities/candidates/<name>/v<N>/` (`capability.json`, `candidate.json`, `rationale.md`, `evidence/`), numbered after every version and candidate of the name, and are drafts. The registry does not read them, the catalog does not offer them, and nothing else under `capabilities/` changes. The same repair proposed twice returns the first.
+- Security results are static checks (only that step's ladder differs; the new ladder names the same control on the failure screen by a trusted rung; recorded rungs kept; no new text the policy scrubs; a committing step flagged `attention`; draft and unregistered) plus the benchmark's `security` tasks. The prompt-injection benchmark is Phase 6.
+- Evaluation gates: static checks, at least one task ran, the task injecting the same fault is answered exactly (a drift that was not injected has no such task; the gate says so), no task worse than the incumbent, no wrong answer or unexpected commit, security tasks exact. A subset run (`--task`) is recorded as such.
+- Approval stays a person's: `cua describe` then `cua approve` on the candidate path, refused until the evaluation passed on that content; rejection is final for that candidate.
+- No candidate is committed: the only drift on record is injected, and a repair of it would be rejected on review.
+
+### Tests
+- `tests/unit/test_drift.py`: the committed renamed-button run is `CONTROL_RENAMED` (from the screen with the version on disk, from the rungs alone without it); the failure message read back into attempts; ambiguous, missing, frame gone, something else at the recorded place, navigation and checkpoint changes, output drift, drift a run survived (deduplicated per step), clean, refused and discovery runs; rates by capability, tenant and rung, with retries as one invocation and unreached runs left out; every committed run scans; a candidate proposed with production byte for byte unchanged, v3 still the default, the repair naming Find on the failure screen and Search on the old one, and a second proposal returning the first; refusals (no drift, not repairable, version not on disk); checks failing a candidate that changes more than a ladder, names another control, carries a sensitive label or reuses a registered number; approval refused before evaluation, after a failed one, for other content, after rejection and after a hand edit, then accepted, registered as v4 and made the default with v3 still approved and the working copy untouched; the gates; the tasks for a capability; every CLI command.
+- `tests/integration/test_drift.py`: v3 replayed with `renamed_button` against the mock app fails `LOCATOR_UNRESOLVED` with its attempts logged as data, is classified, proposed as v4 and evaluated (v3 0/1 and v4 1/1 on the drift task, v4 1/1 on the clean one); nothing outside `candidates/` changed and v3 is still the default.
+- The purity test also holds `cua.drift` to "imports no model client".
+
+### Results
+- Gate: ruff, `ruff format --check`, `mypy --strict` clean; 565 tests pass (542 before this phase), about 9 minutes.
+- `cua drift report` over the 273 replay runs on this machine: 24 drift events, all `CONTROL_RENAMED` at `search.submit`, all injected (`renamed_button`), all fatal: 8.8% per invocation overall; member_savings_balance v3 20/151 (13.2%); per rung, role_name 24/800 lookups (3.0%), near_text 0/1056, table_cell 0/170. Reading them takes about 1 s.
+- Candidate v4 from the committed handoff evidence, evaluated on all 10 member_savings_balance tasks (1 repetition each): identical to v3 on 9, and on `lookup-renamed-button` v3 stops (`LOCATOR_UNRESOLVED`) while v4 answers exactly. All gates pass; about 3.5 minutes. The candidate on the old screen resolves by its second rung, with a slip warning.
+
+### Known issues
+- Only `CONTROL_RENAMED` has an automatic proposal. The rest need a person or a new discovery run.
+- A drift that was not injected has no benchmark task reproducing it, so `repairs_the_drift` rests on the failure screen alone (the gate says so).
+- Tasks that need consent run with consent minted for the evaluation's own mock app, as in the benchmark; `open_subaccount` has no drift on record to try it on.
+- Running replay or evaluation from a thread that already holds a sync Playwright fails; the integration test runs them on a worker thread, as a CLI process would be.
+
+### Commit
+- `feat: add capability drift tracking and candidate evolution`.
+
+### Next
+- Phase 5: capability composition.

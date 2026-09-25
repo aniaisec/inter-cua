@@ -149,6 +149,8 @@ In PowerShell, write `` ` `` instead of `\` at line ends.
 | Benchmark: repeated LLM vs discover-then-replay | `cua benchmark run` then `cua benchmark report --latest` | nothing with the scripted model; a key and money with `--llm` |
 | Explain a run; capability health | `cua metrics run evidence/replay-success`, `cua metrics report` | nothing: reads run directories |
 | Capability versions, lifecycle and health | `cua registry list`, `cua registry show <name>` | nothing: reads files |
+| Drift on record, and its rates | `cua drift scan`, `cua drift report` | nothing: reads run directories |
+| A candidate repair for a run that drifted | `cua drift propose <run>`, then `cua drift evaluate <name>` | nothing to propose; Chromium to evaluate (it starts its own mock app) |
 
 The browser tests start their own mock app on a free port. No test calls a
 model: the discovery tests use the scripted client and recorded fixtures.
@@ -173,6 +175,10 @@ model: the discovery tests use the scripted client and recorded fixtures.
 | `cua registry list \| versions <name> \| show <name> [--version N] \| health <name>` | every version of every capability, its lifecycle status and history, and its health from the replays on record | |
 | `cua registry deprecate \| revoke \| reinstate <name> --version N --by <name> [--reason ...]` | move a version through its lifecycle; recorded in `capabilities/registry/lifecycle.jsonl` | |
 | `cua registry sync` | register approved capabilities that are not registered yet | |
+| `cua drift scan [--capability C] [--kind K]` \| `cua drift report [--exclude-injected]` | drift events classified from run directories (`CONTROL_RENAMED`, `CONTROL_MISSING`, `CONTROL_AMBIGUOUS`, `LAYOUT_CHANGED`, `FRAME_CHANGED`, `CHECKPOINT_CHANGED`, `OUTPUT_CHANGED`, `NAVIGATION_CHANGED`), and drift events per invocation by capability version and tenant, and per lookup by locator rung | |
+| `cua drift propose <run_id \| dir>` | a candidate repair for the drift that stopped a run, under `capabilities/candidates/<name>/v<N>/`, as a draft; changes nothing else | 1 if the drift cannot be repaired from its evidence |
+| `cua drift evaluate <name> [--version N] [--task T] [--repetitions R]` | replay the candidate beside the version it repairs on that capability's benchmark tasks, and record the gates in the candidate | 0 passed, 1 failed |
+| `cua drift candidates [<name>]` \| `cua drift show <name> [--version N]` \| `cua drift reject <name> --version N --by <name> --reason ...` | candidate repairs, where each stands, and turning one down | |
 | `cua operator` | the operator console on :8100 | |
 | `cua benchmark list \| run \| report` | run the benchmark suite (`bench/tasks/`) through the repeated-LLM baseline, discovery and replay; aggregate `bench/reports/runs.jsonl` into `summary.md` ([bench/README.md](bench/README.md)) | |
 | `cua metrics run <run_id \| dir> [--json \| --events]` | one run explained: outcome and why, where the time went, model calls, tokens and estimated cost, locators, recoveries, human intervention; `--events` prints its canonical events | |
@@ -262,6 +268,7 @@ mock app in Chromium; `tests/unit` do not).
 | 29 | Resume-state search | | the newest holding checkpoint, never before a commit | `unit/test_replay.py::test_resume_search_*` |
 | – | Catalog (stretch) | | invoke by name → `escalated NEEDS_APPROVAL` → `cua resume` with fresh consent commits once; wrong types fail `INPUT_INVALID` | `integration/test_catalog.py`, `unit/test_catalog.py` |
 | – | Registry | | versions coexist after a re-record; only the allowed lifecycle moves; a revoked version starts nothing, a cached retry still answers; the catalog agrees with the registry | `unit/test_registry.py` |
+| – | Drift and candidate repair | `renamed_button` | the failure is classified `CONTROL_RENAMED`; a candidate v4 is proposed and evaluated (v3 fails the drift task, v4 answers it, the clean task still passes); nothing in `capabilities/` outside `candidates/` changes and v3 stays the default; approval refused until the evaluation passed on that exact content | `integration/test_drift.py`, `unit/test_drift.py` |
 
 ## The mock target app
 
@@ -395,6 +402,47 @@ carry on a paused run of a revoked version. A ledger that cannot be read
 refuses every run rather than guessing. Health (`cua registry health`) is only
 ever what the replays on record show; a version with none has no health, not a
 good one.
+
+### Drift
+
+Drift is the app no longer matching what a capability recorded: a control
+under another name, in another place or frame, or duplicated; a checkpoint or
+an output that no longer holds. `src/cua/drift/` reads it out of run
+directories, like the canonical events it is built on: each control a step
+looked up (the rung it was recorded on, and what every rung found), each one
+that could not be named, and the screen kept at the moment of failure. Each
+`DriftEvent` names the capability version, tenant, app family, step, the rung
+it was recorded on, what each rung found, whether the run survived it, the
+evidence file, and what the classification rests on. `cua drift report` gives
+drift events per invocation by capability version and tenant, and per lookup
+by the rung a control was recorded on; drift injected into the mock app on
+purpose is counted and shown beside the rest.
+
+A drift that stopped a run can become a **candidate**, never a deployment:
+
+```
+v3 approved -> drift -> cua drift propose -> v4 candidate (draft)
+            -> cua drift evaluate (benchmark + security checks)
+            -> cua describe + cua approve (a person) -> v4 approved, the new default
+```
+
+Only `CONTROL_RENAMED` is repaired from the evidence, with no model: the kept
+failure screen shows exactly one control of the recorded role where the
+recorded one was, so the repair names it (`role_name` "Find") in front of the
+recorded rungs, which stay, so a tenant still on the old screen is served.
+Any other kind is reported with a pointer to re-record. The candidate is
+written under `capabilities/candidates/<name>/v<N>/` (`capability.json`,
+`candidate.json`, `rationale.md`, `evidence/`) and nothing else is touched:
+the working copy, the registered versions and the ledger stay as they were,
+and the version that drifted stays the default. Static checks hold it to the
+narrowest change (only that step's ladder differs; the new ladder names the
+same control on the failure screen by a trusted rung; no new text the policy
+scrubs; a committing step is flagged for review). `cua drift evaluate` replays
+the benchmark tasks for that capability with the candidate and with the
+version it repairs, in a fresh mock app, and gates on: the drift task answered,
+no task worse than before, no wrong answer or unexpected commit, security
+tasks still refused. `cua approve` refuses a candidate until an evaluation has
+passed on exactly its content, and never after it was rejected.
 
 ### Replay
 

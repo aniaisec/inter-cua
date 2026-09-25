@@ -73,8 +73,13 @@ class Registry:
     def for_path(cls, path: Path, *, state_dir: Path = STATE_DIR) -> Registry:
         """The registry a capability file belongs to: beside a working copy
         (``capabilities/x.json``), or the one a registered copy is inside
-        (``capabilities/registry/x/v3.json``)."""
+        (``capabilities/registry/x/v3.json``), or the one a candidate repair
+        is proposed to (``capabilities/candidates/x/v4/capability.json``)."""
+        from cua.drift.store import capabilities_dir_of, is_candidate_path
+
         parent = path.parent
+        if is_candidate_path(path):
+            return cls(capabilities_dir_of(path), state_dir=state_dir)
         if parent.parent.name == REGISTRY:
             return cls(parent.parent.parent, state_dir=state_dir)
         return cls(parent, state_dir=state_dir)

@@ -16,6 +16,12 @@ under ``capabilities/registry/`` and the approval is appended to its ledger,
 so the version still runs after the capability is re-recorded. A version the
 registry has deprecated or revoked is not approved again here: reinstating a
 deprecated one is ``cua registry reinstate``, and a revoked one is final.
+
+A candidate repair (``capabilities/candidates/<name>/v<N>/capability.json``,
+``cua drift propose``) is approved the same way, with one more condition: its
+evaluation (``cua drift evaluate``) must have passed on exactly this content,
+and it must not have been rejected. Its approval is noted in the ledger as a
+repair of the version it came from.
 """
 
 from __future__ import annotations
@@ -80,6 +86,12 @@ def approve(path: Path, by: str, *, state_dir: Path = STATE_DIR) -> Capability:
     if not by:
         raise ApprovalRefused("say who is approving (--by <name>)")
 
+    from cua.drift.store import (
+        Candidates,
+        approval_refusal,
+        capabilities_dir_of,
+        is_candidate_path,
+    )
     from cua.registry.store import Registry, RegistryError  # it reads receipts from here
 
     loaded = open_capability(path)
@@ -103,6 +115,14 @@ def approve(path: Path, by: str, *, state_dir: Path = STATE_DIR) -> Capability:
     except RegistryError as exc:
         raise ApprovalRefused(str(exc)) from None
 
+    note = ""
+    if is_candidate_path(path):
+        refusal = approval_refusal(path, capability)
+        if refusal is not None:
+            raise ApprovalRefused(refusal)
+        base = Candidates(capabilities_dir_of(path)).read(path.parent).record.base
+        note = f"candidate repair of v{base.version} ({path.parent.as_posix()})"
+
     review = last_review(capability, state_dir=state_dir)
     if review is None:
         raise ApprovalRefused(
@@ -120,7 +140,7 @@ def approve(path: Path, by: str, *, state_dir: Path = STATE_DIR) -> Capability:
     )
     saved = save(approved, path)
     try:
-        registry.register(saved)
+        registry.register(saved, note=note)
     except RegistryError as exc:
         raise ApprovalRefused(f"approved in {path.as_posix()}, but not registered: {exc}") from None
     return saved

@@ -109,6 +109,7 @@ from cua.surface.locators import (
     Ladder,
     LadderOutcome,
     Resolved,
+    RungAttempt,
     resolve_ladder,
 )
 from cua.surface.protocol import (
@@ -533,6 +534,7 @@ class ReplayEngine:
             message=_attempts_text(outcome, ladder),
             observation=screen,
             escalate="STUCK",
+            attempts=outcome.attempts if outcome is not None else [],
         )
 
     def _trusted(self, ladder: Ladder, outcome: Resolved) -> bool:
@@ -1660,7 +1662,11 @@ class ReplayEngine:
         performed: bool = False,
         escalate: EscalationReason | None = None,
         code_detail: str | None = None,
+        attempts: list[RungAttempt] | None = None,
     ) -> NoReturn:
+        """``attempts``: what each rung of the ladder found, for a control
+        that could not be located. Logged as data, so drift can be classified
+        from the log without parsing the message."""
         side_effect = self._side_effect(step, observation, performed=performed) if step else "none"
         wanted = (
             escalate
@@ -1694,6 +1700,7 @@ class ReplayEngine:
             side_effect=side_effect,
             during_recovery=during,
             escalation_reason=wanted,
+            **({"attempts": [a.model_dump() for a in attempts]} if attempts is not None else {}),
         )
         if wanted is not None and self.handoff is not None:
             raise _Escalate(failure, self._index_of(failure.step_id))

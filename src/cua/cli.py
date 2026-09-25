@@ -46,6 +46,10 @@ def _build_parser() -> argparse.ArgumentParser:
     from cua.registry.cli import add_parser as _add_registry
 
     _add_registry(sub)
+
+    from cua.drift.cli import add_parser as _add_drift
+
+    _add_drift(sub)
     return parser
 
 
@@ -393,6 +397,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         from cua.registry.cli import main as registry
 
         return registry(args)
+    if args.command == "drift":
+        load_dotenv(Path(".env"))
+        from cua.drift.cli import main as drift
+
+        return drift(args)
     if args.command == "catalog":
         if args.catalog_command == "invoke":
             load_dotenv(Path(".env"))

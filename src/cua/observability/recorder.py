@@ -18,6 +18,7 @@ and a reader that "fixed" them would be tampering with it.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -301,8 +302,31 @@ def _from_log(make: _Maker, line: dict[str, Any]) -> list[Event]:
             "handed_over": name == "replay.fault",
         }
         out = [ev("step.failed", attrs)]
-        if code == "LOCATOR_UNRESOLVED":
-            out.append(ev("locator.failed", {"code": code, "message": line.get("message")}))
+        if code in LOCATOR_CODES:
+            logged = line.get("attempts")
+            if isinstance(logged, list):
+                attempts = [_attempt(a) for a in logged if isinstance(a, dict)]
+                for a in attempts:
+                    # In a failure, a rung that found exactly one node was not
+                    # trusted to act on (a pixel rung), or it would have won.
+                    if a["matches"] == 1:
+                        a["untrusted"] = True
+            else:
+                attempts = parse_attempts(str(line.get("message") or ""))
+            out.append(
+                ev(
+                    "locator.failed",
+                    {
+                        "code": code,
+                        "message": line.get("message"),
+                        "expected": line.get("expected"),
+                        "attempts": attempts,
+                        # Runs from before the engine logged its attempts
+                        # say them only in prose.
+                        "attempts_from": "log" if isinstance(logged, list) else "message",
+                    },
+                )
+            )
         if code == "RECOVERY_EXHAUSTED":
             out.append(ev("recovery.exhausted", {"code": code, "message": line.get("message")}))
         return out
@@ -310,10 +334,14 @@ def _from_log(make: _Maker, line: dict[str, Any]) -> list[Event]:
         target = str(line.get("target"))
         rung, recorded = line.get("rung"), line.get("recorded")
         fell_back = recorded is not None and rung != recorded
+        logged = line.get("attempts")
+        attempts = (
+            [_attempt(a) for a in logged if isinstance(a, dict)] if isinstance(logged, list) else []
+        )
         out = [
             ev(
                 "locator.resolved",
-                {"rung": rung, "recorded": recorded, "fell_back": fell_back},
+                {"rung": rung, "recorded": recorded, "fell_back": fell_back, "attempts": attempts},
                 at=target,
             )
         ]
@@ -331,6 +359,44 @@ def _from_log(make: _Maker, line: dict[str, Any]) -> list[Event]:
     attrs = {k: line.get(k) for k in keep}
     attrs.update(_EXTRA_ATTRS.get(name, {}))
     return [ev(type_, attrs)]
+
+
+LOCATOR_CODES = ("LOCATOR_UNRESOLVED", "LOCATOR_AMBIGUOUS")
+"""The failures that mean a control could not be named on the screen."""
+
+_ATTEMPT = re.compile(
+    r"^(?P<rung>[a-z_]+): (?:refused \((?P<refused>.*)\)|(?P<n>\d+) match(?:es)?(?P<rest>.*))$"
+)
+
+
+def _attempt(raw: dict[str, Any]) -> dict[str, Any]:
+    """One rung's attempt as an event carries it: which rung, how many nodes
+    it found, or why it was not tried. Node refs are left out: they name
+    nodes of one observation and mean nothing outside it."""
+    out: dict[str, Any] = {"rung": str(raw.get("rung")), "matches": int(raw.get("matches") or 0)}
+    if raw.get("refused"):
+        out["refused"] = str(raw["refused"])
+    return out
+
+
+def parse_attempts(message: str) -> list[dict[str, Any]]:
+    """The attempts, read back out of the engine's failure message
+    (``role_name: 0 matches; bbox: 1 match, not trusted ...``), for runs
+    logged before the attempts were logged as data. A pixel rung that found
+    one node and was not acted on says so in the message: ``untrusted``."""
+    text = message.split("): ", 1)[1] if message.startswith("during recovery (") else message
+    out: list[dict[str, Any]] = []
+    for part in text.split("; "):
+        m = _ATTEMPT.match(part.strip())
+        if m is None:
+            continue
+        attempt: dict[str, Any] = {"rung": m["rung"], "matches": int(m["n"] or 0)}
+        if m["refused"] is not None:
+            attempt["refused"] = m["refused"]
+        elif "not trusted" in (m["rest"] or ""):
+            attempt["untrusted"] = True
+        out.append(attempt)
+    return out
 
 
 def _from_calls(

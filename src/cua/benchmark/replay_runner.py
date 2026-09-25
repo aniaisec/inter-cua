@@ -40,7 +40,10 @@ def run_replay(
     token: str | None = None,
     idempotency_key: str | None = None,
     commits_earlier: int = 0,
+    allow_draft: bool = False,
 ) -> RunMetrics:
+    """``allow_draft``: for a candidate repair under evaluation
+    (``cua drift evaluate``), which is a draft until a person approves it."""
     before = env.commits_total()
     started_at = utc_now()
     started = time.monotonic()
@@ -55,6 +58,7 @@ def run_replay(
             approval=ApprovalGrant(token=token) if token else None,
         ),
         runs_dir=env.runs_dir,
+        allow_draft=allow_draft,
         config=ReplayConfig(),
         environ=env.environ,
     )
