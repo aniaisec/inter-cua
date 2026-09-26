@@ -43,8 +43,9 @@ def free_port() -> int:
 
 
 @contextmanager
-def mockapp(port: int | None = None) -> Iterator[str]:
-    """A mock app of its own for this session; yields its base URL."""
+def mockapp(port: int | None = None, *, env: dict[str, str] | None = None) -> Iterator[str]:
+    """A mock app of its own for this session; yields its base URL. ``env``:
+    extra environment for it (the security benchmark's canary password)."""
     port = port or free_port()
     base_url = f"http://127.0.0.1:{port}"
     proc = subprocess.Popen(
@@ -60,7 +61,7 @@ def mockapp(port: int | None = None) -> Iterator[str]:
             "--log-level",
             "warning",
         ],
-        env={**os.environ, "PYTHONPATH": str(Path.cwd())},
+        env={**os.environ, "PYTHONPATH": str(Path.cwd()), **(env or {})},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )

@@ -122,6 +122,7 @@ def run_agent(
     # record (policy.auto_approved), and a benchmark of hundreds of runs
     # should not bury its own progress under the same line.
     with contextlib.redirect_stderr(io.StringIO()), PlaywrightSurface.launch() as surface:
+        surface.restrict_egress(env.policy.allowed_origins)
         outcome = DiscoveryLoop(
             surface=surface,
             llm=llm,

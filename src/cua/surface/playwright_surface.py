@@ -23,6 +23,12 @@ Three things this module is careful about, each earned from the target app:
   dismissed, which for a confirm commits nothing. Either way it is recorded.
   Playwright's own default is to dismiss silently, and a silently cancelled
   irreversible step looks exactly like a successful one.
+* **Egress.** ``restrict_egress`` aborts, in the browser, every request to an
+  origin the policy does not allow: a redirect, a form that posts elsewhere,
+  an image beacon, a script. The action policy decides what automation may
+  *do*; this decides what the page may *send*, which the policy cannot see —
+  a form's destination is not in the accessibility tree, and a beacon is not
+  an action at all.
 """
 
 from __future__ import annotations
@@ -36,11 +42,13 @@ import sys
 import tempfile
 import time
 import urllib.request
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
+from urllib.parse import urlsplit
 
 from playwright.sync_api import (
     Browser,
@@ -50,6 +58,7 @@ from playwright.sync_api import (
     Locator,
     Page,
     Playwright,
+    Route,
     sync_playwright,
 )
 from playwright.sync_api import Error as PlaywrightError
@@ -162,6 +171,10 @@ class PlaywrightSurface:
         self._documents_requested = 0
         self._documents_before_act = 0
         self._may_navigate = False
+        self.egress_blocked: list[str] = []
+        self._egress_cdp: Any = None
+        self._egress_allowed: list[str] = []
+        """Origins a request was refused to (``restrict_egress``), in order."""
         page.on("request", self._document_requested)
         page.on("requestfinished", self._document_done)
         page.on("requestfailed", self._document_done)
@@ -285,6 +298,76 @@ class PlaywrightSurface:
         )
         surface._target_id = target_id
         return surface
+
+    def restrict_egress(self, allowed_origins: Sequence[str]) -> None:
+        """Abort every request to an origin not in ``allowed_origins``.
+
+        Two layers, because neither alone sees everything. A route on the
+        browser context covers every page and frame, but Playwright calls it
+        only for the first request of a redirect chain: measured, a 303 from
+        the tenant to another origin went straight through it. CDP's Fetch
+        interception on the page sees each hop of a redirect. Set per
+        connection, so a resumed run sets it again when it attaches (while a
+        person has the session, it is theirs)."""
+        self.lift_egress()
+        self._egress_allowed = list(allowed_origins)
+        allowed = {_origin(o) for o in allowed_origins}
+
+        def refused(url: str) -> bool:
+            if not url.startswith(("http://", "https://")) or _origin(url) in allowed:
+                return False
+            self.egress_blocked.append(_origin(url))
+            return True
+
+        def route(r: Route) -> None:
+            if refused(r.request.url):
+                r.abort("blockedbyclient")
+            else:
+                r.continue_()
+
+        self._page.context.route("**/*", route)
+
+        cdp = self._page.context.new_cdp_session(self._page)
+
+        def paused(event: dict[str, Any]) -> None:
+            rid = event["requestId"]
+            try:
+                if refused(str(event["request"]["url"])):
+                    cdp.send(
+                        "Fetch.failRequest", {"requestId": rid, "errorReason": "BlockedByClient"}
+                    )
+                else:
+                    cdp.send("Fetch.continueRequest", {"requestId": rid})
+            except PlaywrightError:
+                pass  # the page went away with the request
+
+        cdp.on("Fetch.requestPaused", paused)
+        cdp.send("Fetch.enable", {"patterns": [{"urlPattern": "*", "requestStage": "Request"}]})
+        self._egress_cdp = cdp
+
+    def lift_egress(self) -> None:
+        """Remove the egress guard (paused requests are let go)."""
+        if self._egress_cdp is None:
+            return
+        cdp, self._egress_cdp = self._egress_cdp, None
+        try:
+            self._page.context.unroute("**/*")
+            cdp.send("Fetch.disable")
+            cdp.detach()
+        except PlaywrightError:
+            pass  # the browser or page is already gone
+
+    @contextmanager
+    def egress_lifted(self) -> Iterator[None]:
+        """No egress guard inside; the same one again after."""
+        allowed = list(self._egress_allowed)
+        guarded = self._egress_cdp is not None
+        self.lift_egress()
+        try:
+            yield
+        finally:
+            if guarded:
+                self.restrict_egress(allowed)
 
     def keep_open(self) -> None:
         """Leave the browser running when this surface closes (a detached
@@ -1094,3 +1177,8 @@ def _ms_since(started: float) -> int:
 
 def _first_line(exc: PlaywrightError) -> str:
     return str(exc).splitlines()[0] if str(exc) else exc.__class__.__name__
+
+
+def _origin(url: str) -> str:
+    parts = urlsplit(url)
+    return f"{parts.scheme}://{parts.netloc}".lower()

@@ -54,6 +54,10 @@ def _build_parser() -> argparse.ArgumentParser:
     from cua.workflow.cli import add_parser as _add_workflow
 
     _add_workflow(sub)
+
+    from cua.security.cli import add_parser as _add_security
+
+    _add_security(sub)
     return parser
 
 
@@ -406,6 +410,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         from cua.drift.cli import main as drift
 
         return drift(args)
+    if args.command == "security":
+        from cua.security.cli import main as security
+
+        return security(args)
     if args.command == "workflow":
         load_dotenv(Path(".env"))
         from cua.workflow.cli import main as workflow
@@ -489,6 +497,7 @@ def _discover(args: argparse.Namespace) -> int:
     )
     try:
         with PlaywrightSurface.launch(headed=args.headed or None) as surface:
+            surface.restrict_egress(policy.allowed_origins)
             driven: Any = surface
             channel = None
             handoff = _handoff_settings(args)
@@ -509,6 +518,7 @@ def _discover(args: argparse.Namespace) -> int:
                     capability_version=None,
                     tenant=tenant.id,
                     settings=handoff,
+                    while_waiting=surface.egress_lifted,
                 )
                 driven = LeasedSurface(surface, control.lease)
             outcome = DiscoveryLoop(

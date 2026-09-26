@@ -14,6 +14,13 @@ or paths; and — for a link, whose destination is on the screen before it is
 clicked — a destination off the allowed origins (``external_navigation``), off
 the allowed paths, or shaped like a file to fetch (``download``).
 
+``credential_sink`` is the same kind of check for where a credential may be
+typed: only on a sign-on screen (``credential_paths``), and a secret field
+(one named like ``sensitive_labels``: the password) only into a control
+labelled as one. It is what stops a screen that asks to "re-enter your
+password" in a form of its own, or a model told to type it into a search box,
+from turning a placeholder into a leak: the value is never substituted.
+
 It is a pure function of the action and the observation it is about, so the
 same check runs in the discovery loop and in replay and can be tested without
 a browser.
@@ -92,6 +99,9 @@ class Policy(BaseModel):
     risky_rules: list[RiskRule] = Field(default_factory=list)
     screenshot_masks: list[Ladder] = Field(default_factory=list)
     sensitive_labels: str = r"(?i)password"
+    credential_paths: list[str] = Field(default_factory=lambda: [".*"])
+    """Regexes searched in the path of the screen a credential is typed on:
+    the sign-on screens. A credential typed anywhere else is blocked."""
     scrub_patterns: list[ScrubPattern] = Field(default_factory=list)
     """Shapes of personal data masked in everything the model or the log sees."""
 
@@ -197,6 +207,34 @@ def check(
         what = node.label if matched else f"Enter on {node.label}"
         return NeedsApproval(rule=rule.id, reason=f"{what}: {rule.reason}")
     return Allow()
+
+
+TEXT_ROLES: frozenset[str] = frozenset({"textbox", "searchbox"})
+
+
+def credential_sink(policy: Policy, node: Node, frame_url: str, fields: list[str]) -> Block | None:
+    """May these credential fields be typed into this control? ``fields`` are
+    the credential field names in the text (``password``), never values."""
+    if not fields:
+        return None
+    path = urlsplit(frame_url).path or "/"
+    if node.role not in TEXT_ROLES:
+        return Block(reason=f"a credential goes only into a text field, not {node.label}")
+    if not any(re.search(p, path) for p in policy.credential_paths):
+        return Block(
+            reason=f"a credential is typed only on a sign-on screen, and {path} is not one "
+            f"({node.label})"
+        )
+    secret = [f for f in fields if re.search(policy.sensitive_labels, f)]
+    labelled = any(
+        re.search(policy.sensitive_labels, t) for t in (node.name, node.near_text or "") if t
+    )
+    if secret and not labelled:
+        return Block(
+            reason=f"the secret credential field {secret[0]!r} goes only into a field labelled "
+            f"as one, not {node.label}"
+        )
+    return None
 
 
 def _destination_blocked(policy: Policy, node: Node, frame_url: str) -> Block | None:

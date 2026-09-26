@@ -24,3 +24,6 @@ dist/
 
 # Benchmark run directories (screenshots, logs); the raw metrics are in bench/reports/.
 /bench/runs/
+
+# Security benchmark run directories; the report is in bench/security/reports/.
+/bench/security/runs/

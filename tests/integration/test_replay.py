@@ -24,6 +24,7 @@ from playwright.sync_api import Page
 from cua.artifact.store import load, save, with_changes
 from cua.policy import tokens
 from cua.policy.allowlist import load_policy
+from cua.registry.store import Registry
 from cua.replay.engine import ReplayConfig
 from cua.replay.invocation import ApprovalGrant, Budget, Invocation
 from cua.replay.result import BusinessOutcome, Failure, ReplayResult, Success
@@ -77,12 +78,14 @@ class Harness:
         yield PlaywrightSurface(self.page)
 
     def approved(self, path: Path) -> Path:
-        """A copy of a capability, approved, for a test to replay unattended."""
+        """A copy of a capability, approved and registered as `cua approve`
+        would leave it: replay runs an approved file only if the ledger beside
+        it records that approval."""
         cap = load(path)
         if cap.approval_state != "approved":
             cap = with_changes(cap, approval_state="approved", approved_by="test")
         copy = self.tmp / path.name
-        save(cap, copy)
+        Registry(self.tmp).register(save(cap, copy))
         return copy
 
     def consent(self, capability: Path, inputs: dict[str, str], *, by: str = "test") -> str:

@@ -61,7 +61,7 @@ from cua.agent.tools import (
     tool_definitions,
 )
 from cua.evidence.logger import RunLog, utc_now
-from cua.policy.allowlist import Block, NeedsApproval, Policy, check
+from cua.policy.allowlist import Block, NeedsApproval, Policy, check, credential_sink
 from cua.policy.redaction import Redactor
 from cua.replay.handoff import Abort, HandBack, Handoff, HandoffRequest, Option, Unanswered
 from cua.replay.result import EscalationReason
@@ -416,7 +416,11 @@ class DiscoveryLoop:
         if isinstance(call, ClickCall):
             return Click(ref=call.ref)
         if isinstance(call, TypeCall):
-            return TypeText(ref=call.ref, text=self._expand(call.text))
+            # Expanded first so an unknown placeholder is named as that; the
+            # text is only ever typed if the sink check passes.
+            text = self._expand(call.text)
+            self._credential_sink(call)
+            return TypeText(ref=call.ref, text=text)
         if isinstance(call, PressCall):
             return Press(key=call.key, ref=call.ref)
         return ReadText(ref=call.ref)
@@ -685,6 +689,24 @@ class DiscoveryLoop:
         )
 
     # -- helpers -------------------------------------------------------------
+
+    def _credential_sink(self, call: TypeCall) -> None:
+        """Refuse a credential placeholder aimed anywhere but a sign-on field,
+        before its value is substituted (``credential_sink``)."""
+        fields = [
+            m.group(2)
+            for p in _PLACEHOLDER.finditer(call.text)
+            if (m := _CREDENTIAL.match(p.group(1))) is not None
+        ]
+        assert self.screen is not None
+        node = self.screen.node(call.ref)
+        info = self.screen.frame_info(node.frame)
+        blocked = credential_sink(
+            self.policy, node, info.url if info else self.screen.location, fields
+        )
+        if blocked is not None:
+            self.log.event("policy.block", turn=self.watch.steps, reason=blocked.reason)
+            raise ValueError(f"Blocked by policy: {blocked.reason}")
 
     def _expand(self, text: str) -> str:
         """Substitute credential placeholders at the last moment."""

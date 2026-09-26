@@ -61,7 +61,15 @@ from cua.artifact.schema import (
     StepTimedOut,
 )
 from cua.evidence.logger import RunLog
-from cua.policy.allowlist import Allow, Block, NeedsApproval, Policy, check, origin_allowed
+from cua.policy.allowlist import (
+    Allow,
+    Block,
+    NeedsApproval,
+    Policy,
+    check,
+    credential_sink,
+    origin_allowed,
+)
 from cua.policy.redaction import Redactor
 from cua.policy.tokens import Approval
 from cua.replay import detectors as det_rules
@@ -454,6 +462,7 @@ class ReplayEngine:
             node, screen = self._find(step)
             if step.target and step.value and _CREDENTIAL_IN.search(step.value):
                 self._mask(step.id, step.target)
+                self._credential_sink(step, node, screen)
             action = self._action(step, node)
             self._permit(step, action, screen)
             try:
@@ -589,6 +598,28 @@ class ReplayEngine:
             assert ref is not None
             return ReadText(ref=ref)
         return Press(key=step.key or "", ref=ref)
+
+    def _credential_sink(self, step: Step, node: Node | None, screen: Observation) -> None:
+        """A credential only into a sign-on field (``credential_sink``),
+        checked before its value is substituted: an approved capability that
+        was changed to type the password into a search box stops here."""
+        assert node is not None and step.value is not None
+        fields = [
+            found[1]
+            for m in re.finditer(r"\$\{([^}]*)\}", step.value)
+            if (found := credential_field(m.group(1))) is not None
+        ]
+        info = screen.frame_info(node.frame)
+        blocked = credential_sink(self.policy, node, info.url if info else screen.location, fields)
+        if blocked is not None:
+            self.log.event("policy.block", step=step.id, reason=blocked.reason)
+            self._fail(
+                "POLICY_BLOCKED",
+                step,
+                expected="a credential typed only into a sign-on field",
+                message=blocked.reason,
+                observation=screen,
+            )
 
     def _expand(self, step: Step, value: str) -> str:
         """Inputs now; credentials at the last moment, and only here."""

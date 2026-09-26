@@ -29,6 +29,7 @@ import os
 import sys
 import time
 from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Literal
@@ -87,7 +88,13 @@ class OperatorChannel:
         capability_version: int | None,
         tenant: str,
         settings: HandoffSettings | None = None,
+        while_waiting: Callable[[], AbstractContextManager[None]] | None = None,
     ) -> None:
+        """``while_waiting``: entered for as long as the run waits on a person.
+        The runner lifts the browser's egress guard in it: the guard is
+        serviced by this process, which does not pump the browser while it
+        waits, so left in place it would stall every request the person's
+        page makes. While a person holds the session, it is theirs."""
         self.log = log
         self.queue = Queue(runs_dir)
         self.control = control
@@ -98,6 +105,7 @@ class OperatorChannel:
         self.tenant = tenant
         self.settings = settings or HandoffSettings()
         self._opened_at: dict[str, float] = {}
+        self._while_waiting = while_waiting or nullcontext
 
     # -- Handoff -------------------------------------------------------------
 
@@ -162,6 +170,8 @@ class OperatorChannel:
         started = self._opened_at.get(ticket.request_id, time.monotonic())
         expires = _expiry(self.log.dir, ticket.request_id)
         beat = 0.0
+        waiting = self._while_waiting()
+        waiting.__enter__()
         try:
             while True:
                 record = self.control.read()
@@ -200,6 +210,7 @@ class OperatorChannel:
             return Unanswered(why="the waiting process was interrupted")
         finally:
             _remove_heartbeat(self.log.dir / WAITER_FILE)
+            waiting.__exit__(None, None, None)
 
     def resumed(self, ticket: Ticket, *, checkpoint: str | None, next_step: str) -> None:
         where = f"{next_step}" + (f" after {checkpoint}" if checkpoint else "")

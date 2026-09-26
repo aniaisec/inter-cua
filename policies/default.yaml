@@ -31,6 +31,13 @@ risky_rules:
     location: "/review/"
     reason: commits a change on the core system of record
 
+# Where a credential may be typed: the sign-on screen only. A password (a
+# credential field named like sensitive_labels) goes only into a field
+# labelled like one. A screen that asks for the password again anywhere else
+# is refused before the value is substituted.
+credential_paths:
+  - "^/login$"
+
 # Painted out by the screenshot call itself, before the image exists.
 screenshot_masks:
   - [{strategy: near_text, text: Password, role: textbox}]

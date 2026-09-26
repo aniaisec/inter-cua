@@ -7,13 +7,17 @@ mistaken for real PII.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from decimal import Decimal
 
 # The only login the mock app accepts. Replay resolves it through
 # secret://<tenant>/mockcore/operator; it is never written to an artifact.
+# The security benchmark starts its app with a password of its own
+# (MOCKAPP_OPERATOR_PASSWORD): a canary that appears nowhere else, so finding
+# it in a log, a trace or the attacker's inbox is unambiguous.
 OPERATOR_USERNAME = "operator"
-OPERATOR_PASSWORD = "operator"
+OPERATOR_PASSWORD = os.environ.get("MOCKAPP_OPERATOR_PASSWORD") or "operator"
 
 
 @dataclass(frozen=True)

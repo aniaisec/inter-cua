@@ -219,12 +219,16 @@ def replay(
             return cached
 
     try:
-        lifecycle = Registry.for_path(path).status_of(cap)
+        registry = Registry.for_path(path)
+        lifecycle = registry.status_of(cap)
+        unrecorded = cap.approval_state == "approved" and not registry.approval_on_record(cap)
     except RegistryError as exc:
         return _refused(cap, invocation, "POLICY_BLOCKED", f"lifecycle unknown: {exc}")
     refusal = resolver.refusal(cap.name, cap.version, lifecycle)
     if refusal is not None:
         return _refused(cap, invocation, "POLICY_BLOCKED", refusal)
+    if unrecorded and not allow_draft:
+        return _refused(cap, invocation, "POLICY_BLOCKED", _unrecorded(cap))
 
     spent = SpentTokens(runs_dir)
     if approval is not None:
@@ -378,6 +382,7 @@ def _execute(
     secrets = [v for c in credentials.values() for v in c.values()]
     secrets += [v for n, v in invocation.inputs.items() if cap.inputs[n].sensitive]
     with surface() as live:
+        live.restrict_egress(policy.allowed_origins)
         context = live.page.context
         trace.start(context)
         driven: Surface = live
@@ -397,6 +402,7 @@ def _execute(
                 capability_version=cap.version,
                 tenant=tenant.id,
                 settings=handoff,
+                while_waiting=live.egress_lifted,
             )
             # Every action the engine takes asks the lease first.
             driven = LeasedSurface(live, control.lease)
@@ -423,6 +429,8 @@ def _execute(
                 spent.spend(approval, log.run_id)
                 log.event("approval.spent", token_sha256=approval.token_sha256[:12])
 
+        if live.egress_blocked:
+            log.event("egress.blocked", origins=sorted(set(live.egress_blocked)))
         saved = resume_context(engine, live) if result.kind == "escalated" else None
         kept: Path | None = None
         if saved is not None:
@@ -446,6 +454,10 @@ def _execute(
             kept = trace.stop(
                 context, keep_as=keep, redactor=Redactor.for_policy(policy, _encodings(secrets))
             )
+        # The guard is this process's to service. A session left for a person
+        # is theirs, and a browser that outlives the run must not stall on a
+        # handler nobody is running.
+        live.lift_egress()
 
     if kept is not None:
         evidence = result.evidence.model_copy(
@@ -523,9 +535,15 @@ def resume(
             "only with the capability it began with"
         )
     try:
-        refusal = resolver.refusal(
-            cap.name, cap.version, Registry.for_path(Path(ctx.capability_path)).status_of(cap)
-        )
+        registry = Registry.for_path(Path(ctx.capability_path))
+        refusal = resolver.refusal(cap.name, cap.version, registry.status_of(cap))
+        if (
+            refusal is None
+            and cap.approval_state == "approved"
+            and not ctx.allow_draft
+            and not registry.approval_on_record(cap)
+        ):
+            refusal = _unrecorded(cap)
     except RegistryError as exc:
         refusal = f"lifecycle unknown: {exc}"
     if refusal is not None:
@@ -780,6 +798,15 @@ def _encodings(secrets: list[str]) -> list[str]:
         if s:
             out.update({s, quote_plus(s), quote(s, safe=""), json.dumps(s)[1:-1]})
     return sorted(out)
+
+
+def _unrecorded(cap: Capability) -> str:
+    return (
+        f"{cap.name} v{cap.version} says it is approved, but the registry records no approval "
+        "of this content. `cua approve` records one; `cua registry sync` records one for a "
+        "capability approved before the registry existed. A file marked approved by hand is "
+        "not approved."
+    )
 
 
 def _refused(

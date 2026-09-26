@@ -109,6 +109,25 @@ class Registry:
         with self.ledger_path.open("a", encoding="utf-8", newline="\n") as f:
             f.write(entry.model_dump_json() + "\n")
 
+    def approval_on_record(self, capability: Capability) -> bool:
+        """Does the ledger record the approval of exactly this content?
+
+        A capability file's ``approval_state`` and seal are bookkeeping any
+        editor can write: the seal is a hash, not a signature, and a file
+        edited, re-hashed and marked approved by hand loads as approved.
+        ``cua approve`` also records the approval here, with the content
+        hash it covered, and replay asks for that record, so a file approved
+        nowhere but in itself is refused."""
+        digest = capability.content_hash()
+        return any(
+            e.name == capability.name
+            and e.version == capability.version
+            and e.previous == "review"
+            and e.status == "approved"
+            and e.artifact_hash == digest
+            for e in self.ledger()
+        )
+
     def status_of(self, capability: Capability) -> Status:
         """Where this capability, as loaded, stands. What ``cua replay`` asks
         before it starts a run."""
