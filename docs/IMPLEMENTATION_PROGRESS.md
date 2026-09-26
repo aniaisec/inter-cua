@@ -211,3 +211,45 @@ Status: COMPLETE
 
 ### Next
 - Phase 5: capability composition.
+
+## Phase 5 — Capability composition
+
+Status: COMPLETE
+
+### Changes
+- `src/cua/workflow/`: `models.py` (the workflow file, bindings, `WorkflowResult`), `planner.py` (each step resolved in the registry; step inputs from workflow inputs and earlier outputs), `validator.py` (static checks and per-tenant refusals), `journal.py` (workflow-level idempotency by key), `runner.py`, `cli.py`.
+- `cua workflow list | check | run | approval-token`.
+- `workflows/open_member_subaccount.yaml`: `member_savings_balance` then `open_subaccount`, with outputs from both.
+- `cua.replay.invocation.check_input` (was private `_check`): one value against its declared type and pattern, shared with workflow inputs and literals.
+
+### Decisions
+- Every step runs through `cua.replay.runner.replay`, unchanged. The workflow adds wiring and ordering, and never goes around a child's approval gate, policy, lifecycle check, consent, budget or idempotency.
+- Bindings are exactly `${input}`, `${step.output.name}` or a literal, never a template, so every one is type-checked before the run. A value flows only into an input of its own type (or integer into decimal). An optional value never feeds a required input. A sensitive value is bound only to a sensitive input, and a workflow input declared sensitive is never returned as an output. An unused workflow input is an error.
+- A wrong definition is a usage error (exit 64). A step that is a draft, revoked, for another app family or on an unsupported surface refuses the whole workflow (`POLICY_BLOCKED`) before any step, so an earlier step never runs for nothing.
+- The first step that does not succeed ends the workflow and gives it its kind and code; later steps are `not_run`. `side_effect` folds as unknown > committed > none.
+- Consent is per committing step (`--approval <step>=<token>`). A token whose step inputs are known up front is verified before the first step (signature, capability, content, tenant, inputs, unspent). Without a token and without `--handoff`, the workflow is refused before the lookup. A step whose inputs come from an earlier output has its token checked by its own replay. `cua workflow approval-token` refuses that case and points to `--handoff`.
+- A workflow with a committing step requires an idempotency key. Each step runs under `wf:<workflow>:<key>:<step>`, so retries are answered by replay's own cache. The journal (`<runs>/.workflows/`) keeps the request fingerprint, the resolved versions (a retry runs the same plan), each step's last state and run dir, and the final result.
+- An escalated step is never started again: after `cua resume`, re-running with the same key reads its answer from its run dir and carries on. A committing step left `started` (process killed) is looked up by its key; its written result is the answer, else `INTERRUPTED` with `side_effect: unknown`. A step reached by an earlier attempt gets no token again, so an expired token never blocks a commit that happened.
+- `budget.timeout_s` covers the whole workflow; each step gets the remainder. `max_recoveries` and `allow_escalation` pass to every step.
+- Workflow records go to `<runs>/workflows/wf_<ulid>/` (`workflow.json`, `log.jsonl`, `result.json`), with no `run.json`, so the metrics and drift readers see only the step runs. Sensitive inputs are masked and tokens are stored by hash.
+- Workflows have no approval lifecycle of their own. They add no UI actions, every child is an approved capability, and consent binds the concrete inputs a person approves.
+
+### Tests
+- `tests/unit/test_workflow.py` (41): the shipped workflow plans clean with typed outputs; binding parsing; each wiring mistake (unknown input, step or output, forward or self reference, type mismatch, optional to required, unbound required input, unknown child input, literal failing its pattern, templates, duplicate ids, unused input, literal output, sensitivity mismatches); integer→decimal and output→input binding at run time; per-step keys, consent, and the shared budget; business outcome stopping before the commit; timeout; refusals before any step (no key, no consent, handoff instead, misdirected or malformed consent, consent for other inputs, spent token, bad inputs, revoked step, other app family); retries (stored result, conflict, lost answer rebuilt with no second commit and no token re-sent, pinned versions, escalated step not re-run then carried on, killed commit never re-run, a step that could not start not left interrupted); CLI check, list, and approval-token.
+- `tests/integration/test_workflow.py`: against the mock app, one commit and typed outputs; the same key again is cached with the commit count unchanged; an unknown member stops at the lookup with no commit.
+- The purity test also holds `cua.workflow` to "imports no model client".
+
+### Results
+- Gate: ruff, `ruff format --check`, `mypy --strict` clean; 607 tests pass (565 before this phase), about 9 minutes.
+- Live against the mock app (`cua workflow run`): lookup + open with consent gave `success`/`committed`, `REF-10003-0001`, and the commit count went 0 → 1. The same key again was cached (count stays 1). The same key with other inputs was `INPUT_INVALID`. A token for other inputs was `POLICY_BLOCKED` before any step. Member 99999 gave `business_outcome NOT_FOUND` at the lookup, open `not_run`, no commit. With `--handoff`, open escalated `NEEDS_APPROVAL`. Re-running while it waited returned the same resume token and started nothing. After `cua resume` with a token, the re-run returned `success` with both steps cached and 1 commit total.
+
+### Known issues
+- Consent for a step whose inputs come from an earlier output cannot be minted ahead; such a step needs `--handoff` (a person consents to the values read).
+- Workflows are not offered in `cua catalog` as tools yet; an agent runs one with `cua workflow run`.
+- The journal is a file per key, like replay's idempotency cache: one process is the deployment. Two concurrent attempts under one key are not serialised.
+
+### Commit
+- `feat: add typed capability composition`.
+
+### Next
+- Phase 6: security threat model and prompt-injection benchmark.

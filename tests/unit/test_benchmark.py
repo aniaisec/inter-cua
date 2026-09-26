@@ -391,8 +391,9 @@ def test_the_replay_strategy_cannot_reach_a_model() -> None:
     """The benchmark's replay side is held to replay's own rule: nothing it
     imports can load a model client or the agent. The CLI parser, which every
     `cua replay` builds, is held to it too, and so are observability, which
-    explains replays, the registry and catalog, which decide what runs, and
-    drift, which proposes and evaluates repairs without asking a model."""
+    explains replays, the registry and catalog, which decide what runs,
+    drift, which proposes and evaluates repairs without asking a model, and
+    workflows, which compose replays."""
     code = (
         "import sys\n"
         "import cua.benchmark.replay_runner, cua.benchmark.metrics, cua.benchmark.report\n"

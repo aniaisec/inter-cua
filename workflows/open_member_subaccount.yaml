@@ -1,0 +1,30 @@
+# Look the member up, then open a savings sub-account for them.
+#
+# The lookup is a guard: a member that does not exist or may not be seen ends
+# the workflow with that business outcome, before anything is committed. The
+# commit (step `open`) needs its own consent, like any replay of
+# open_subaccount: `cua workflow approval-token open_member_subaccount --step open`.
+name: open_member_subaccount
+version: 1
+description: Look a member up, then open a savings sub-account with an initial deposit.
+
+inputs:
+  member_id: {type: string, pattern: "^[0-9]+$"}
+  initial_deposit: {type: decimal}
+
+steps:
+  - id: lookup
+    capability: member_savings_balance
+    inputs:
+      member_id: ${member_id}
+
+  - id: open
+    capability: open_subaccount
+    inputs:
+      member_id: ${member_id}
+      initial_deposit: ${initial_deposit}
+
+outputs:
+  member_name: ${lookup.output.member_name}
+  savings_balance_before: ${lookup.output.savings_balance}
+  reference_number: ${open.output.reference_number}

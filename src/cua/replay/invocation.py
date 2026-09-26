@@ -85,13 +85,14 @@ def validate_inputs(capability: Capability, inputs: dict[str, str]) -> list[str]
             if spec.required:
                 problems.append(f"{name!r} is required")
             continue
-        problem = _check(name, inputs[name], spec)
+        problem = check_input(name, inputs[name], spec)
         if problem:
             problems.append(problem)
     return problems
 
 
-def _check(name: str, value: str, spec: InputSpec) -> str | None:
+def check_input(name: str, value: str, spec: InputSpec) -> str | None:
+    """One value against its declared type and pattern; the problem, or None."""
     shown = "***" if spec.sensitive else repr(value)
     if spec.type == "decimal":
         try:

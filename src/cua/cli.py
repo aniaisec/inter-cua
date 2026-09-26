@@ -50,6 +50,10 @@ def _build_parser() -> argparse.ArgumentParser:
     from cua.drift.cli import add_parser as _add_drift
 
     _add_drift(sub)
+
+    from cua.workflow.cli import add_parser as _add_workflow
+
+    _add_workflow(sub)
     return parser
 
 
@@ -402,6 +406,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         from cua.drift.cli import main as drift
 
         return drift(args)
+    if args.command == "workflow":
+        load_dotenv(Path(".env"))
+        from cua.workflow.cli import main as workflow
+
+        return workflow(args)
     if args.command == "catalog":
         if args.catalog_command == "invoke":
             load_dotenv(Path(".env"))

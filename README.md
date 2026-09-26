@@ -151,6 +151,8 @@ In PowerShell, write `` ` `` instead of `\` at line ends.
 | Capability versions, lifecycle and health | `cua registry list`, `cua registry show <name>` | nothing: reads files |
 | Drift on record, and its rates | `cua drift scan`, `cua drift report` | nothing: reads run directories |
 | A candidate repair for a run that drifted | `cua drift propose <run>`, then `cua drift evaluate <name>` | nothing to propose; Chromium to evaluate (it starts its own mock app) |
+| A workflow's plan and its checks | `cua workflow check open_member_subaccount` | nothing: reads files |
+| Run a workflow of approved capabilities | `cua workflow run open_member_subaccount --input ... --idempotency-key k --approval open=<token>` | mock app |
 
 The browser tests start their own mock app on a free port. No test calls a
 model: the discovery tests use the scripted client and recorded fixtures.
@@ -179,6 +181,9 @@ model: the discovery tests use the scripted client and recorded fixtures.
 | `cua drift propose <run_id \| dir>` | a candidate repair for the drift that stopped a run, under `capabilities/candidates/<name>/v<N>/`, as a draft; changes nothing else | 1 if the drift cannot be repaired from its evidence |
 | `cua drift evaluate <name> [--version N] [--task T] [--repetitions R]` | replay the candidate beside the version it repairs on that capability's benchmark tasks, and record the gates in the candidate | 0 passed, 1 failed |
 | `cua drift candidates [<name>]` \| `cua drift show <name> [--version N]` \| `cua drift reject <name> --version N --by <name> --reason ...` | candidate repairs, where each stands, and turning one down | |
+| `cua workflow list \| check <workflow>` | the workflows in `workflows/`, each step's resolved version, the bindings and their types, and every problem found before running | check: 0 ok, 1 problems |
+| `cua workflow run <workflow> --input k=v --idempotency-key <k> [--approval <step>=<token>] [--handoff]` | run approved capabilities in order through replay, wiring inputs and outputs; prints a JSON `WorkflowResult` | as replay |
+| `cua workflow approval-token <workflow> --step <id> --input k=v --by <name>` | sign consent for one committing step, for the inputs that step will get | |
 | `cua operator` | the operator console on :8100 | |
 | `cua benchmark list \| run \| report` | run the benchmark suite (`bench/tasks/`) through the repeated-LLM baseline, discovery and replay; aggregate `bench/reports/runs.jsonl` into `summary.md` ([bench/README.md](bench/README.md)) | |
 | `cua metrics run <run_id \| dir> [--json \| --events]` | one run explained: outcome and why, where the time went, model calls, tokens and estimated cost, locators, recoveries, human intervention; `--events` prints its canonical events | |
@@ -269,6 +274,7 @@ mock app in Chromium; `tests/unit` do not).
 | – | Catalog (stretch) | | invoke by name → `escalated NEEDS_APPROVAL` → `cua resume` with fresh consent commits once; wrong types fail `INPUT_INVALID` | `integration/test_catalog.py`, `unit/test_catalog.py` |
 | – | Registry | | versions coexist after a re-record; only the allowed lifecycle moves; a revoked version starts nothing, a cached retry still answers; the catalog agrees with the registry | `unit/test_registry.py` |
 | – | Drift and candidate repair | `renamed_button` | the failure is classified `CONTROL_RENAMED`; a candidate v4 is proposed and evaluated (v3 fails the drift task, v4 answers it, the clean task still passes); nothing in `capabilities/` outside `candidates/` changes and v3 stays the default; approval refused until the evaluation passed on that exact content | `integration/test_drift.py`, `unit/test_drift.py` |
+| – | Workflow composition | | lookup then open with consent for the open only: one commit, typed outputs from both steps; the same key again answered without a browser; an unknown member stops at the lookup with no commit; wiring mistakes, missing or misdirected consent, a revoked step and a missing key refused before any step; a lost answer, an escalated step and a killed commit never repeat a commit | `integration/test_workflow.py`, `unit/test_workflow.py` |
 
 ## The mock target app
 
@@ -443,6 +449,64 @@ version it repairs, in a fresh mock app, and gates on: the drift task answered,
 no task worse than before, no wrong answer or unexpected commit, security
 tasks still refused. `cua approve` refuses a candidate until an evaluation has
 passed on exactly its content, and never after it was rejected.
+
+### Workflows
+
+A workflow (`workflows/<name>.yaml`) composes approved capabilities into one
+typed request, so an agent calls "look the member up, then open a sub-account"
+instead of discovering the whole flow again:
+
+```yaml
+steps:
+  - id: lookup
+    capability: member_savings_balance
+    inputs: {member_id: ${member_id}}
+  - id: open
+    capability: open_subaccount
+    inputs: {member_id: ${member_id}, initial_deposit: ${initial_deposit}}
+outputs:
+  member_name: ${lookup.output.member_name}
+  reference_number: ${open.output.reference_number}
+```
+
+A binding is a workflow input (`${member_id}`), an earlier step's output
+(`${lookup.output.savings_balance}`) or a literal, never a template. Each step
+resolves in the registry like a call by name (the highest approved version,
+or a pinned one), and before anything runs `src/cua/workflow/` checks every
+reference, every type (a value flows only into an input of its type, or an
+integer into a decimal), that no optional value feeds a required input, that
+a sensitive value never lands where it would be logged in the clear, and that
+every step may run on this tenant. A wrong definition is a usage error; a step
+that is a draft, revoked or for another app family refuses the whole workflow,
+so no earlier step runs for nothing.
+
+Every step then runs through `replay`, the same entry point as `cua replay`:
+its approval gate, policy, lifecycle check, consent, budget and idempotency
+apply unchanged, because the workflow never goes around them. What it adds:
+
+- the first step that does not succeed ends the workflow and gives it its kind:
+  a lookup that answers `NOT_FOUND` means nothing is opened;
+- consent is per committing step (`--approval open=<token>`, from `cua workflow
+  approval-token`), bound like any token to that capability, tenant and the
+  exact inputs the step will get, and checked before the first step runs. With
+  `--handoff` and no token, the step escalates to a person instead;
+- a workflow with a committing step needs an idempotency key. Each step runs
+  under a key derived from it, so a retry is answered step by step from
+  replay's own cache and a commit is never made twice; the same key for other
+  inputs is `INPUT_INVALID`. A retry runs the versions the first attempt
+  resolved. An escalated step is never started again: once `cua resume` has
+  finished it, running the workflow again with the same key carries on from
+  its answer. A committing step whose process was killed mid-run is not
+  started again either; without a result it reports `INTERRUPTED` with
+  `side_effect: unknown`;
+- `timeout_s` is for the whole workflow; each step gets what is left.
+
+The result has replay's four kinds, the folded `side_effect` (`unknown`, else
+`committed`, else `none`), the typed outputs, and every step's kind, run id and
+side effect. Each run is recorded in `<runs dir>/workflows/<wf id>/`
+(`workflow.json` with the resolved plan and the request, sensitive inputs
+masked and tokens by hash; `log.jsonl`; `result.json`); each step's run
+directory is an ordinary replay run.
 
 ### Replay
 
