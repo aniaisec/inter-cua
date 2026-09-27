@@ -51,6 +51,7 @@ from typing import Any, Literal, NoReturn, cast
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
+from cua.artifact import requirements
 from cua.artifact.schema import (
     DONE,
     Capability,
@@ -372,6 +373,7 @@ class ReplayEngine:
 
     def _drive(self, start: Callable[[], int]) -> ReplayResult:
         try:
+            self._check_surface()
             index = start()
             while True:
                 try:
@@ -398,6 +400,27 @@ class ReplayEngine:
             self._finish(self._unplanned("INTERRUPTED", exc))
             raise
         return self._finish(result)
+
+    def _check_surface(self) -> None:
+        """Refuse, before the first action, a surface short of a feature this
+        run uses. The runner checks the registered adapter before a browser
+        starts; this checks the surface actually handed over, whatever
+        produced it, and is the check a resumed run gets too."""
+        fits = requirements.check(
+            self.cap,
+            self.surface.descriptor,
+            handoff=self.handoff is not None,
+            screenshots=self.config.screenshots,
+        )
+        self.log.event("surface.checked", **fits.summary())
+        if not fits.ok:
+            self._fail(
+                "SURFACE_INCOMPATIBLE",
+                None,
+                expected="a surface with " + ", ".join(fits.requirements.all),
+                message=fits.refusal(self.cap.name, self.cap.version),
+                observation=None,
+            )
 
     def _unplanned(self, code: FailureCode, exc: BaseException) -> Failure:
         """A failure the steps did not produce: the engine's own account of

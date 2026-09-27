@@ -54,6 +54,7 @@ FailureCode = Literal[
     "POLICY_BLOCKED",
     "ESCALATION_ABORTED",
     "INTERRUPTED",
+    "SURFACE_INCOMPATIBLE",
 ]
 FAILURE_CODES: frozenset[str] = frozenset(get_args(FailureCode))
 """``AUTH_FAILED`` is the one a hard detector may carry as its own code: the
@@ -61,7 +62,11 @@ sign-on was refused, which is not the application failing (``APP_ERROR``) and
 is the way a capability most often dies in production — a rotated password.
 ``INTERRUPTED`` is the run being killed from outside (Ctrl+C, a crash) and is
 written so that a run cut short still says how far it got and what it may
-have committed."""
+have committed.
+``SURFACE_INCOMPATIBLE`` is the capability needing a surface feature the
+surface it would run on does not have (``cua.artifact.requirements``): refused
+before the first action, so its side effect is always ``none``. Not retryable
+on the same build; it needs another adapter, or the capability re-recorded."""
 
 EscalationReason = Literal["STUCK", "NEEDS_APPROVAL", "UNRECOVERABLE", "DEAD_END"]
 

@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.2",
+  "schema_version": "1.1",
   "id": "cap_01M2TD00000000000000000000",
   "name": "member_savings_balance",
   "version": 1,
@@ -538,16 +538,6 @@
       ]
     ]
   },
-  "surface_requirements": [
-    "accessibility_tree",
-    "geometry",
-    "fixed_viewport",
-    "frames",
-    "locations",
-    "document_status",
-    "forms",
-    "screenshots"
-  ],
   "provenance": {
     "discovery_run_id": "run_01M2TD9PEKMK9Y19ZP5AS04NV0",
     "provider": "scripted",

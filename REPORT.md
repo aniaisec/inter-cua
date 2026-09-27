@@ -40,7 +40,7 @@ all of replay in a clean interpreter to check that no model client was loaded.
 ## 2. Artifact schema
 
 A capability (`src/cua/artifact/schema.py`, exported to
-`capabilities/schema/capability-1.1.json`) is a contract first and a step list
+`capabilities/schema/capability-1.2.json`) is a contract first and a step list
 second.
 
 - **`contract`** tells a calling agent, before it calls: `side_effects`,
@@ -148,7 +148,11 @@ and its conditions are surface-neutral.
   `region_present` looks for a named pane. `target.surface` is what picks the
   adapter: this build registers `web` and `legacy_web`, and a capability
   naming any other surface is refused before a browser starts rather than
-  driven by the wrong one.
+  driven by the wrong one. A registered adapter must also have every feature
+  the capability uses (`surface_requirements`: frames, geometry, forms,
+  dialogs, ...); one that lacks a feature is refused with
+  `SURFACE_INCOMPATIBLE` before the first action. A UIA surface that has no
+  frames therefore cannot be handed a frameset capability by mistake.
 - **The limit** is a surface with no tree, such as a canvas or a Citrix/RDP
   session. Only a vision-grounded `bbox` rung would work there, and I cut it.
 

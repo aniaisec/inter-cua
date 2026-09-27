@@ -3,10 +3,12 @@
 ``protocol`` holds the vocabulary, ``a11y`` turns an accessibility snapshot
 into it, ``locators`` finds a control four increasingly desperate ways,
 ``conditions`` says what a step is waiting for, ``evaluators`` says what that
-means on the web, and ``playwright_surface`` is the one implementation that
-touches a browser.
+means on the web, ``features`` names what a surface can do and ``adapters``
+which surfaces this build has, and ``playwright_surface`` is the one
+implementation that touches a browser.
 """
 
+from cua.surface.adapters import ADAPTERS, PLAYWRIGHT, adapter_for
 from cua.surface.conditions import (
     AllOf,
     AnyOf,
@@ -22,6 +24,7 @@ from cua.surface.conditions import (
     Visible,
 )
 from cua.surface.evaluators import WebEvaluator
+from cua.surface.features import FEATURES, SurfaceDescriptor, SurfaceFeature
 from cua.surface.locators import (
     Ambiguous,
     BBox,
@@ -64,17 +67,15 @@ from cua.surface.protocol import (
     Viewport,
 )
 
-SUPPORTED_SURFACES: frozenset[str] = frozenset({"web", "legacy_web"})
-"""The ``target.surface`` kinds this build can actually drive.
-
-Both are driven by ``PlaywrightSurface``: a legacy web app is still a web page,
-frameset and all. ``desktop`` is the declared but unbuilt case — it needs a
-``Surface`` over UIA or AX — so a capability that names it is refused before a
-browser starts, rather than handed to the wrong adapter. A new adapter joins
-the set here, and nothing above the surface layer changes.
-"""
+SUPPORTED_SURFACES: frozenset[str] = frozenset(ADAPTERS)
+"""The ``target.surface`` kinds this build can actually drive: the keys of
+``adapters.ADAPTERS``. A new adapter joins there, and nothing above the surface
+layer changes."""
 
 __all__ = [
+    "ADAPTERS",
+    "FEATURES",
+    "PLAYWRIGHT",
     "SUPPORTED_SURFACES",
     "Action",
     "ActionFailed",
@@ -113,7 +114,9 @@ __all__ = [
     "StaleRefError",
     "Surface",
     "SurfaceConfig",
+    "SurfaceDescriptor",
     "SurfaceError",
+    "SurfaceFeature",
     "TableCell",
     "TextPresent",
     "TypeText",
@@ -124,6 +127,7 @@ __all__ = [
     "Visible",
     "WebEvaluator",
     "Within",
+    "adapter_for",
     "ladder_for",
     "resolve_ladder",
 ]

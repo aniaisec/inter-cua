@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+from cua.artifact import requirements
 from cua.artifact.schema import Capability
 from cua.artifact.store import load, save, with_changes
 from cua.evidence.logger import RunLog
@@ -49,6 +50,7 @@ from cua.replay.result import (
 from cua.replay.resume import find_resume_point
 from cua.replay.runner import replay
 from cua.secrets.resolver import Credential
+from cua.surface.adapters import PLAYWRIGHT
 from cua.surface.conditions import LocationMatches, TextPresent
 from cua.surface.evaluators import WebEvaluator
 from cua.surface.protocol import Click, Observation
@@ -275,7 +277,7 @@ def test_a_surface_this_build_cannot_drive_is_refused_before_a_browser(tmp_path:
         surface=no_browser,
     )
     assert isinstance(result, Failure)
-    assert result.code == "POLICY_BLOCKED"
+    assert (result.code, result.side_effect) == ("SURFACE_INCOMPATIBLE", "none")
     assert "desktop" in result.message
     assert not (tmp_path / "runs").exists()
 
@@ -391,7 +393,13 @@ def test_the_committed_goal2_capability_is_what_the_recorder_makes_of_its_run() 
         families_dir=REPO / "capabilities" / "families",
         capability_id=committed.id,
     )
-    assert recorded.content_hash() == committed.content_hash()
+    # The committed file predates schema 1.2. Recording it today adds the
+    # declaration and nothing else, and declares exactly what the 1.1 file's
+    # requirements are derived as.
+    assert recorded.schema_version == "1.2" and committed.schema_version == "1.1"
+    assert recorded.surface_requirements == requirements.of(committed)[0]
+    as_before = with_changes(recorded, schema_version="1.1", surface_requirements=None)
+    assert as_before.content_hash() == committed.content_hash()
 
 
 def test_a_commit_is_irreversible_needs_approval_and_leaves_a_marker() -> None:
@@ -544,6 +552,34 @@ def test_a_commit_without_approval_is_not_pressed_at_all(tmp_path: Path) -> None
     assert result.escalation_reason == "NEEDS_APPROVAL"
     assert result.side_effect == "none"
     assert not [a for a in surface.actions if isinstance(a, Click)]
+
+
+def test_the_engine_refuses_the_surface_it_was_handed_before_the_first_action(
+    tmp_path: Path,
+) -> None:
+    """The runner checks the registered adapter; the engine checks the surface
+    actually handed to it, whatever produced it. Short of one feature the
+    capability uses, nothing is done at all: not even the navigation."""
+    lacking = PLAYWRIGHT.model_copy(
+        update={"name": "no-frames", "features": PLAYWRIGHT.features - {"frames"}}
+    )
+    run, surface = engine(
+        tmp_path, [review(), opened()], surface=FakeSurface([review()], descriptor=lacking)
+    )
+    result = run.run()
+    assert isinstance(result, Failure)
+    assert (result.code, result.side_effect) == ("SURFACE_INCOMPATIBLE", "none")
+    assert "frames" in result.message and "no-frames v1" in result.message
+    assert surface.actions == []
+    checked = next(e for e in log_events(tmp_path) if e["event"] == "surface.checked")
+    assert checked["missing"] == ["frames"] and checked["requires_source"] == "derived"
+
+
+def test_a_compatible_surface_is_checked_and_recorded(tmp_path: Path) -> None:
+    run, _ = engine(tmp_path, [review(), opened()])
+    assert isinstance(run.run(), Success)
+    checked = next(e for e in log_events(tmp_path) if e["event"] == "surface.checked")
+    assert checked["missing"] == [] and checked["adapter"]["name"] == "playwright"
 
 
 def test_the_run_directory_records_the_ending(tmp_path: Path) -> None:

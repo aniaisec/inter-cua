@@ -25,7 +25,9 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from cua.artifact.schema import Capability
+from cua.artifact.requirements import derive
+from cua.artifact.schema import SCHEMA_VERSION, Capability
+from cua.surface.features import ordered
 
 CAPABILITIES_DIR = Path("capabilities")
 
@@ -116,6 +118,21 @@ def with_changes(capability: Capability, **changes: Any) -> Capability:
     data = capability.model_dump(mode="json", by_alias=True)
     data.update(changes)
     return Capability.model_validate(data)
+
+
+def declare_requirements(capability: Capability) -> Capability:
+    """The capability at the current schema, declaring the surface features
+    its content uses (and keeping any it already declared beyond those).
+
+    For a capability being written by ``cua``: a recording, a new version. An
+    approved 1.1 file on disk is never passed through this, because the
+    declaration is content and would void its approval."""
+    used = derive(capability.model_dump(mode="json", by_alias=True))
+    return with_changes(
+        capability,
+        schema_version=SCHEMA_VERSION,
+        surface_requirements=ordered([*(capability.surface_requirements or []), *used]),
+    )
 
 
 def format_errors(exc: ValidationError, source: Path | str) -> str:

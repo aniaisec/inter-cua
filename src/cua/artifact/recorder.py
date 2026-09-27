@@ -71,6 +71,7 @@ from cua.artifact.schema import (
     Target,
 )
 from cua.artifact.schema import Ladder as _ArtifactLadder
+from cua.artifact.store import declare_requirements
 from cua.policy.allowlist import NeedsApproval, Policy, check
 from cua.policy.redaction import MASK
 from cua.surface.a11y import normalize
@@ -339,47 +340,52 @@ def record(
     irreversible = [s for s in steps if s.risk == "irreversible"]
     tenant = run.run.tenant
     goal = run.run.goal
-    return Capability(
-        id=capability_id or f"cap_{ULID()}",
-        name=goal.name,
-        description=goal.goal,
-        target=Target(
-            app_family=tenant.app_family,
-            vendor=family.target.vendor,
-            version_hint=family.target.version_hint,
-            surface=family.target.surface,  # type: ignore[arg-type]
-            entry=Entry(pattern="{tenant.base_url}/" + goal.entry.lstrip("/")),
-        ),
-        contract=Contract(
-            side_effects="modifies_record" if irreversible else "none",
-            idempotent=not irreversible,
-            may_escalate=any(s.approval == "required" for s in steps),
-            outcomes={c: family.outcomes.get(c, OutcomeSpec()) for c in business},
-        ),
-        credentials={
-            name: CredentialSpec(ref=_portable_ref(c.ref, tenant.id), fields=c.fields)
-            for name, c in run.run.credentials.items()
-        },
-        inputs={p.name: _input(p) for p in goal.params},
-        outputs=outputs,
-        recording_env=run.run.recording_env,
-        steps=steps,
-        checkpoints=checkpoints,
-        outcome_detectors=detectors,
-        recovery_limits=family.recovery_limits,
-        recoverers=recoverers,
-        redaction=family.redaction,
-        provenance=Provenance(
-            discovery_run_id=run.run.run_id,
-            provider=run.run.provider,
-            model=run.answering_model(),
-            transcript_sha256=transcript_sha256(run.log_bytes),
-            recorded_at=run.ended_at(),
-            locator_rungs_used={
-                **{s.id: s.target[0].strategy for s in steps if s.target},
-                **{f"outputs.{n}": o.extract.target[0].strategy for n, o in outputs.items()},
+    # Assembled unvalidated, then validated once with its surface requirements
+    # declared: they are read off the finished content, which is what a
+    # schema 1.2 capability's declaration is checked against.
+    return declare_requirements(
+        Capability.model_construct(
+            id=capability_id or f"cap_{ULID()}",
+            name=goal.name,
+            description=goal.goal,
+            target=Target(
+                app_family=tenant.app_family,
+                vendor=family.target.vendor,
+                version_hint=family.target.version_hint,
+                surface=family.target.surface,  # type: ignore[arg-type]
+                entry=Entry(pattern="{tenant.base_url}/" + goal.entry.lstrip("/")),
+            ),
+            contract=Contract(
+                side_effects="modifies_record" if irreversible else "none",
+                idempotent=not irreversible,
+                may_escalate=any(s.approval == "required" for s in steps),
+                outcomes={c: family.outcomes.get(c, OutcomeSpec()) for c in business},
+            ),
+            credentials={
+                name: CredentialSpec(ref=_portable_ref(c.ref, tenant.id), fields=c.fields)
+                for name, c in run.run.credentials.items()
             },
-        ),
+            inputs={p.name: _input(p) for p in goal.params},
+            outputs=outputs,
+            recording_env=run.run.recording_env,
+            steps=steps,
+            checkpoints=checkpoints,
+            outcome_detectors=detectors,
+            recovery_limits=family.recovery_limits,
+            recoverers=recoverers,
+            redaction=family.redaction,
+            provenance=Provenance(
+                discovery_run_id=run.run.run_id,
+                provider=run.run.provider,
+                model=run.answering_model(),
+                transcript_sha256=transcript_sha256(run.log_bytes),
+                recorded_at=run.ended_at(),
+                locator_rungs_used={
+                    **{s.id: s.target[0].strategy for s in steps if s.target},
+                    **{f"outputs.{n}": o.extract.target[0].strategy for n, o in outputs.items()},
+                },
+            ),
+        )
     )
 
 

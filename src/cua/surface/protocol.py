@@ -30,6 +30,8 @@ from typing import TYPE_CHECKING, Annotated, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from cua.surface.features import SurfaceDescriptor
+
 if TYPE_CHECKING:  # locators and conditions are built on these types
     from cua.surface.conditions import Condition, ValidationMessagePresent
     from cua.surface.locators import Ladder, LadderOutcome
@@ -485,7 +487,22 @@ class ConditionEvaluator(Protocol):
 
 
 class Surface(Protocol):
-    """The only way anything above this package touches a target."""
+    """The only way anything above this package touches a target.
+
+    The contract, as the plan-level vocabulary names it: *observe* is
+    ``observe``, *act* is ``act``, *wait* is ``wait_for`` (and ``settle`` when
+    the caller does not know what it is waiting for), a *screenshot* is
+    ``observe(screenshot=True)`` — one look, so the picture and the tree are of
+    the same screen — and *close* is leaving the context manager the surface
+    was opened with. ``descriptor`` says which adapter this is and what it can
+    do; a caller compares it with what it needs before the first action, not
+    after the first failure.
+    """
+
+    @property
+    def descriptor(self) -> SurfaceDescriptor:
+        """Adapter name, contract version and features (``features.py``)."""
+        ...
 
     @property
     def evaluator(self) -> ConditionEvaluator:

@@ -75,7 +75,7 @@ def test_a_capability_this_build_cannot_drive_is_not_offered_as_a_tool(
     assert not entry.invocable and catalog.tools([entry]) == []
 
     code, out, _ = run(["catalog", "--all", "--capabilities-dir", str(tmp_path)], capsys)
-    assert code == 0 and "no desktop adapter" in out
+    assert code == 0 and "drives a 'desktop' surface" in out
 
 
 def test_a_tool_definition_carries_the_typed_inputs_and_the_contract() -> None:

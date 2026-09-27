@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 
+from cua.artifact import requirements
 from cua.artifact.schema import (
     DONE,
     PLACEHOLDER,
@@ -91,6 +92,7 @@ def _header(cap: Capability, out: list[str]) -> None:
         f"Purpose       {cap.description}",
         f"Application   {target.vendor} {target.version_hint} (app family {target.app_family}), "
         f"{target.surface}; starts at {target.entry.pattern}",
+        f"Surface needs {_surface_needs(cap)}",
         f"Side effects  {_SIDE_EFFECTS[contract.side_effects]}. "
         + (
             "Safe to run again with the same inputs."
@@ -110,6 +112,18 @@ def _header(cap: Capability, out: list[str]) -> None:
             else "may reuse a signed-on session."
         ),
     ]
+
+
+def _surface_needs(cap: Capability) -> str:
+    needs, source = requirements.of(cap)
+    how = (
+        "declared"
+        if source == "declared"
+        else f"derived: schema {cap.schema_version} declares none"
+    )
+    unfit = requirements.refusal(cap)
+    verdict = "this build can run it" if unfit is None else "this build CANNOT run it"
+    return f"{', '.join(needs)} ({how}); {verdict}."
 
 
 def _inputs(cap: Capability, out: list[str]) -> None:

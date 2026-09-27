@@ -22,11 +22,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from cua.artifact import requirements
 from cua.artifact.schema import InputSpec, ValueType
 from cua.registry import lifecycle
 from cua.registry.resolver import refusal as lifecycle_refusal
 from cua.replay.invocation import check_input
-from cua.surface import SUPPORTED_SURFACES
 from cua.tenant import Tenant
 from cua.workflow.models import Ref, parse_ref
 from cua.workflow.planner import Plan
@@ -177,8 +177,9 @@ def refusals(plan: Plan, tenant: Tenant) -> list[str]:
                 f"{where} is for app family {cap.target.app_family!r}; tenant {tenant.id!r} "
                 f"runs {tenant.app_family!r}"
             )
-        if cap.target.surface not in SUPPORTED_SURFACES:
-            out.append(f"{where} drives a {cap.target.surface!r} surface this build cannot drive")
+        unfit = requirements.refusal(cap)
+        if unfit is not None:
+            out.append(f"{where}: {unfit}")
     return out
 
 

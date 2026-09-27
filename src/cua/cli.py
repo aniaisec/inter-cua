@@ -359,7 +359,15 @@ def _add_artifact_commands(sub: argparse._SubParsersAction[argparse.ArgumentPars
     t.add_argument("--ttl-s", type=int, default=900, help="Seconds the token is valid (900)")
 
     s = sub.add_parser("schema", help="Write the capability JSON Schema")
-    s.add_argument("--out", type=Path, default=Path("capabilities/schema/capability-1.1.json"))
+    s.add_argument("--out", type=Path, default=Path("capabilities/schema/capability-1.2.json"))
+
+    sub.add_parser(
+        "surfaces",
+        help="List this build's surface adapters and what each capability needs of them",
+        description="Each adapter's name, contract version and features; then, for every "
+        "capability in the registry, the surface features it needs (declared, or derived "
+        "from a schema 1.1 artifact) and whether this build can run it.",
+    ).add_argument("--capabilities-dir", type=Path, default=Path("capabilities"))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -387,6 +395,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _record(args)
     if args.command == "describe":
         return _describe(args)
+    if args.command == "surfaces":
+        return _surfaces(args)
     if args.command == "approve":
         return _approve(args)
     if args.command == "approval-token":
@@ -683,7 +693,7 @@ def _catalog_list(args: argparse.Namespace) -> int:
         if cap.contract.may_escalate:
             print("    needs consent to commit: an approval token, or a person on the console")
         if not e.invocable and e.status == "approved":
-            print(f"    not invocable here: this build has no {cap.target.surface} adapter")
+            print(f"    not invocable here: {e.unfit}")
         if e.versions > 1:
             print(f"    {e.versions} versions: cua registry versions {cap.name}")
         print(f"    {link(e.path, stream=sys.stdout)}")
@@ -894,6 +904,31 @@ def _describe(args: argparse.Namespace) -> int:
             f"\nReviewed as version {review.version} (content {review.content_sha256[:12]}). "
             f"To approve exactly this: cua approve {args.capability.as_posix()} --by <your name>"
         )
+    return 0
+
+
+def _surfaces(args: argparse.Namespace) -> int:
+    from cua import catalog
+    from cua.artifact import requirements
+    from cua.surface.adapters import ADAPTERS
+    from cua.surface.features import ordered
+
+    adapters = {d.name: d for d in ADAPTERS.values()}
+    for d in adapters.values():
+        print(f"{d.name}  v{d.version}  drives {', '.join(d.targets)}")
+        print(f"    features: {', '.join(ordered(d.features))}")
+    entries, broken = catalog.scan(args.capabilities_dir)
+    for b in broken:
+        print(f"cua surfaces: skipped {b.path.as_posix()}: {b.error}", file=sys.stderr)
+    if entries:
+        print()
+    for e in entries:
+        cap = e.capability
+        needs, source = requirements.of(cap)
+        unfit = e.unfit
+        print(f"{cap.name}  v{cap.version}  schema {cap.schema_version}  {cap.target.surface}")
+        print(f"    needs ({source}): {', '.join(needs)}")
+        print(f"    {'runs here' if unfit is None else 'CANNOT run here: ' + unfit}")
     return 0
 
 

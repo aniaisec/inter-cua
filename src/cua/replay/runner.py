@@ -53,6 +53,7 @@ from urllib.parse import quote, quote_plus
 
 from pydantic import BaseModel, ConfigDict
 
+from cua.artifact import requirements
 from cua.artifact.schema import Capability
 from cua.artifact.store import ArtifactError, open_capability
 from cua.escalation.channel import (
@@ -92,7 +93,6 @@ from cua.replay.result import (
     fingerprint,
 )
 from cua.secrets.resolver import Credential, SecretError, resolve
-from cua.surface import SUPPORTED_SURFACES
 from cua.surface.playwright_surface import BrowserProcess, PlaywrightSurface, kill_browser
 from cua.surface.protocol import Surface
 from cua.tenant import Tenant
@@ -186,16 +186,11 @@ def replay(
             f"{cap.name} is for app family {cap.target.app_family!r}; tenant {tenant.id!r} "
             f"runs {tenant.app_family!r}",
         )
-    if cap.target.surface not in SUPPORTED_SURFACES:
-        return _refused(
-            cap,
-            invocation,
-            "POLICY_BLOCKED",
-            f"{cap.name} drives a {cap.target.surface!r} surface, and this build has an "
-            f"adapter for {', '.join(sorted(SUPPORTED_SURFACES))} only. Driving it with the "
-            "browser adapter would act on the wrong thing; a desktop surface needs a "
-            "Surface of its own (UIA or AX).",
-        )
+    unfit = requirements.refusal(
+        cap, handoff=handoff is not None, screenshots=(config or ReplayConfig()).screenshots
+    )
+    if unfit is not None:
+        return _refused(cap, invocation, "SURFACE_INCOMPATIBLE", unfit)
 
     problems = validate_inputs(cap, invocation.inputs)
     if problems:
@@ -812,7 +807,7 @@ def _unrecorded(cap: Capability) -> str:
 def _refused(
     cap: Capability,
     invocation: Invocation,
-    code: Literal["POLICY_BLOCKED", "INPUT_INVALID"],
+    code: Literal["POLICY_BLOCKED", "INPUT_INVALID", "SURFACE_INCOMPATIBLE"],
     message: str,
 ) -> Failure:
     """Turned away before any browser started: certainly no side effect."""

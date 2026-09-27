@@ -24,6 +24,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from cua.surface.conditions import Condition
+from cua.surface.features import SurfaceDescriptor
 from cua.surface.locators import Ladder, LadderOutcome
 from cua.surface.protocol import (
     Action,
@@ -70,6 +71,10 @@ class LeasedSurface:
     def act(self, action: Action) -> ActionResult:
         self._require(action)
         return self._inner.act(action)
+
+    @property
+    def descriptor(self) -> SurfaceDescriptor:
+        return self._inner.descriptor
 
     @property
     def evaluator(self) -> ConditionEvaluator:

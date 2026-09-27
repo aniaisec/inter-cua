@@ -324,3 +324,57 @@ Status: COMPLETE
 
 ### Next
 - Phase 7: surface abstraction hardening.
+
+## Phase 7 — Surface abstraction hardening
+
+Status: COMPLETE
+
+### Changes
+- `src/cua/surface/features.py`: a closed vocabulary of surface features, each with its meaning: `accessibility_tree`, `geometry`, `fixed_viewport`, `frames`, `locations`, `document_status`, `forms`, `keyboard`, `dialogs`, `screenshots`, `egress_control`, `session_handoff`. `SurfaceDescriptor` holds the adapter name, contract version, target kinds and features.
+- `src/cua/surface/adapters.py`: the adapter registry as data (`web` and `legacy_web` → `playwright` v1, every feature). `SUPPORTED_SURFACES` is now its keys. Checks made before anything starts use it, with no browser library imported.
+- `Surface.descriptor` joins the protocol. `PlaywrightSurface` exposes the registered descriptor, `LeasedSurface` passes it through. The protocol docstring maps the plan's observe/act/wait/screenshot/close onto the existing methods (`observe`, `act`, `wait_for`/`settle`, `observe(screenshot=True)`, the context manager) rather than adding duplicates.
+- Capability schema 1.2 (`capabilities/schema/capability-1.2.json`): `surface_requirements`, the features the capability needs. Required at 1.2 and refused at 1.1. On load it must cover every feature the content uses, and may add more. The 1.1 schema file stays: 1.1 is still read, never written.
+- `src/cua/artifact/requirements.py`: derives the features a capability uses from its content (rungs, conditions, actions, frame scopes, masks). It checks a capability against a descriptor and adds what the run itself needs: `egress_control` always, `screenshots` unless the run takes none, and `session_handoff` + `screenshots` with `--handoff`.
+- New failure code `SURFACE_INCOMPATIBLE`, always `side_effect: none`. It is checked in three places:
+  - `cua replay` against the registered adapter, before a browser starts. The unsupported-kind refusal (a `desktop` capability) moved here from `POLICY_BLOCKED`.
+  - The replay engine, against the surface it was actually handed, before the first action, including a resumed run. The result is logged as `surface.checked`, mapped to the canonical `policy.checked`.
+  - `cua catalog` (not offered as a tool) and `cua workflow check|run` (the whole workflow is refused).
+- `cua record` writes schema 1.2 with the declaration (`store.declare_requirements`). A drift candidate repairing a 1.2 capability extends its declaration if the new rung needs more.
+- `cua surfaces`: the adapters and their features; for each registered capability, what it needs (declared or derived), and whether it runs here. `cua describe` has a `Surface needs` line.
+
+### Decisions
+- Committed 1.1 capabilities are not rewritten. A declaration is content, so adding one would change the content hash and void the approval. They load byte for byte as before, with the same hash and an approval still on record. Their requirements are derived when asked for, and every report says `derived`. That is the compatibility layer: nothing is silently reinterpreted, and nothing is silently assumed to need nothing.
+- A 1.2 declaration that leaves out a feature the content uses is a load error, not a union taken quietly: what a reviewer approves as the capability's needs must be at least what running it asks for.
+- A construct with no entry in the derivation table raises `UnknownConstruct`, rather than being assumed to need nothing. A unit test holds the table to every rung, condition and action the schema allows.
+- The name is `features`, not the plan's `capabilities`: in this codebase a capability is the artifact that runs on a surface.
+- Today the one adapter has every feature, so no shipped capability is refused. The refusals are proved with degraded descriptors: a registry entry patched in the tests, and a fake surface handed to the engine.
+
+### Tests
+- `tests/unit/test_surface_compat.py`:
+  - the vocabulary and the registry;
+  - the Playwright descriptor matches the registered one;
+  - the derivation table covers the whole schema, and derivation follows the content;
+  - schema 1.2 rejects a 1.1 file with the field, a 1.2 file without it, an under-declared, duplicated or unknown feature;
+  - the committed 1.1 capabilities load unchanged, with their approval on record;
+  - a declaration may exceed the content;
+  - refusals: replay before a browser, with and without handoff; the catalog; a workflow;
+  - a recording saves at 1.2.
+- `tests/unit/test_replay.py`: the engine refuses a surface without `frames` before any action, even a navigation; a compatible surface is checked and logged; the goal-2 recording equals the committed 1.1 capability plus exactly its derived declaration.
+- The golden recording is regenerated at 1.2, and the 1.1 golden is kept beside it (`member_savings_balance-1.1.json`).
+
+### Results
+- Gate: ruff, `ruff format --check` and `mypy --strict` are clean. 652 tests pass (626 before this phase).
+- Live replay of `member_savings_balance` (`run_01M3FMXHWGYQC18ND03CFWR5DF`) succeeded, as before. `surface.checked` records `playwright` v1, the derived requirements and `missing: []`, and `cua metrics run --events` shows it as `policy.checked` / `surface_checked`.
+- A copy of the capability retargeted to `desktop` returned `failure SURFACE_INCOMPATIBLE`, `side_effect: none`, exit 1, and no browser started. `cua describe` says `this build CANNOT run it`.
+- `cua surfaces` lists `playwright` v1 with all 12 features. Both committed capabilities are schema 1.1 with derived requirements, and both run here.
+
+### Known issues
+- The feature list is coarse. `forms` covers both typing and selecting, and nothing says a surface's `geometry` is as precise as the one a `bbox` rung was recorded on (`fixed_viewport` and `recording_env` cover that last case).
+- Features are claimed by the adapter, not measured. An adapter that claims a feature it implements badly passes the check.
+- The descriptor's `version` is recorded (`surface.checked`), but capabilities cannot yet require a minimum adapter version.
+
+### Commit
+- `refactor: formalize surface compatibility contract`.
+
+### Next
+- Phase 8: Windows UI Automation surface.

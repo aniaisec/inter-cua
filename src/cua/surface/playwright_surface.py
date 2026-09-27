@@ -47,7 +47,7 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Self
+from typing import Any, ClassVar, Self
 from urllib.parse import urlsplit
 
 from playwright.sync_api import (
@@ -68,7 +68,9 @@ from playwright.sync_api import Response as PlaywrightResponse
 from cua.surface import a11y
 from cua.surface import conditions as cond
 from cua.surface import locators as loc
+from cua.surface.adapters import PLAYWRIGHT
 from cua.surface.evaluators import WebEvaluator
+from cua.surface.features import SurfaceDescriptor
 from cua.surface.protocol import (
     ANCHOR_ROLES,
     CONTROL_ROLES,
@@ -140,6 +142,10 @@ class PlaywrightSurface:
     ``launch`` to get one with a debugging endpoint attached so the session can
     be handed to a human later.
     """
+
+    DESCRIPTOR: ClassVar[SurfaceDescriptor] = PLAYWRIGHT
+    """What this adapter can do. The registry in ``adapters.py`` answers the
+    same question for a check made before a browser exists."""
 
     def __init__(
         self,
@@ -411,6 +417,10 @@ class PlaywrightSurface:
         tb: TracebackType | None,
     ) -> None:
         self.close(interrupted=exc_type is not None and issubclass(exc_type, KeyboardInterrupt))
+
+    @property
+    def descriptor(self) -> SurfaceDescriptor:
+        return self.DESCRIPTOR
 
     @property
     def evaluator(self) -> WebEvaluator:

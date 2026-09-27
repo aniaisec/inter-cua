@@ -21,7 +21,14 @@ here, at load time, rather than half way through a run. In particular:
 * ``retry.allowed`` on an ``irreversible`` step — replaying a commit because
   the confirmation screen was slow is how money moves twice;
 * a ``bbox`` rung without ``recording_env``: pixels mean nothing outside the
-  viewport they were measured in.
+  viewport they were measured in;
+* a schema 1.2 ``surface_requirements`` that leaves out a surface feature the
+  capability's own content uses (``requirements.derive``): what a reviewer
+  approves as its needs must be at least what running it will ask for.
+
+Schema 1.2 adds ``surface_requirements`` and nothing else. A 1.1 artifact
+still loads as written, hash and approval intact; its requirements are
+derived when asked for (``cua.artifact.requirements``).
 
 Conditions and locator rungs are the ones the surface layer defines, so the
 artifact, the discovery loop and the replay engine speak one vocabulary.
@@ -38,6 +45,7 @@ from typing import Annotated, Any, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from cua.artifact.requirements import UnknownConstruct, derive
 from cua.surface.conditions import (
     AllOf,
     AnyOf,
@@ -52,11 +60,14 @@ from cua.surface.conditions import (
     ValueSet,
     Visible,
 )
+from cua.surface.features import SurfaceFeature
 from cua.surface.locators import BBox, NearText, RoleName, TableCell
 from cua.surface.protocol import RecordingEnv
 
-SCHEMA_VERSION: Literal["1.1"] = "1.1"
-SCHEMA_PATH = Path("capabilities/schema/capability-1.1.json")
+SchemaVersion = Literal["1.1", "1.2"]
+SCHEMA_VERSION: Literal["1.2"] = "1.2"
+"""What ``cua`` writes. 1.1 is read, never written."""
+SCHEMA_PATH = Path("capabilities/schema/capability-1.2.json")
 
 PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
 _CREDENTIAL_REF = re.compile(r"^credentials\.([a-z][a-z0-9_]*)\.([a-z][a-z0-9_]*)$")
@@ -375,7 +386,7 @@ capability, or numbering it, does not change what it does."""
 
 
 class Capability(_Model):
-    schema_version: Literal["1.1"] = SCHEMA_VERSION
+    schema_version: SchemaVersion = SCHEMA_VERSION
     id: Annotated[str, Field(pattern=r"^cap_[0-9A-HJKMNP-TV-Z]{26}$")]
     name: Name
     version: Annotated[int, Field(ge=1)] = 1
@@ -403,6 +414,10 @@ class Capability(_Model):
     recovery_limits: RecoveryLimits = Field(default_factory=RecoveryLimits)
     recoverers: dict[Name, Recoverer] = Field(default_factory=dict)
     redaction: Redaction = Field(default_factory=Redaction)
+    surface_requirements: list[SurfaceFeature] | None = None
+    """The surface features this capability needs (``cua.surface.features``).
+    Required from schema 1.2 and absent before it; replay refuses a surface
+    that lacks one before the first action."""
     provenance: Provenance
 
     # -- validation ----------------------------------------------------------
@@ -415,6 +430,7 @@ class Capability(_Model):
             *self._unresolved_placeholders(),
             *self._unanchored_pixels(),
             *self._approval_fields(),
+            *self._surface_requirements(),
         ]
         if problems:
             raise ValueError("\n".join(problems))
@@ -485,12 +501,42 @@ class Capability(_Model):
         if self.approval_state == "draft" and self.approved_by:
             yield "a draft capability has no approved_by"
 
+    def _surface_requirements(self) -> Iterator[str]:
+        declared = self.surface_requirements
+        if self.schema_version == "1.1":
+            if declared is not None:
+                yield (
+                    "surface_requirements is a schema 1.2 field; a 1.1 capability's "
+                    "requirements are derived from its content"
+                )
+            return
+        if declared is None:
+            yield "a schema 1.2 capability declares surface_requirements"
+            return
+        if len(set(declared)) != len(declared):
+            yield "surface_requirements lists a feature twice"
+        try:
+            used = derive(self.model_dump(mode="json", by_alias=True))
+        except UnknownConstruct as exc:
+            yield str(exc)
+            return
+        undeclared = [f for f in used if f not in declared]
+        if undeclared:
+            yield (
+                f"surface_requirements leaves out {', '.join(undeclared)}, which the "
+                "capability's own steps, checks or detectors use"
+            )
+
     # -- identity ------------------------------------------------------------
 
     def content_hash(self) -> str:
         """SHA-256 of everything the capability *does*: all of it except the
         numbering and approval bookkeeping."""
         data = self.model_dump(mode="json", by_alias=True, exclude=set(APPROVAL_FIELDS))
+        if self.surface_requirements is None:
+            # Absent before schema 1.2: a 1.1 capability hashes as it always
+            # did, so its approval still stands.
+            del data["surface_requirements"]
         canonical = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 

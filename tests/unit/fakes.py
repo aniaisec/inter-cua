@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from cua.surface.adapters import PLAYWRIGHT
 from cua.surface.conditions import Condition
 from cua.surface.evaluators import WebEvaluator
+from cua.surface.features import SurfaceDescriptor
 from cua.surface.locators import Ladder, LadderOutcome, resolve_ladder
 from cua.surface.protocol import (
     Action,
@@ -28,7 +30,10 @@ PNG = b"\x89PNG fake"
 
 
 class FakeSurface:
-    def __init__(self, screens: Sequence[Observation]) -> None:
+    def __init__(
+        self, screens: Sequence[Observation], *, descriptor: SurfaceDescriptor = PLAYWRIGHT
+    ) -> None:
+        self._descriptor = descriptor
         self.screens = list(screens)
         self.index = 0
         self.actions: list[Action] = []
@@ -63,6 +68,10 @@ class FakeSurface:
 
     def evaluate(self, condition: Condition) -> bool:
         raise NotImplementedError
+
+    @property
+    def descriptor(self) -> SurfaceDescriptor:
+        return self._descriptor
 
     @property
     def evaluator(self) -> WebEvaluator:

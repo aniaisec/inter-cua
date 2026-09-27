@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from cua.artifact.requirements import derive
 from cua.artifact.schema import Capability
 from cua.artifact.store import CAPABILITIES_DIR, save
 from cua.drift.checks import static_checks
@@ -41,6 +42,7 @@ from cua.policy.allowlist import Policy
 from cua.policy.approval import STATE_DIR
 from cua.registry.models import Version
 from cua.registry.store import Registry
+from cua.surface.features import ordered
 from cua.surface.locators import BBox, Ladder, ladder_for
 from cua.surface.protocol import Node, Observation
 
@@ -201,6 +203,10 @@ def _with_ladder(cap: Capability, step_id: str, ladder: Ladder) -> Capability:
         if s["id"] == step_id:
             s["target"] = [_dump(r) for r in ladder]
     data["provenance"]["locator_rungs_used"][step_id] = ladder[0].strategy
+    if data.get("surface_requirements") is not None:
+        # A new rung may use a feature the old ladder did not; the repair
+        # declares it, and the reviewer sees it in the diff.
+        data["surface_requirements"] = ordered([*data["surface_requirements"], *derive(data)])
     return Capability.model_validate(data)
 
 

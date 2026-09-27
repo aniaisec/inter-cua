@@ -30,13 +30,13 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from cua.artifact import requirements
 from cua.artifact.schema import Capability, InputSpec
 from cua.registry import lifecycle
 from cua.registry.models import Status, Version
 from cua.registry.resolver import Unresolvable, default_version, resolve
 from cua.registry.store import Registry, Unreadable
 from cua.replay.result import Failure
-from cua.surface import SUPPORTED_SURFACES
 
 __all__ = ["CatalogError", "Entry", "Unreadable", "find", "scan"]
 
@@ -53,11 +53,14 @@ class Entry:
     @property
     def invocable(self) -> bool:
         """What ``cua replay`` would accept without an override: approved (not
-        deprecated, not revoked), and on a surface this build can drive."""
-        return (
-            lifecycle.invocable(self.status)
-            and self.capability.target.surface in SUPPORTED_SURFACES
-        )
+        deprecated, not revoked), and on a surface this build can drive with
+        every feature it uses."""
+        return lifecycle.invocable(self.status) and self.unfit is None
+
+    @property
+    def unfit(self) -> str | None:
+        """Why no surface this build has can run it, if none can."""
+        return requirements.refusal(self.capability)
 
 
 class CatalogError(LookupError):

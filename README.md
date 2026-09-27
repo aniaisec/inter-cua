@@ -190,7 +190,8 @@ model: the discovery tests use the scripted client and recorded fixtures.
 | `cua benchmark list \| run \| report` | run the benchmark suite (`bench/tasks/`) through the repeated-LLM baseline, discovery and replay; aggregate `bench/reports/runs.jsonl` into `summary.md` ([bench/README.md](bench/README.md)) | |
 | `cua metrics run <run_id \| dir> [--json \| --events]` | one run explained: outcome and why, where the time went, model calls, tokens and estimated cost, locators, recoveries, human intervention; `--events` prints its canonical events | |
 | `cua metrics capability <name> [--version N]` \| `cua metrics report [--out DIR]` | health of each approved capability from its replays (success, failure, escalation, human, locator failure, drift, unknown side effect, latency, last success and failure), and model spend | |
-| `cua schema` | regenerate `capabilities/schema/capability-1.1.json` | |
+| `cua surfaces` | this build's surface adapters and their features, and for each registered capability the features it needs and whether it runs here | |
+| `cua schema` | regenerate `capabilities/schema/capability-1.2.json` | |
 | `cua mockapp` | the target app on :8000 | |
 
 ## Calling a capability from an agent
@@ -375,6 +376,17 @@ knows the target is a web page.
   `value_set`, `error_banner_present`, `validation_message_present`, ...) are
   pure functions of an observation, and each documents what it would mean on
   a desktop surface.
+- **Compatibility.** A surface publishes a `descriptor`: adapter name,
+  contract version and features from a closed vocabulary (`frames`,
+  `geometry`, `fixed_viewport`, `forms`, `dialogs`, `screenshots`,
+  `egress_control`, `session_handoff`, ...; `src/cua/surface/features.py`). A
+  capability needs the features its content uses: a `near_text` rung needs
+  `geometry`, a rung scoped to frame `main` needs `frames`. Replay compares the
+  two twice, against the registered adapter before a browser starts and
+  against the surface it was actually handed before the first action. A
+  capability short of a feature ends as `failure SURFACE_INCOMPATIBLE`,
+  `side_effect: none`, and is not offered by `cua catalog` or run by a
+  workflow.
 
 No CSS or XPath selector appears under `src/cua`. The one exception is the
 document-level `body` anchor `aria_snapshot` requires, which never names a
@@ -383,7 +395,7 @@ control.
 ### Capability
 
 The pydantic model in `src/cua/artifact/schema.py` is the source of truth;
-`capabilities/schema/capability-1.1.json` is exported from it. A capability
+`capabilities/schema/capability-1.2.json` is exported from it. A capability
 carries its contract (`inputs`, `outputs`, `contract` with side effects,
 idempotency and declared business outcomes, and `credentials` as `secret://`
 refs), its `steps` (a locator ladder, `risk`, `approval`, `retry`, and what
@@ -392,6 +404,12 @@ must hold afterwards), compound `checkpoints` that bind the inputs,
 (`capabilities/families/legacy-core.yaml`), and `provenance` naming the
 discovery run. Any change bumps the version and resets it to draft, including
 a hand edit, which the content seal written on every save catches.
+
+Schema 1.2 adds `surface_requirements`: the surface features the capability
+needs, written by `cua record` and checked on load to cover every feature its
+content uses. A 1.1 capability is read as it is, with its hash and approval
+unchanged; its requirements are derived from its content, and `cua describe`
+and `cua surfaces` say so.
 
 ### Registry
 
