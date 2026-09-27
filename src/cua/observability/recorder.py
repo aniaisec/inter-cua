@@ -77,6 +77,8 @@ _SIMPLE: dict[str, tuple[EventType, tuple[str, ...]]] = {
     "policy.deprecated": ("policy.checked", ("warning",)),
     "approval.spent": ("policy.checked", ()),
     "surface.checked": ("policy.checked", ("adapter", "requires", "requires_source", "missing")),
+    "vision.accepted": ("policy.checked", ("confidence", "evidence")),
+    "vision.refused": ("policy.blocked", ("why", "reason")),
     "escalation.requested": ("human.handoff", ("reason", "code", "request", "attempt")),
     "handoff.handed_back": ("human.resumed", ("by", "decision", "human_actions", "request")),
     "handoff.aborted": ("human.aborted", ("by", "why", "human_actions", "request")),
@@ -97,6 +99,8 @@ _EXTRA_ATTRS: dict[str, dict[str, Any]] = {
     "policy.deprecated": {"decision": "deprecated_version"},
     "approval.spent": {"decision": "token_spent"},
     "surface.checked": {"decision": "surface_checked"},
+    "vision.accepted": {"decision": "vision_accepted"},
+    "vision.refused": {"decision": "vision_refused"},
     "irreversible.act": {"phase": "attempted"},
     "action.read": {"action": "read"},
 }

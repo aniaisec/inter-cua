@@ -1,0 +1,40 @@
+{
+  "run_id": "run_01M3J2ZG8J3BMY0VF7HTZJB8RX",
+  "capability": "member_savings_balance",
+  "capability_version": 1,
+  "idempotency_key": null,
+  "duration_ms": 7182,
+  "locator_rungs_used": {
+    "login.username": "near_text",
+    "login.password": "near_text",
+    "login.submit": "role_name",
+    "search.member_id": "near_text"
+  },
+  "recoveries": [],
+  "handoffs": [],
+  "warnings": [],
+  "evidence": {
+    "run_dir": "evidence/replay-vision-not-found",
+    "screenshots": [
+      "screenshots/0001.png",
+      "screenshots/0002.png",
+      "screenshots/0003.png",
+      "screenshots/0004.png",
+      "screenshots/0005.png",
+      "screenshots/0006.png"
+    ],
+    "trace": "trace.zip",
+    "intervention": null
+  },
+  "cached": false,
+  "kind": "failure",
+  "code": "LOCATOR_UNRESOLVED",
+  "step_id": "search.submit",
+  "expected": "exactly one control for role_name button \"Search\" > bbox (355,64 62x19)",
+  "observed": "[top] http://127.0.0.1:8000/ (200) [nav] http://127.0.0.1:8000/nav (200) [main] http://127.0.0.1:8000/search (200)\n[nav] http://127.0.0.1:8000/nav\n  n468 text \"Functions\"\n  row: n473 link \"Member Search\"\n  row: n476 link \"Account Inquiry\"\n  row: n479 link \"Reports\"\n  row: n482 link \"Sign Off\"\n  row: n485 link \"Vendor Support\"\n[main] http://127.0.0.1:8000/search\n  n486 text \"MockCore Member Services 1.0\"\n  n487 heading \"Member Search\"\n  row: n491 cell \"Member ID\" | n493 textbox ='10003' ~'Member ID' | n495 button \"Find\"\n  n496 paragraph \"Enter a five digit member number.\"",
+  "message": "role_name: 0 matches; bbox: 1 match, not trusted to act on unattended (pixels only); vision (not_found): nothing on the screen looks like the recorded control (needs 0.97; the best match scored 0.514)",
+  "side_effect": "none",
+  "outputs": {},
+  "during_recovery": null,
+  "escalation_reason": "STUCK"
+}

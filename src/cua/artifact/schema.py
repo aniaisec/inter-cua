@@ -30,6 +30,12 @@ Schema 1.2 adds ``surface_requirements`` and nothing else. A 1.1 artifact
 still loads as written, hash and approval intact; its requirements are
 derived when asked for (``cua.artifact.requirements``).
 
+Schema 1.3 adds ``appearance`` on a click step: what the control looked like
+when it was recorded, which is what the vision fallback looks for when the
+accessibility tree has lost it (``cua.surface.vision``). It is content, so it
+is hashed and approved with everything else; a 1.1 or 1.2 artifact has none,
+hashes as it always did, and simply has no vision fallback.
+
 Conditions and locator rungs are the ones the surface layer defines, so the
 artifact, the discovery loop and the replay engine speak one vocabulary.
 """
@@ -63,11 +69,12 @@ from cua.surface.conditions import (
 from cua.surface.features import SurfaceFeature
 from cua.surface.locators import BBox, NearText, RoleName, TableCell
 from cua.surface.protocol import RecordingEnv
+from cua.surface.vision.candidate import Appearance
 
-SchemaVersion = Literal["1.1", "1.2"]
-SCHEMA_VERSION: Literal["1.2"] = "1.2"
-"""What ``cua`` writes. 1.1 is read, never written."""
-SCHEMA_PATH = Path("capabilities/schema/capability-1.2.json")
+SchemaVersion = Literal["1.1", "1.2", "1.3"]
+SCHEMA_VERSION: Literal["1.3"] = "1.3"
+"""What ``cua`` writes. 1.1 and 1.2 are read, never written."""
+SCHEMA_PATH = Path("capabilities/schema/capability-1.3.json")
 
 PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
 _CREDENTIAL_REF = re.compile(r"^credentials\.([a-z][a-z0-9_]*)\.([a-z][a-z0-9_]*)$")
@@ -214,6 +221,10 @@ class Step(_Model):
     """Seen after a failure on this step → the commit happened
     (``side_effect: committed``); not seen → ``unknown``."""
     on_fail: Literal["fail", "escalate"] = "escalate"
+    appearance: Appearance | None = None
+    """Schema 1.3. The control as it looked when recorded (a masked crop),
+    for the vision fallback. Only a click step has one: vision proposes
+    clicks, never typing or reading."""
 
     @model_validator(mode="after")
     def _shape_fits_action(self) -> Step:
@@ -223,6 +234,10 @@ class Step(_Model):
             raise ValueError(f"step {self.id}: a {self.action} step needs a value")
         if self.action == "press" and not self.key:
             raise ValueError(f"step {self.id}: a press step needs a key")
+        if self.appearance is not None and self.action != "click":
+            raise ValueError(
+                f"step {self.id}: only a click step has an appearance; vision proposes clicks"
+            )
         if self.risk == "irreversible" and self.retry.allowed:
             raise ValueError(
                 f"step {self.id}: retry.allowed is true on an irreversible step; "
@@ -431,6 +446,7 @@ class Capability(_Model):
             *self._unanchored_pixels(),
             *self._approval_fields(),
             *self._surface_requirements(),
+            *self._appearances(),
         ]
         if problems:
             raise ValueError("\n".join(problems))
@@ -527,6 +543,12 @@ class Capability(_Model):
                 "capability's own steps, checks or detectors use"
             )
 
+    def _appearances(self) -> Iterator[str]:
+        if self.schema_version in ("1.1", "1.2"):
+            for step in self.steps:
+                if step.appearance is not None:
+                    yield f"step {step.id}: appearance is a schema 1.3 field"
+
     # -- identity ------------------------------------------------------------
 
     def content_hash(self) -> str:
@@ -537,6 +559,10 @@ class Capability(_Model):
             # Absent before schema 1.2: a 1.1 capability hashes as it always
             # did, so its approval still stands.
             del data["surface_requirements"]
+        for step in data["steps"]:
+            # Likewise a step with no appearance (every step before 1.3).
+            if step.get("appearance") is None:
+                step.pop("appearance", None)
         canonical = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 

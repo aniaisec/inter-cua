@@ -1,0 +1,43 @@
+{
+  "run_id": "run_01M3J2XC3DATCQXKE5DQWMDFBJ",
+  "capability": "member_savings_balance",
+  "capability_version": 1,
+  "idempotency_key": null,
+  "duration_ms": 9833,
+  "locator_rungs_used": {
+    "login.username": "near_text",
+    "login.password": "near_text",
+    "login.submit": "role_name",
+    "search.member_id": "near_text",
+    "search.submit": "vision",
+    "outputs.savings_balance": "table_cell",
+    "outputs.member_name": "near_text"
+  },
+  "recoveries": [],
+  "handoffs": [],
+  "warnings": [
+    "search.submit: located by vision, recorded as role_name; skipped role_name (0 matches), bbox (0 matches)"
+  ],
+  "evidence": {
+    "run_dir": "evidence/replay-vision-recovered",
+    "screenshots": [
+      "screenshots/0001.png",
+      "screenshots/0002.png",
+      "screenshots/0003.png",
+      "screenshots/0004.png",
+      "screenshots/0005.png",
+      "screenshots/0006.png",
+      "screenshots/0007.png"
+    ],
+    "trace": null,
+    "intervention": null
+  },
+  "cached": false,
+  "kind": "success",
+  "outputs": {
+    "savings_balance": "1411.21",
+    "member_name": "Test Member 03"
+  },
+  "step_id": "search.submit",
+  "side_effect": "none"
+}

@@ -45,6 +45,7 @@ from cua.surface.protocol import (
     ActionFailed,
     ActionResult,
     Click,
+    ClickPoint,
     ConditionTimeout,
     DialogEvent,
     DialogKind,
@@ -179,6 +180,10 @@ class WindowsSurface:
         if isinstance(action, Navigate):
             self._start(action.url)
             return ActionResult(action="navigate", duration_ms=_ms_since(started))
+        if isinstance(action, ClickPoint):
+            # Not a pointer surface (``WINDOWS_UIA`` does not claim it), and a
+            # run that needs one is refused before it starts.
+            raise ActionFailed("windows-uia acts on controls, not on points of the screen")
         text: str | None = None
         if isinstance(action, Press):
             target = self._element(action.ref) if action.ref else None

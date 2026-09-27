@@ -81,6 +81,7 @@ from cua.surface.protocol import (
     ActionFailed,
     ActionResult,
     Click,
+    ClickPoint,
     ConditionTimeout,
     DialogEvent,
     DialogKind,
@@ -689,7 +690,7 @@ class PlaywrightSurface:
         raised_before = len(self._dialogs)
         # Only these can submit a form or follow a link; settle() waits a
         # moment for the navigation they may have started.
-        self._may_navigate = isinstance(action, (Click, Press))
+        self._may_navigate = isinstance(action, (Click, Press, ClickPoint))
         self._documents_before_act = self._documents_requested
 
         if isinstance(action, Navigate):
@@ -706,6 +707,15 @@ class PlaywrightSurface:
             self._observation = None
             return ActionResult(
                 action="press",
+                duration_ms=_ms_since(started),
+                dialogs=self._dialogs[raised_before:],
+            )
+
+        if isinstance(action, ClickPoint):
+            self._click_point(action)
+            self._observation = None
+            return ActionResult(
+                action=action.action,
                 duration_ms=_ms_since(started),
                 dialogs=self._dialogs[raised_before:],
             )
@@ -745,6 +755,37 @@ class PlaywrightSurface:
             duration_ms=_ms_since(started),
             dialogs=self._dialogs[raised_before:],
         )
+
+    def _click_point(self, action: ClickPoint) -> None:
+        """Click a point chosen on the current observation, if the screen
+        there still shows what it was chosen from.
+
+        The pixels of the guard box are captured again and compared, by hash,
+        with the ones the point was chosen on: the pointer's version of
+        ``_element_for``. Anything else (a re-render, a scroll, an overlay
+        drawn over the control) is drift, and nothing is clicked.
+        """
+        from cua.surface.vision import image  # the vision extra; only a fallback needs it
+
+        if self._observation is None:
+            raise StaleRefError("a point belongs to an observation, and none is current")
+        box = action.guard
+        try:
+            seen = self._page.screenshot(
+                clip={"x": box.x, "y": box.y, "width": box.w, "height": box.h}
+            )
+        except PlaywrightError as exc:
+            raise PerceptionDrift(f"the box at ({box.x:.0f}, {box.y:.0f}) cannot be seen") from exc
+        if image.pixels_sha256(seen) != action.guard_sha256:
+            raise PerceptionDrift(
+                f"the picture at ({box.x:.0f}, {box.y:.0f}) changed after the point was chosen"
+            )
+        try:
+            self._page.mouse.click(action.x, action.y)
+        except PlaywrightError as exc:
+            raise ActionFailed(
+                f"click at ({action.x:.0f}, {action.y:.0f}) failed: {_first_line(exc)}"
+            ) from exc
 
     # -- dialogs -----------------------------------------------------------
 

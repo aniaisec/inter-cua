@@ -1,0 +1,35 @@
+{
+  "run_id": "run_01M3J2ZG8J3BMY0VF7HTZJB8RX",
+  "kind": "replay",
+  "started_at": "2026-09-27T18:45:30.005Z",
+  "capability": {
+    "id": "cap_01M3J2X3HBQ5VT5ZEKZ607533K",
+    "name": "member_savings_balance",
+    "version": 1,
+    "approval_state": "approved",
+    "approved_by": "akaku",
+    "content_sha256": "b5c0fd5fb5424e221e0e62e83fda9005aafab0afff99aaea1ca265e7b6fa5949",
+    "lifecycle": "approved"
+  },
+  "tenant": {
+    "id": "local",
+    "app_family": "legacy-core",
+    "base_url": "http://127.0.0.1:8000"
+  },
+  "request": {
+    "inputs": {
+      "member_id": "10003"
+    },
+    "idempotency_key": null,
+    "approval": null,
+    "budget": {
+      "timeout_s": 120.0,
+      "max_recoveries": 3,
+      "allow_escalation": true
+    },
+    "inject": "renamed_button"
+  },
+  "allow_draft": false,
+  "handoff": null,
+  "vision": true
+}

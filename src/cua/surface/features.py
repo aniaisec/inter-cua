@@ -32,6 +32,7 @@ SurfaceFeature = Literal[
     "keyboard",
     "dialogs",
     "screenshots",
+    "pointer",
     "egress_control",
     "session_handoff",
 ]
@@ -50,6 +51,8 @@ FEATURE_MEANINGS: dict[SurfaceFeature, str] = {
     "keyboard": "keys can be pressed",
     "dialogs": "native dialogs are raised, answered and reported",
     "screenshots": "a screenshot with masks painted in before it is captured",
+    "pointer": "a click at a point of the screen, refused if the pixels there changed "
+    "since the point was chosen",
     "egress_control": "what the target may send can be restricted to allowed origins",
     "session_handoff": "the live session can be published for a person to take over",
 }

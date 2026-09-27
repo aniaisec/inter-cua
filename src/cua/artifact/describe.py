@@ -189,6 +189,12 @@ def _steps(cap: Capability, out: list[str]) -> None:
             out.append(f"{_INDENT}found by: {_rung(step.target[0])}  [{step.target[0].strategy}]")
             for rung in step.target[1:]:
                 out.append(f"{_INDENT}  else {_rung(rung)}  [{rung.strategy}]")
+        if step.appearance is not None:
+            a = step.appearance
+            out.append(
+                f"{_INDENT}  else its recorded picture ({a.w}x{a.h} px, sha256 {a.sha256[:12]}), "
+                "only with --vision, only if one clear match, never on a commit  [vision]"
+            )
         if step.expect_after is not None:
             out.append(f"{_INDENT}then expects: {_condition(step.expect_after)}")
         out += [f"{_INDENT}{line}" for line in _safety(step)]

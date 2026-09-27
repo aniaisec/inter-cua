@@ -59,3 +59,13 @@ scrub_patterns:
     # four. Not part of a longer token, so ULIDs, hashes and dates are left
     # alone.
     pattern: "(?<![0-9A-Za-z-])(?:[0-9]{9,16}|[0-9]{4}(?:[ -][0-9]{4}){2,3})(?![0-9A-Za-z])"
+
+# The vision fallback (cua replay --vision): when every rung of a click's
+# ladder misses, look for the control's recorded picture on a masked
+# screenshot. Only one clear match on a safe step, clear of every mask, where
+# the tree has no other control and no risky rule covers the screen, is
+# clicked; anything else is escalated. Both this and --vision must be on.
+vision:
+  allowed: true
+  min_confidence: 0.97
+  min_margin: 0.1

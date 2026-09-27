@@ -1,0 +1,584 @@
+{
+  "schema_version": "1.3",
+  "id": "cap_01M3J2X3HBQ5VT5ZEKZ607533K",
+  "name": "member_savings_balance",
+  "version": 1,
+  "approval_state": "approved",
+  "approved_by": "akaku",
+  "approved_at": "2026-09-27T18:44:16Z",
+  "content_sha256": "b5c0fd5fb5424e221e0e62e83fda9005aafab0afff99aaea1ca265e7b6fa5949",
+  "description": "Look up a member by id and return the current savings balance",
+  "target": {
+    "app_family": "legacy-core",
+    "vendor": "MockCore",
+    "version_hint": "1.0",
+    "surface": "web",
+    "entry": {
+      "kind": "location",
+      "pattern": "{tenant.base_url}/login"
+    }
+  },
+  "contract": {
+    "side_effects": "none",
+    "idempotent": true,
+    "may_escalate": false,
+    "preconditions": {
+      "session": "fresh"
+    },
+    "outcomes": {
+      "NOT_FOUND": {
+        "payload": {}
+      },
+      "PERMISSION_DENIED": {
+        "payload": {}
+      }
+    }
+  },
+  "credentials": {
+    "app_login": {
+      "ref": "secret://{tenant.id}/mockcore/operator",
+      "fields": [
+        "username",
+        "password"
+      ]
+    }
+  },
+  "inputs": {
+    "member_id": {
+      "type": "string",
+      "required": true,
+      "pattern": "^[0-9]+$",
+      "sensitive": false,
+      "description": ""
+    }
+  },
+  "outputs": {
+    "savings_balance": {
+      "type": "decimal",
+      "optional": false,
+      "description": "",
+      "extract": {
+        "target": [
+          {
+            "strategy": "table_cell",
+            "row_contains": "Savings",
+            "column_header": "Balance",
+            "exact": true,
+            "within": {
+              "frame": "main"
+            }
+          },
+          {
+            "strategy": "bbox",
+            "x": 267.78125,
+            "y": 182.5,
+            "w": 77.96875,
+            "h": 20.0,
+            "role": "cell",
+            "confidence": "low",
+            "within": {
+              "frame": "main"
+            }
+          }
+        ],
+        "parse": "currency_usd"
+      }
+    },
+    "member_name": {
+      "type": "string",
+      "optional": true,
+      "description": "",
+      "extract": {
+        "target": [
+          {
+            "strategy": "near_text",
+            "text": "Name",
+            "role": "cell",
+            "direction": "right",
+            "exact": true,
+            "within": {
+              "frame": "main"
+            }
+          },
+          {
+            "strategy": "bbox",
+            "x": 268.609375,
+            "y": 80.0,
+            "w": 100.5625,
+            "h": 19.0,
+            "role": "cell",
+            "confidence": "low",
+            "within": {
+              "frame": "main"
+            }
+          }
+        ],
+        "parse": "text"
+      }
+    }
+  },
+  "recording_env": {
+    "viewport": {
+      "w": 1280,
+      "h": 800
+    },
+    "dpr": 1.0
+  },
+  "steps": [
+    {
+      "id": "login.username",
+      "action": "type",
+      "target": [
+        {
+          "strategy": "near_text",
+          "text": "User ID",
+          "role": "textbox",
+          "exact": true,
+          "within": {
+            "frame": ""
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 83.671875,
+          "y": 64.0,
+          "w": 154.0,
+          "h": 20.0,
+          "role": "textbox",
+          "confidence": "low",
+          "within": {
+            "frame": ""
+          }
+        }
+      ],
+      "value": "${credentials.app_login.username}",
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "value_set",
+        "target": "self"
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate"
+    },
+    {
+      "id": "login.password",
+      "action": "type",
+      "target": [
+        {
+          "strategy": "near_text",
+          "text": "Password",
+          "role": "textbox",
+          "exact": true,
+          "within": {
+            "frame": ""
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 83.671875,
+          "y": 90.0,
+          "w": 154.0,
+          "h": 20.0,
+          "role": "textbox",
+          "confidence": "low",
+          "within": {
+            "frame": ""
+          }
+        }
+      ],
+      "value": "${credentials.app_login.password}",
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "value_set",
+        "target": "self"
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate"
+    },
+    {
+      "id": "login.submit",
+      "action": "click",
+      "target": [
+        {
+          "strategy": "role_name",
+          "role": "button",
+          "name": "Sign On",
+          "exact": true,
+          "within": {
+            "frame": ""
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 83.671875,
+          "y": 116.0,
+          "w": 67.84375,
+          "h": 19.0,
+          "role": "button",
+          "confidence": "low",
+          "within": {
+            "frame": ""
+          }
+        }
+      ],
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "location_matches",
+        "pattern": "/search$",
+        "within": {
+          "frame": "main"
+        }
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate",
+      "appearance": {
+        "png_base64": "iVBORw0KGgoAAAANSUhEUgAAAEUAAAATCAIAAABJOFeUAAACU0lEQVR42mO8cuGEtrYmw7AABw4cZmIYLuDAgcMHDx1lgfOvXr0+pP1z8NBRBgaG4RM/EDDqH1RQVdt04ODhIemfAwcP6xhYQJCphcPVazcYGBjamusc7G0pccHc+YvhxlIeNCxEqrt67cbkabP2794iKioC8dvr168ZGDQotH7u/MVHjh4/dWwfFxfX69dvouJS7t57kJwYS/P4ef36NR8vLzc3F4TrYG8LiRZ4evv27VtiShZy7L1+/SY4PDavsAwiOHf+Ygwz32zbsaukKI+Li4uBgUFUVKS6ovjI0ePfvn2bO39xYkqWq2eAjoGFq2fA69dvqOwfM1NjBgYGMysneEpDAy3tPZKSElcunNi/e4ucvCxE8NOnz/p6ulcunFi5bMG2HbvQnPXq9RsGBgYxURG4iKio6KfPn79+/cbAwPDk6bNli+ZcuXDC1MRo05btVE5vXFxc8+dMgyS8hKSM7z9+TJnYDc853759+/LlS3pqEpouPj5eC3NTiKP5eHlJSjmmJkaQtK2spEjD8k1bS+P0iQOF+dm79uynMPNAYuYVUqShpWoa5p+58xcjZ4C79+4jBxsXFxcPD8+Jk6ch7vv48RMxZoqKinh5uPX0Tfr27RskO7V29NpYW0KyE23LNz8fz6i4lP6JUyHcwvxstFKoMC8LokBCQpx46yGGmFk5QbjIaZg8wAhvX1Or/Xb12o26xtYZU/pFkTI6HcCatRtJiB9iatuc/FJ4MNPZMySnN4LAwd72yoUTA97egfrn4MEjBw4eGSbt0WHjGQYGBgCnv/z7LQALAgAAAABJRU5ErkJggg==",
+        "w": 69,
+        "h": 19,
+        "sha256": "4e5d30ece75f59893c543901617b9d5b09e312d02386962a4c8402a79c9d9a5f",
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "search.member_id",
+      "action": "type",
+      "target": [
+        {
+          "strategy": "near_text",
+          "text": "Member ID",
+          "role": "textbox",
+          "exact": true,
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 274.609375,
+          "y": 64.0,
+          "w": 68.0,
+          "h": 20.0,
+          "role": "textbox",
+          "confidence": "low",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ],
+      "value": "${member_id}",
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "value_set",
+        "target": "self",
+        "value": "${member_id}"
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate"
+    },
+    {
+      "id": "search.submit",
+      "action": "click",
+      "target": [
+        {
+          "strategy": "role_name",
+          "role": "button",
+          "name": "Search",
+          "exact": true,
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 354.609375,
+          "y": 64.5,
+          "w": 62.078125,
+          "h": 19.0,
+          "role": "button",
+          "confidence": "low",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ],
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "location_matches",
+        "pattern": "/member/[0-9]+$",
+        "within": {
+          "frame": "main"
+        }
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate",
+      "appearance": {
+        "png_base64": "iVBORw0KGgoAAAANSUhEUgAAAD8AAAAUCAIAAAC1VnJ9AAACCklEQVR42u1Wv2vbUBD+EvJPRB5sDcGUiFSjjAVdDA4GFWlIbTDeDR2qwUWLRy9BhngxaBcGuz+wS8HU0EFKLPLG1/JC8SR7sPRvdNCzm5YMIU3AgnyT7nScvnf3vdPtMUqQWhwAOD5+kUbqnne1n9Kqe96VfxkcbO2bm18pYu9fBgD2kWY8s/9/RENNbs8fNnPuibmlNGcbI2fOJrXMLkzM+2A9qDZxwWhhc5J2CGTSopzw50o8yW1N9byj8sfY1RVJViRZ0QYxAOC6JXOPpA/Xm75pVluTFUmuulEiFR7TCniiifWv59HYq+9M2MZtQpsmGB/OxowSRsdvPppuBKDQpYRRwihx8r0mPxLCheRQwuioIVy3Kr18nzBK2NTEMgn4jteEUcL6pW/2X594DN0Lta+0lkioLPeAkkM7KuJwgXBmSDaPOg3RELAeVMv2KvGIJ/yVePaKKy1aLXKmU+Rpu3UgAlDSE48oiU9xaxNk6iNWj13dmAQdtQgAp33SLd6KCNpl+8ihIxWYW8r5Dug+dvWqG23N5Y9l9qUI4FDM40+jgyGPySX1i8PFnW3M5pe9i4DPytZGWk83cw4b74+kyraQWWs6agjJ9R1bulGWewCAkkMB4a1lJ56smLszW6E7NbWKIvFUtQez32OUJDtmuvacT5+/PG8Ku/Cv9f25589TWfuUUgfwGxTE0aPWaY0XAAAAAElFTkSuQmCC",
+        "w": 63,
+        "h": 20,
+        "sha256": "177fe286a48d77deffd1a5d9e90b85e7689ca3af76c79228539993ce15334c41",
+        "scale": 1.0
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "cp.logged_in",
+      "after_step": "login.submit",
+      "all_of": [
+        {
+          "kind": "location_matches",
+          "pattern": "/search$",
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "kind": "region_present",
+          "name": "Member Search",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cp.member_detail",
+      "after_step": "search.submit",
+      "all_of": [
+        {
+          "kind": "location_matches",
+          "pattern": "/member/[0-9]+$",
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "kind": "region_present",
+          "name": "Member Detail",
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "kind": "text_present",
+          "text": "${member_id}",
+          "within": {
+            "frame": "main"
+          }
+        },
+        {
+          "kind": "region_present",
+          "name": "Balances",
+          "within": {
+            "frame": "main"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cp.done",
+      "after_step": "done",
+      "all_of": [
+        {
+          "kind": "output_extracted",
+          "name": "savings_balance"
+        }
+      ]
+    }
+  ],
+  "outcome_detectors": [
+    {
+      "code": "APP_ERROR",
+      "class": "hard",
+      "match": {
+        "kind": "error_banner_present",
+        "text": "Internal Server Error"
+      }
+    },
+    {
+      "code": "AUTH_FAILED",
+      "class": "hard",
+      "scope": {
+        "after_step": "login.submit"
+      },
+      "match": {
+        "kind": "text_present",
+        "text": "Invalid user id or password"
+      }
+    },
+    {
+      "code": "NOT_FOUND",
+      "class": "business",
+      "scope": {
+        "after_step": "search.submit"
+      },
+      "match": {
+        "kind": "text_present",
+        "text": "No matching member",
+        "within": {
+          "frame": "main"
+        }
+      }
+    },
+    {
+      "code": "PERMISSION_DENIED",
+      "class": "business",
+      "scope": {
+        "after_step": "search.submit"
+      },
+      "match": {
+        "kind": "text_present",
+        "text": "not authorized to view this record"
+      }
+    },
+    {
+      "code": "INTERSTITIAL",
+      "class": "recoverable",
+      "scope": {
+        "after_checkpoint": "cp.logged_in"
+      },
+      "match": {
+        "kind": "region_present",
+        "name": "System notice"
+      },
+      "recover": {
+        "run": "dismiss_notice",
+        "then": "continue",
+        "max": 1,
+        "backoff_s": 0.0
+      }
+    },
+    {
+      "code": "SESSION_EXPIRED",
+      "class": "recoverable",
+      "scope": {
+        "after_checkpoint": "cp.logged_in"
+      },
+      "match": {
+        "kind": "location_matches",
+        "pattern": "/login$"
+      },
+      "recover": {
+        "run": "relogin",
+        "then": "restart_from_last_checkpoint",
+        "max": 1,
+        "backoff_s": 0.0
+      }
+    },
+    {
+      "code": "SLOW_LOAD",
+      "class": "recoverable",
+      "match": {
+        "kind": "timeout"
+      },
+      "recover": {
+        "then": "retry_step",
+        "max": 2,
+        "backoff_s": 2.0
+      }
+    }
+  ],
+  "recovery_limits": {
+    "per_step": 1,
+    "per_run": 3
+  },
+  "recoverers": {
+    "dismiss_notice": {
+      "steps": [
+        {
+          "action": "click",
+          "target": [
+            {
+              "strategy": "role_name",
+              "role": "button",
+              "name": "OK",
+              "exact": true
+            }
+          ]
+        }
+      ],
+      "sub_flow": []
+    },
+    "relogin": {
+      "steps": [],
+      "sub_flow": [
+        "login.username",
+        "login.password",
+        "login.submit"
+      ]
+    }
+  },
+  "redaction": {
+    "screenshot_masks": [
+      [
+        {
+          "strategy": "near_text",
+          "text": "Password",
+          "role": "textbox",
+          "exact": true
+        }
+      ]
+    ]
+  },
+  "surface_requirements": [
+    "accessibility_tree",
+    "geometry",
+    "fixed_viewport",
+    "frames",
+    "locations",
+    "document_status",
+    "forms",
+    "screenshots"
+  ],
+  "provenance": {
+    "discovery_run_id": "run_01M2W042TVDW140KRYAHXFGMT3",
+    "provider": "gemini",
+    "model": "gemini-3.8-flash",
+    "transcript_sha256": "ded7f80a2aa76e2f1676e55277841aea308efd8cb3a4b9b64d45c30b02e3a68c",
+    "recorded_at": "2026-09-19T04:52:39.536Z",
+    "locator_rungs_used": {
+      "login.username": "near_text",
+      "login.password": "near_text",
+      "login.submit": "role_name",
+      "search.member_id": "near_text",
+      "search.submit": "role_name",
+      "outputs.savings_balance": "table_cell",
+      "outputs.member_name": "near_text"
+    }
+  }
+}

@@ -104,6 +104,21 @@ attacks are real: the controls are what stop them.
   (stored XSS, for example). A GET inside an allowed path that commits is
   indistinguishable from a read. The policy narrows what automation may
   reach; it cannot vouch for what the application does there.
+- **Visual look-alikes.** The vision fallback (`cua replay --vision`) clicks
+  a point because its pixels match a control's recorded picture. A page that
+  drew a copy of that control somewhere else could, in principle, steer the
+  click. The attempt is bounded, not prevented:
+  - two matching places are refused, not chosen;
+  - a match on top of a control the accessibility tree knows is refused;
+  - a click by pixels is never made on a step that commits, or on a screen a
+    risky rule covers, with or without consent;
+  - the policy's origin and path checks apply as to any action;
+  - the step's own checkpoint must still hold afterwards.
+
+  What remains is one convincing copy, on an allowed screen, whose target is
+  a safe step. Vision runs only when the policy allows it (`vision.allowed`,
+  on in the shipped policy) and the run asks for it (`--vision`, off by
+  default).
 - **What the model sees goes to the model provider.** Screens are scrubbed of
   secrets and personal-data shapes first (`scrub_patterns`), but anything
   else on screen is sent. Discovery runs on a tenant's data only with the

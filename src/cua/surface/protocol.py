@@ -336,8 +336,46 @@ class Navigate(BaseModel):
     url: str
 
 
+class ClickPoint(BaseModel):
+    """A click at a point, for a control the accessibility tree does not have.
+
+    Only the vision fallback makes one (``cua.surface.vision``), and only
+    after a validator and the policy have passed it. It is scoped to the
+    observation it was chosen on, like a ref: ``guard`` is the box the control
+    was seen in and ``guard_sha256`` the hash of its pixels
+    (``vision.image.pixels_sha256``). The surface looks at that box again
+    immediately before clicking and raises ``PerceptionDrift`` if the picture
+    changed, so a screen that moved between choosing and acting is never
+    clicked blind.
+
+    ``role``, ``name`` and ``frame`` are what the click claims to hit: the
+    control the step's ladder names. The policy judges the click by that
+    claim, since there is no node to judge it by.
+    """
+
+    model_config = ConfigDict(frozen=True)
+    action: Literal["click_point"] = "click_point"
+    x: float
+    y: float
+    guard: Rect
+    guard_sha256: str
+    role: str | None = None
+    name: str = ""
+    frame: str = TOP_FRAME
+
+    def claimed(self) -> Node:
+        """The control this click claims to hit, as a node the policy can read."""
+        return Node(
+            ref="@point",
+            role=self.role or "generic",
+            name=self.name,
+            frame=self.frame,
+            bbox=self.guard,
+        )
+
+
 Action = Annotated[
-    Click | TypeText | Press | SelectOption | ReadText | Navigate,
+    Click | TypeText | Press | SelectOption | ReadText | Navigate | ClickPoint,
     Field(discriminator="action"),
 ]
 

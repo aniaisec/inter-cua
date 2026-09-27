@@ -395,12 +395,20 @@ def test_the_committed_goal2_capability_is_what_the_recorder_makes_of_its_run() 
         families_dir=REPO / "capabilities" / "families",
         capability_id=committed.id,
     )
-    # The committed file predates schema 1.2. Recording it today adds the
-    # declaration and nothing else, and declares exactly what the 1.1 file's
+    # The committed file predates schemas 1.2 and 1.3. Recording it today
+    # adds the declaration and each click's appearance (the run kept its
+    # screenshots) and nothing else, and declares exactly what the 1.1 file's
     # requirements are derived as.
-    assert recorded.schema_version == "1.2" and committed.schema_version == "1.1"
+    assert recorded.schema_version == "1.3" and committed.schema_version == "1.1"
     assert recorded.surface_requirements == requirements.of(committed)[0]
-    as_before = with_changes(recorded, schema_version="1.1", surface_requirements=None)
+    clicks = [s for s in recorded.steps if s.action == "click"]
+    assert clicks and all(s.appearance is not None for s in clicks)
+    data = recorded.model_dump(mode="json", by_alias=True)
+    for step in data["steps"]:
+        step.pop("appearance", None)
+    as_before = with_changes(
+        Capability.model_validate(data), schema_version="1.1", surface_requirements=None
+    )
     assert as_before.content_hash() == committed.content_hash()
 
 

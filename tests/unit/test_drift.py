@@ -469,11 +469,26 @@ def test_drift_rates_are_events_per_invocation_by_capability_tenant_and_rung() -
 def test_every_run_on_record_can_be_scanned() -> None:
     runs = list(scan([REPO_ROOT / "evidence"], known()))
     assert runs and all(r.capability for r in runs)
-    # The web evidence drifts only by a renamed button. Desktop runs, when a
-    # machine has them under evidence/runs/, drift in their own ways
-    # (DeskCalc's ambiguous and renamed buttons) and are classified alike.
+    # The web evidence drifts by a renamed button, and in the vision runs by a
+    # control hidden from the tree (found by its picture, or drawn twice).
+    # Desktop runs, when a machine has them under evidence/runs/, drift in
+    # their own ways (DeskCalc's ambiguous and renamed buttons) and are
+    # classified alike.
     kinds = {e.kind for r in runs if r.app_family == "legacy-core" for e in r.events}
-    assert kinds <= {"CONTROL_RENAMED"} and "CONTROL_RENAMED" in kinds
+    assert kinds == {"CONTROL_RENAMED", "CONTROL_UNLABELED", "CONTROL_AMBIGUOUS"}
+    by_run = {
+        r.run_id: {e.kind for e in r.events}
+        for r in runs
+        if r.app_family == "legacy-core" and r.run_id.startswith("run_01M3J")
+    }
+    # The commit run's Search was found by vision before its Confirm was
+    # refused; the refusal is a policy stop, not a locator drift.
+    assert sorted(map(sorted, by_run.values())) == [
+        ["CONTROL_AMBIGUOUS"],
+        ["CONTROL_RENAMED"],
+        ["CONTROL_UNLABELED"],
+        ["CONTROL_UNLABELED"],
+    ]
 
 
 # -- candidates -----------------------------------------------------------------------

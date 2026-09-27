@@ -37,7 +37,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from cua.surface.locators import Ladder
-from cua.surface.protocol import Action, Click, Node, Observation, Press
+from cua.surface.protocol import Action, Click, ClickPoint, Node, Observation, Press
 from cua.tenant import Tenant
 
 if TYPE_CHECKING:
@@ -83,6 +83,25 @@ class ScrubPattern(BaseModel):
     pattern: str
 
 
+class VisionRules(BaseModel):
+    """Whether, and how sure, the vision fallback must be to act here.
+
+    Off unless the policy turns it on. What it may never do is not
+    configurable: act on a step that commits something, act on a screen a
+    risky rule covers, or choose between two matches.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    allowed: bool = False
+    min_confidence: float = Field(default=0.97, ge=0.5, le=1.0)
+    """The picture must match at least this well (normalised
+    cross-correlation; 1 is the same pixels)."""
+    min_margin: float = Field(default=0.1, gt=0.0, le=1.0)
+    """And every other match must be this much worse, or the match is
+    ambiguous."""
+
+
 class Policy(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -104,6 +123,7 @@ class Policy(BaseModel):
     the sign-on screens. A credential typed anywhere else is blocked."""
     scrub_patterns: list[ScrubPattern] = Field(default_factory=list)
     """Shapes of personal data masked in everything the model or the log sees."""
+    vision: VisionRules = Field(default_factory=VisionRules)
 
     def summary(self) -> str:
         """The allowlist as the agent is told it."""
@@ -162,8 +182,9 @@ def check(
     """``approval``: consent already checked for this invocation (see
     ``cua.policy.tokens``). It turns a risky rule's ``NeedsApproval`` into
     ``Allow``; it never lifts a ``Block``."""
-    if action.action not in policy.allowed_actions:
-        return Block(reason=f"action {action.action!r} is not on the allowlist")
+    verb = "click" if isinstance(action, ClickPoint) else action.action
+    if verb not in policy.allowed_actions:
+        return Block(reason=f"action {verb!r} is not on the allowlist")
 
     for frame in observation.frames:
         if not frame.url.startswith(("http://", "https://")):
@@ -179,10 +200,14 @@ def check(
                 "nothing may be done there"
             )
 
-    ref = getattr(action, "ref", None)
-    if ref is None:
-        return Allow()
-    node = observation.node(ref)
+    if isinstance(action, ClickPoint):
+        # No node: the click is judged by the control it claims to hit.
+        node = action.claimed()
+    else:
+        ref = getattr(action, "ref", None)
+        if ref is None:
+            return Allow()
+        node = observation.node(ref)
     info = observation.frame_info(node.frame)
     frame_url = info.url if info else observation.location
 
@@ -200,11 +225,20 @@ def check(
             and action.key in SUBMIT_KEYS
             and rule.covers_location(frame_url)
         )
+        # A click by pixels on a screen where commits happen: what it hits is
+        # only as certain as a picture, so the whole screen counts as risky.
+        submits = submits or (isinstance(action, ClickPoint) and rule.covers_location(frame_url))
         if not (matched or submits):
             continue
         if approval is not None:
             return Allow(approved_rule=rule.id)
-        what = node.label if matched else f"Enter on {node.label}"
+        what = (
+            node.label
+            if matched
+            else f"a click by pixels near {node.label}"
+            if isinstance(action, ClickPoint)
+            else f"Enter on {node.label}"
+        )
         return NeedsApproval(rule=rule.id, reason=f"{what}: {rule.reason}")
     return Allow()
 

@@ -10,8 +10,9 @@
 <tr>
   <td>Member ID</td>
   <td><input type="text" name="F_MBRID" size="8" maxlength="5" value="{{ member_id }}"></td>
-  <td><input type="submit" value="{{ submit_label }}"></td>
+  <td><input type="submit" value="{{ submit_label }}"{% if hidden %} aria-hidden="true"{% endif %}></td>
 </tr>
+{% if duplicate %}<tr><td></td><td></td><td><input type="submit" value="{{ submit_label }}" aria-hidden="true"></td></tr>{% endif %}
 </table>
 </form>
 <p>Enter a five digit member number.</p>

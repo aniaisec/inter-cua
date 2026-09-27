@@ -272,7 +272,13 @@ def test_every_inject_mode_is_reachable_from_a_fresh_session(
         if mode is Inject.SLOW_CONFIRM:
             client.post("/review/10003")
 
-    if mode in (Inject.RENAMED_BUTTON, Inject.AMBIGUOUS_BUTTON, Inject.NATIVE_CONFIRM):
+    if mode in (
+        Inject.RENAMED_BUTTON,
+        Inject.AMBIGUOUS_BUTTON,
+        Inject.NATIVE_CONFIRM,
+        Inject.HIDDEN_CONTROL,
+        Inject.HIDDEN_DUPLICATE,
+    ):
         # Presentation-only modes: nothing "fires", the screen just differs.
         assert client.get("/_debug/session").json()["inject"] == mode.value
     else:

@@ -40,7 +40,7 @@ all of replay in a clean interpreter to check that no model client was loaded.
 ## 2. Artifact schema
 
 A capability (`src/cua/artifact/schema.py`, exported to
-`capabilities/schema/capability-1.2.json`) is a contract first and a step list
+`capabilities/schema/capability-1.3.json`) is a contract first and a step list
 second.
 
 - **`contract`** tells a calling agent, before it calls: `side_effects`,
@@ -160,7 +160,14 @@ and its conditions are surface-neutral.
   `SURFACE_INCOMPATIBLE` before the first action. A UIA surface that has no
   frames therefore cannot be handed a frameset capability by mistake.
 - **The limit** is a surface with no tree, such as a canvas or a Citrix/RDP
-  session. Only a vision-grounded `bbox` rung would work there, and I cut it.
+  session. The vision fallback (`src/cua/surface/vision/`) covers the narrow
+  case of a control that is still drawn as recorded but has dropped out of
+  the tree. It uses template matching and no model. It clicks only for a safe
+  step with one clear match, on a screen no risky rule covers, and refuses if
+  the pixels changed before the click. Everything else is escalated. Its
+  picture is recorded and approved with the capability, so it never acts on
+  something a reviewer did not see. A screen with no tree at all still needs
+  more than this: text reading, and a way to type into what it finds.
 
 **Multi-tenant reuse.** A capability is keyed by `target.app_family`, not by
 tenant. `tenants/<id>.yaml` binds everything that belongs to one deployment:
@@ -291,7 +298,7 @@ this console.
 |---|---|---|
 | Desktop screenshots, handoff | The UIA surface takes no screenshots (a mask cannot yet be painted in before the capture) and has no session a person could attach to, so a desktop run has neither, and asking for either is refused | Masking overlays painted before a screen capture; a remote-desktop handoff |
 | Tenant overlays | Designed above, not built: there is one tenant | Overlay loader, per-tenant rung roll-up, drift alerts |
-| Vision locator rung, LLM fallback in replay | Both need a model at replay time, which breaks determinism | A bounded, policy-checked fallback that *proposes* a new ladder for review and never clicks |
+| LLM fallback in replay | It needs a model at replay time, which breaks determinism. The vision fallback is built without one: template matching against a picture recorded and approved with the capability, and only for a safe click with one clear match | A model that *proposes* a new ladder for review and never clicks |
 | Real operator console | Out of scope in the brief. Lease, CDP, capture and resume search are real; the page is minimal | Co-browsing view, request assignment, operator auth |
 | Remote CDP | Localhost only | Authenticated proxy, or a VNC/WebRTC viewer |
 | Idempotency and request stores | Files | A table keyed by tenant and key; the request queue as the first service |

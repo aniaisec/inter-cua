@@ -1,0 +1,39 @@
+{
+  "run_id": "run_01M3J303RSDJQW76ARMA2ZDJYX",
+  "kind": "replay",
+  "started_at": "2026-09-27T18:45:49.978Z",
+  "capability": {
+    "id": "cap_01M3J2ZRV884S76X6BKDE6RVRJ",
+    "name": "open_subaccount",
+    "version": 1,
+    "approval_state": "approved",
+    "approved_by": "akaku",
+    "content_sha256": "cc5488c1d2edca4c13419eee0a27abeae48d910154be6e2756fe456ee9b5c4d9",
+    "lifecycle": "approved"
+  },
+  "tenant": {
+    "id": "local",
+    "app_family": "legacy-core",
+    "base_url": "http://127.0.0.1:8000"
+  },
+  "request": {
+    "inputs": {
+      "member_id": "10003",
+      "initial_deposit": "250.00"
+    },
+    "idempotency_key": null,
+    "approval": {
+      "approved_by": "akaku",
+      "token_sha256": "f1a3b25b3083"
+    },
+    "budget": {
+      "timeout_s": 120.0,
+      "max_recoveries": 3,
+      "allow_escalation": true
+    },
+    "inject": "hidden_control"
+  },
+  "allow_draft": false,
+  "handoff": null,
+  "vision": true
+}

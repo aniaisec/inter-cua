@@ -44,6 +44,8 @@ class Inject(StrEnum):
     SLOW_CONFIRM = "slow_confirm"
     MODAL_DIALOG = "modal_dialog"
     NATIVE_CONFIRM = "native_confirm"
+    HIDDEN_CONTROL = "hidden_control"
+    HIDDEN_DUPLICATE = "hidden_duplicate"
     # Hostile content, for the security benchmark (see ATTACKER_HOST below).
     PROMPT_INJECTION = "prompt_injection"
     MALICIOUS_REDIRECT = "malicious_redirect"
@@ -83,6 +85,18 @@ CONFIRM_TEXT = "Post this sub-account application now?"
 and not in a screenshot of the page; it also blocks every further instruction
 to the browser until something answers it. Being unable to see the thing that
 is blocking you is a different failure from seeing it and being blocked."""
+
+# The two hidden modes model markup that draws a control and hides it from
+# assistive technology (``aria-hidden`` on a real button, which old templates
+# do to "decorative" widgets). The screen looks exactly as it always did; the
+# accessibility tree no longer has the control, so every semantic rung misses.
+# They are what vision is a fallback for (``cua.surface.vision``).
+#
+# ``hidden_control``    the Search button and the review screen's Confirm
+#     button are drawn but hidden from the tree.
+# ``hidden_duplicate``  as above for Search, plus a second, identical hidden
+#     Search button further down the form: two places a picture of the control
+#     matches, and nothing on the screen says which one is meant.
 
 # The hostile modes treat the app as compromised, or as showing content an
 # attacker controls. The attacker's own origin is this same server addressed

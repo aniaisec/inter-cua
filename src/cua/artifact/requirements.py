@@ -20,8 +20,9 @@ that has what it uses, and is refused on one that does not.
 Replay adds what the *run* needs on top: a guarded egress for a web target
 (the policy), masked screenshots when the run insists on them (by default a
 run keeps them when the surface can take them) and always for a person asked
-to help, and a session a person can take over
-when ``--handoff`` is on. A surface short of those cannot run anything
+to help, a session a person can take over when ``--handoff`` is on, and
+screenshots and pointer input when the run may fall back to vision
+(``--vision``). A surface short of those cannot run anything
 safely, whatever the capability.
 """
 
@@ -88,6 +89,9 @@ enforces the policy on every action and on the entry location."""
 EVIDENCE_FEATURES: tuple[SurfaceFeature, ...] = ("screenshots",)
 HANDOFF_FEATURES: tuple[SurfaceFeature, ...] = ("screenshots", "session_handoff")
 """An intervention request always carries the screen, screenshots or not."""
+VISION_FEATURES: tuple[SurfaceFeature, ...] = ("screenshots", "pointer")
+"""The vision fallback (``--vision``) looks for a control on a masked
+screenshot and clicks a point of the screen."""
 
 Source = Literal["declared", "derived"]
 
@@ -170,14 +174,18 @@ def of(cap: Capability) -> tuple[list[SurfaceFeature], Source]:
     return derive(cap.model_dump(mode="json", by_alias=True)), "derived"
 
 
-def for_run(cap: Capability, *, handoff: bool, screenshots: bool | None = None) -> Requirements:
+def for_run(
+    cap: Capability, *, handoff: bool, screenshots: bool | None = None, vision: bool = False
+) -> Requirements:
     """``screenshots``: ``True`` requires them; ``None`` (take them where the
-    surface can) and ``False`` do not (``ReplayConfig.screenshots``)."""
+    surface can) and ``False`` do not (``ReplayConfig.screenshots``).
+    ``vision``: the run may fall back to vision (``ReplayConfig.vision``)."""
     features, source = of(cap)
     run = [
         *(WEB_RUN_FEATURES if cap.target.surface in WEB_TARGETS else ()),
         *(EVIDENCE_FEATURES if screenshots is True else ()),
         *(HANDOFF_FEATURES if handoff else ()),
+        *(VISION_FEATURES if vision else ()),
     ]
     return Requirements(capability=features, source=source, run=ordered(run))
 
@@ -188,9 +196,10 @@ def check(
     *,
     handoff: bool,
     screenshots: bool | None = None,
+    vision: bool = False,
 ) -> Compatibility:
     """Would this run of ``cap`` get everything it uses from this surface?"""
-    wanted = for_run(cap, handoff=handoff, screenshots=screenshots)
+    wanted = for_run(cap, handoff=handoff, screenshots=screenshots, vision=vision)
     return Compatibility(
         surface=descriptor.summary(),
         requirements=wanted,
@@ -199,7 +208,11 @@ def check(
 
 
 def refusal(
-    cap: Capability, *, handoff: bool = False, screenshots: bool | None = None
+    cap: Capability,
+    *,
+    handoff: bool = False,
+    screenshots: bool | None = None,
+    vision: bool = False,
 ) -> str | None:
     """Why this build cannot run ``cap``, or None if it can: no adapter for
     its target kind, or an adapter short of a feature it uses. Checked with
@@ -213,7 +226,7 @@ def refusal(
             "own (UIA or AX)."
         )
     try:
-        fits = check(cap, adapter, handoff=handoff, screenshots=screenshots)
+        fits = check(cap, adapter, handoff=handoff, screenshots=screenshots, vision=vision)
     except UnknownConstruct as exc:
         return str(exc)
     return None if fits.ok else fits.refusal(cap.name, cap.version)

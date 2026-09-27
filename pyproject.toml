@@ -27,7 +27,11 @@ dependencies = [
 # The Windows UI Automation surface (target.surface: desktop). Windows only;
 # nothing else imports it, so the web adapter and CI elsewhere never need it.
 windows = ["comtypes>=1.4 ; sys_platform == 'win32'"]
+# The vision fallback (cua.surface.vision): decoding screenshots and matching a
+# recorded control's picture. Without it replay still runs; --vision is refused.
+vision = ["numpy>=1.26", "pillow>=10.0"]
 dev = [
+  "inter-cua[vision]",
   "httpx>=0.27,<1.0",
   "jsonschema>=4.20,<5.0",
   "mypy>=1.11",
@@ -80,6 +84,14 @@ warn_unreachable = true
 # first use. Everything taken from it is held as Any inside cua.surface.windows.uia.
 module = ["comtypes", "comtypes.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# numpy's newer stubs use syntax (the `type` statement) that mypy rejects when
+# checking for Python 3.11. Its few uses sit inside cua.surface.vision, where
+# arrays are typed as Any.
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true
 
 [[tool.mypy.overrides]]
 module = ["mockapp.*"]

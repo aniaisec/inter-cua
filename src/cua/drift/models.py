@@ -28,6 +28,7 @@ DriftKind = Literal[
     "CHECKPOINT_CHANGED",
     "OUTPUT_CHANGED",
     "NAVIGATION_CHANGED",
+    "CONTROL_UNLABELED",
 ]
 """
 ``CONTROL_RENAMED``     the control is where it was, with the role it had, under
@@ -45,6 +46,10 @@ DriftKind = Literal[
                         was found by a weaker rung.
 ``NAVIGATION_CHANGED``  a step landed somewhere else: the checkpoint's
                         location condition does not hold.
+``CONTROL_UNLABELED``   the control is drawn as it was recorded, and the
+                        accessibility tree no longer has it: only the vision
+                        fallback found it (the run went on). Not repairable
+                        from the evidence: there is no name to record.
 """
 DRIFT_KINDS: tuple[str, ...] = get_args(DriftKind)
 

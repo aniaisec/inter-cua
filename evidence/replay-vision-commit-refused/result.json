@@ -1,0 +1,51 @@
+{
+  "run_id": "run_01M3J303RSDJQW76ARMA2ZDJYX",
+  "capability": "open_subaccount",
+  "capability_version": 1,
+  "idempotency_key": null,
+  "duration_ms": 16673,
+  "locator_rungs_used": {
+    "login.username": "near_text",
+    "login.password": "near_text",
+    "login.submit": "role_name",
+    "search.member_id": "near_text",
+    "search.submit": "vision",
+    "member.open_sub_account": "role_name",
+    "subaccount.initial_deposit": "near_text",
+    "subaccount.submit": "role_name"
+  },
+  "recoveries": [],
+  "handoffs": [],
+  "warnings": [
+    "search.submit: located by vision, recorded as role_name; skipped role_name (0 matches), bbox (0 matches)"
+  ],
+  "evidence": {
+    "run_dir": "evidence/replay-vision-commit-refused",
+    "screenshots": [
+      "screenshots/0001.png",
+      "screenshots/0002.png",
+      "screenshots/0003.png",
+      "screenshots/0004.png",
+      "screenshots/0005.png",
+      "screenshots/0006.png",
+      "screenshots/0007.png",
+      "screenshots/0008.png",
+      "screenshots/0009.png",
+      "screenshots/0010.png",
+      "screenshots/0011.png"
+    ],
+    "trace": "trace.zip",
+    "intervention": null
+  },
+  "cached": false,
+  "kind": "failure",
+  "code": "POLICY_BLOCKED",
+  "step_id": "review.submit",
+  "expected": "exactly one control for role_name button \"Confirm\" > bbox (201,207 68x19)",
+  "observed": "[top] http://127.0.0.1:8000/ (200) [nav] http://127.0.0.1:8000/nav (200) [main] http://127.0.0.1:8000/review/10003 (200)\n[nav] http://127.0.0.1:8000/nav\n  n1406 text \"Functions\"\n  row: n1411 link \"Member Search\"\n  row: n1414 link \"Account Inquiry\"\n  row: n1417 link \"Reports\"\n  row: n1420 link \"Sign Off\"\n  row: n1423 link \"Vendor Support\"\n[main] http://127.0.0.1:8000/review/10003\n  n1424 text \"MockCore Member Services 1.0\"\n  n1425 heading \"Review Sub-account\"\n  n1426 paragraph \"Review the application below. Selecting Confirm will open the account.\"\n  row: n1430 columnheader \"Field\" | n1431 columnheader \"Value\"\n  row: n1433 cell \"Member ID\" | n1434 cell \"10003\"\n  row: n1436 cell \"Name\" | n1437 cell \"Test Member 03\"\n  row: n1439 cell \"Account Type\" | n1440 cell \"Savings\"\n  row: n1442 cell \"Initial Deposit\" | n1443 cell \"250.00\"\n  row: n1452 link \"Back\"",
+  "message": "role_name: 0 matches; bbox: 0 matches; vision (unsafe): review.submit is irreversible and needs approval; a step that commits something is never done by pixels",
+  "side_effect": "none",
+  "outputs": {},
+  "during_recovery": null,
+  "escalation_reason": "STUCK"
+}

@@ -119,6 +119,7 @@ from cua.surface.locators import (
     LadderOutcome,
     Resolved,
     RungAttempt,
+    Unresolved,
     resolve_ladder,
 )
 from cua.surface.protocol import (
@@ -138,6 +139,8 @@ from cua.surface.protocol import (
     SurfaceError,
     TypeText,
 )
+from cua.surface.vision.candidate import VisualCandidate
+from cua.surface.vision.validator import Refused
 from cua.tenant import Tenant
 
 EXCERPT_LINES = 40
@@ -169,6 +172,12 @@ class ReplayConfig(BaseModel):
     """Act on a control found only by pixels. Off: a ladder that reaches its
     ``bbox`` rung has lost every way of naming the control, and clicking
     roughly the right place unattended is how the wrong button gets pressed."""
+    vision: bool = False
+    """Fall back to vision (``cua.surface.vision``) for a click whose control
+    no rung can name, when the policy allows it too (``vision.allowed``) and
+    the step has a recorded appearance. It proposes; the validator and the
+    policy decide; anything they refuse is escalated as the locator failure
+    it would have been."""
 
 
 # --------------------------------------------------------------------------
@@ -421,12 +430,18 @@ class ReplayEngine:
             self.surface.descriptor,
             handoff=self.handoff is not None,
             screenshots=self.config.screenshots,
+            vision=self.config.vision,
         )
         self.log.event("surface.checked", **fits.summary())
         if self.config.screenshots is None and not self.shots:
             self.warnings.append(
                 f"{self.surface.descriptor.name} takes no screenshots; this run's evidence is "
                 "its log and the trees it observed"
+            )
+        if self.config.vision and not self.policy.vision.allowed:
+            self.warnings.append(
+                "vision was asked for and the policy does not allow it (vision.allowed); "
+                "this run has no vision fallback"
             )
         if not fits.ok:
             self._fail(
@@ -500,7 +515,7 @@ class ReplayEngine:
             node, screen = self._find(step)
             if step.target and step.value and _CREDENTIAL_IN.search(step.value):
                 self._mask(step.id, step.target)
-                self._credential_sink(step, node, screen)
+                self._credential_sink(step, node if isinstance(node, Node) else None, screen)
             action = self._action(step, node)
             self._permit(step, action, screen)
             try:
@@ -538,9 +553,11 @@ class ReplayEngine:
                 if isinstance(landing, _TimedOut):
                     break
 
-    def _find(self, step: Step) -> tuple[Node | None, Observation]:
+    def _find(self, step: Step) -> tuple[Node | VisualCandidate | None, Observation]:
         """The step's control on a fresh screen, visible, named by exactly one
-        trusted rung."""
+        trusted rung — or, when every rung missed and vision may look, the one
+        place a validated picture of it was found, with the screen it was
+        found on."""
         if step.target is None:
             return None, self.surface.observe()
         ladder = step.target
@@ -574,6 +591,11 @@ class ReplayEngine:
         code: FailureCode = (
             "LOCATOR_AMBIGUOUS" if isinstance(outcome, Ambiguous) else "LOCATOR_UNRESOLVED"
         )
+        attempts = outcome.attempts if outcome is not None else []
+        if not isinstance(outcome, Ambiguous) and self._vision_may_look(step):
+            # The tree has no control for any rung: the gap vision is for. A
+            # tree with several is not missing one, and is left to a person.
+            return self._vision(step, ladder, attempts)
         self._fail(
             code,
             step,
@@ -581,8 +603,114 @@ class ReplayEngine:
             message=_attempts_text(outcome, ladder),
             observation=screen,
             escalate="STUCK",
-            attempts=outcome.attempts if outcome is not None else [],
+            attempts=attempts,
         )
+
+    # -- the vision fallback -------------------------------------------------
+
+    def _vision_may_look(self, step: Step) -> bool:
+        return (
+            self.config.vision
+            and self.policy.vision.allowed
+            and step.appearance is not None
+            and step.target is not None
+        )
+
+    def _vision(
+        self, step: Step, ladder: Ladder, attempts: list[RungAttempt]
+    ) -> tuple[VisualCandidate, Observation]:
+        """Look for the step's recorded picture on a masked screenshot, and
+        return the one candidate the validator and the policy accept.
+
+        Anything they refuse ends the step as the locator failure it already
+        was, escalated to a person, with the vision verdict in the message and
+        the screenshot it was reached on kept as evidence.
+        """
+        from cua.surface.vision.detector import TemplateDetector
+        from cua.surface.vision.validator import StepClaim, validate
+
+        assert step.appearance is not None and step.target is not None
+        raw = self.surface.observe(screenshot=True, masks=self.masks)
+        png = raw.screenshot_png or b""
+        self._shots += 1
+        paths = self.log.observation(self._shots, self.redactor.observation(raw))
+        evidence = paths.get("screenshot", paths["observation"])
+        if "screenshot" in paths:
+            self.screenshots.append(paths["screenshot"])
+        self.log.event("observe", label=f"{step.id}.vision", location=raw.location, **paths)
+
+        detector = TemplateDetector()
+        matches = detector.detect(png, step.appearance) if png else []
+        masks = [
+            found.node.bbox
+            for mask in self.masks
+            if isinstance(found := resolve_ladder(mask, raw), Resolved)
+            and found.node.bbox is not None
+        ]
+        verdict = validate(
+            matches,
+            claim=StepClaim(
+                step_id=step.id,
+                action=step.action,
+                risk=step.risk,
+                approval=step.approval,
+                target=step.target,
+                appearance=step.appearance,
+            ),
+            screen=raw,
+            screenshot_png=png,
+            masks=masks,
+            policy=self.policy,
+            evidence_ref=evidence,
+        )
+        self.log.event(
+            "vision.candidates",
+            step=step.id,
+            detector=detector.name,
+            evidence=evidence,
+            matches=[{"confidence": m.confidence, **m.bounds.model_dump()} for m in matches],
+        )
+        if isinstance(verdict, Refused):
+            self.log.event("vision.refused", step=step.id, why=verdict.why, reason=verdict.reason)
+            code: FailureCode = (
+                "LOCATOR_AMBIGUOUS"
+                if verdict.why == "ambiguous"
+                else "POLICY_BLOCKED"
+                if verdict.why in ("unsafe", "policy", "masked")
+                else "LOCATOR_UNRESOLVED"
+            )
+            self._fail(
+                code,
+                step,
+                expected=f"exactly one control for {_ladder_text(ladder)}",
+                message=f"{_attempts_text(Unresolved(attempts=attempts), ladder)}; "
+                f"vision ({verdict.why}): {verdict.reason}",
+                observation=raw,
+                escalate="STUCK",
+                attempts=attempts,
+            )
+        candidate = verdict.candidate
+        self.log.event(
+            "vision.accepted",
+            step=step.id,
+            confidence=candidate.confidence,
+            evidence=candidate.evidence_ref,
+            **candidate.bounds.model_dump(),
+        )
+        self._note_rung(
+            step.id,
+            ladder,
+            Resolved(
+                node=candidate.action.claimed(),
+                rung="vision",
+                rung_index=len(ladder),
+                attempts=[
+                    *attempts,
+                    RungAttempt(rung="vision", matches=1, refs=[candidate.evidence_ref]),
+                ],
+            ),
+        )
+        return candidate, raw
 
     def _trusted(self, ladder: Ladder, outcome: Resolved) -> bool:
         rung = ladder[outcome.rung_index]
@@ -621,7 +749,9 @@ class ReplayEngine:
         self.masks.append(ladder)
         self.log.event("screenshot.mask_added", step=step_id, target=_ladder_text(ladder))
 
-    def _action(self, step: Step, node: Node | None) -> Action:
+    def _action(self, step: Step, node: Node | VisualCandidate | None) -> Action:
+        if isinstance(node, VisualCandidate):
+            return node.action
         ref = node.ref if node else None
         if step.action == "click":
             assert ref is not None

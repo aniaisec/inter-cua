@@ -49,6 +49,7 @@ LEGACY = [
     REPO / "capabilities" / "open_subaccount.json",
 ]
 GOLDEN_11 = GOLDEN.with_name("member_savings_balance-1.1.json")
+GOLDEN_12 = GOLDEN.with_name("member_savings_balance-1.2.json")
 DERIVED_GOAL1 = [
     "accessibility_tree",
     "geometry",
@@ -196,10 +197,19 @@ def test_the_1_1_golden_still_parses_and_hashes_as_it_did() -> None:
     assert requirements.of(new) == (DERIVED_GOAL1, "declared")
 
 
-def test_declaring_upgrades_to_1_2_and_changes_nothing_else() -> None:
+def test_the_1_2_golden_still_parses_and_hashes_as_it_did() -> None:
+    """1.3 adds only ``appearance``, and the goal-1 fixture run kept no
+    screenshots, so the same recording at 1.2 differs in the version alone."""
+    data = json.loads(GOLDEN_12.read_text(encoding="utf-8"))
+    old = parse(data)
+    assert old.schema_version == "1.2"
+    assert with_changes(parse(golden()), schema_version="1.2") == old
+
+
+def test_declaring_upgrades_to_the_current_schema_and_changes_nothing_else() -> None:
     old = load(LEGACY[1])
     new = declare_requirements(old)
-    assert new.schema_version == "1.2" and new.surface_requirements == DERIVED_GOAL1
+    assert new.schema_version == "1.3" and new.surface_requirements == DERIVED_GOAL1
     back = with_changes(new, schema_version="1.1", surface_requirements=None)
     assert back.content_hash() == old.content_hash()
 
@@ -324,11 +334,11 @@ def test_a_workflow_is_refused_whole_when_a_step_cannot_run_here(
     assert len(refused) == 2 and all("document_status" in r for r in refused)
 
 
-def test_a_new_recording_is_saved_at_1_2_with_its_declaration(tmp_path: Path) -> None:
+def test_a_new_recording_is_saved_at_1_3_with_its_declaration(tmp_path: Path) -> None:
     from tests.unit.artifacts import record_goal1
 
     saved = save(record_goal1(), tmp_path / "cap.json")
     on_disk: dict[str, Any] = json.loads((tmp_path / "cap.json").read_text(encoding="utf-8"))
-    assert on_disk["schema_version"] == "1.2"
+    assert on_disk["schema_version"] == "1.3"
     assert on_disk["surface_requirements"] == DERIVED_GOAL1
     assert isinstance(saved, Capability) and requirements.of(saved)[1] == "declared"

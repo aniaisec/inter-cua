@@ -177,6 +177,13 @@ def _add_invocation_flags(r: argparse.ArgumentParser) -> None:
     r.add_argument("--step-timeout", type=float, default=3.0, help="Seconds one step may take")
     r.add_argument("--inject", help="Arm a mock-app failure mode for this run (demo)")
     r.add_argument("--no-screenshots", action="store_true")
+    r.add_argument(
+        "--vision",
+        action="store_true",
+        help="When no rung can name a click's control, look for its recorded picture on a "
+        "masked screenshot. Needs the policy's vision.allowed and the vision extra; a match "
+        "that is not clear, or a step that commits something, is escalated, never clicked.",
+    )
     r.add_argument("--headed", action="store_true", help="Show the browser window")
     r.add_argument("--runs-dir", type=Path, default=Path("evidence/runs"))
     _add_handoff_flags(r)
@@ -679,6 +686,7 @@ def _invoke(
             config=ReplayConfig(
                 step_timeout_s=args.step_timeout,
                 screenshots=False if args.no_screenshots else None,
+                vision=bool(getattr(args, "vision", False)),
             ),
             handoff=handoff,
             headed=args.headed or None,

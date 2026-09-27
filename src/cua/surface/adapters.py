@@ -53,6 +53,8 @@ What it does not claim, and why:
 * ``document_status``: there is no HTTP status behind a window.
 * ``screenshots``: a mask cannot yet be painted in before the capture, so no
   screenshot is taken at all rather than one cleaned up afterwards.
+* ``pointer``: input is posted to a control's window, never to a point of the
+  screen, and there are no screenshots to choose a point on.
 * ``egress_control``: what a native application sends is outside what a UI
   surface can govern.
 * ``session_handoff``: there is no endpoint a person could attach to.

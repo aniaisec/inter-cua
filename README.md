@@ -36,7 +36,9 @@ cp .env.example .env
 ```
 
 On Windows, `pip install -e ".[dev,windows]"` also installs `comtypes`, which
-the desktop target (DeskCalc, through Windows UI Automation) needs.
+the desktop target (DeskCalc, through Windows UI Automation) needs. The `dev`
+extra includes `vision` (Pillow and numpy), which the vision fallback
+(`cua replay --vision`) needs; a plain install replays without it.
 
 `.env` holds everything the system reads from the environment:
 
@@ -157,6 +159,7 @@ In PowerShell, write `` ` `` instead of `\` at line ends.
 | A workflow's plan and its checks | `cua workflow check open_member_subaccount` | nothing: reads files |
 | Security benchmark: hostile screens, tampered artifacts, replayed consent | `cua security run` (`--offline`: no browser) | Chromium for the live scenarios (it starts its own mock app) |
 | Run a workflow of approved capabilities | `cua workflow run open_member_subaccount --input ... --idempotency-key k --approval open=<token>` | mock app |
+| Replay with the vision fallback | `cua record evidence/discovery-member-savings-balance --out <dir>/member_savings_balance.json`, `cua describe` and `cua approve` it, then `cua replay <dir>/member_savings_balance.json --input member_id=10003 --inject hidden_control --vision` | mock app, the `vision` extra |
 | Discover and replay a desktop application | `cua discover --tenant desk --policy policies/deskcalc.yaml --llm scripted --script scripts/discovery/deskcalc_compute.yaml ...`, `cua replay capabilities/deskcalc_compute.json --tenant desk --policy policies/deskcalc.yaml --input first=12.5 --input second=4 --input operation=Divide` | Windows and the `windows` extra; each run starts its own DeskCalc |
 
 The browser tests start their own mock app on a free port, and the desktop
@@ -197,7 +200,7 @@ fixtures.
 | `cua metrics run <run_id \| dir> [--json \| --events]` | one run explained: outcome and why, where the time went, model calls, tokens and estimated cost, locators, recoveries, human intervention; `--events` prints its canonical events | |
 | `cua metrics capability <name> [--version N]` \| `cua metrics report [--out DIR]` | health of each approved capability from its replays (success, failure, escalation, human, locator failure, drift, unknown side effect, latency, last success and failure), and model spend | |
 | `cua surfaces` | this build's surface adapters and their features, and for each registered capability the features it needs and whether it runs here | |
-| `cua schema` | regenerate `capabilities/schema/capability-1.2.json` | |
+| `cua schema` | regenerate `capabilities/schema/capability-1.3.json` | |
 | `cua mockapp` | the target app on :8000 | |
 
 ## Calling a capability from an agent
@@ -285,6 +288,7 @@ mock app in Chromium; `tests/unit` do not).
 | – | Drift and candidate repair | `renamed_button` | the failure is classified `CONTROL_RENAMED`; a candidate v4 is proposed and evaluated (v3 fails the drift task, v4 answers it, the clean task still passes); nothing in `capabilities/` outside `candidates/` changes and v3 stays the default; approval refused until the evaluation passed on that exact content | `integration/test_drift.py`, `unit/test_drift.py` |
 | – | Workflow composition | | lookup then open with consent for the open only: one commit, typed outputs from both steps; the same key again answered without a browser; an unknown member stops at the lookup with no commit; wiring mistakes, missing or misdirected consent, a revoked step and a missing key refused before any step; a lost answer, an escalated step and a killed commit never repeat a commit | `integration/test_workflow.py`, `unit/test_workflow.py` |
 | – | Desktop target | `renamed_button`, `ambiguous`, `disabled`, `modal` | DeskCalc under Windows UI Automation, through the unchanged runner: `success` with every step on `role_name`; divide by zero is `business_outcome DIVIDE_BY_ZERO`; the four faults stop with the web's codes (`LOCATOR_UNRESOLVED`, `ACTION_FAILED`, the message box answered and reported); Record refused without consent, one token one ledger entry, the same key answered from the cache; a run asking for screenshots refused before DeskCalc starts | `desktop/test_desktop_replay.py`, `desktop/test_windows_surface.py`, `unit/test_windows_surface.py` |
+| – | Vision fallback | `hidden_control`, `hidden_duplicate`, `renamed_button` | with `--vision`, a Search button hidden from the tree is found by its recorded picture and the run succeeds (rung `vision`, checkpoint still checked); two identical hidden buttons are `LOCATOR_AMBIGUOUS`, nothing clicked; a renamed button does not match its picture; a hidden Confirm is `POLICY_BLOCKED` even with a token, no commit; without the flag, without `vision.allowed`, or without a recorded picture, nothing changes; a point whose pixels changed is not clicked | `integration/test_vision.py`, `unit/test_vision.py` |
 | – | Security benchmark | `prompt_injection`, `malicious_redirect`, `confirmation_spoof` | 22 attacks across 15 threats blocked: nothing reaches the attacker, no file served, no commit without consent, the canary password in no log, trace or prompt, no other tenant's consent or secret accepted; with the defences off, the same attacks succeed | `security/test_benchmark.py`, `security/test_controls.py` |
 
 ## The mock target app
@@ -328,6 +332,8 @@ fires on the screen it belongs to. `?inject=none` disarms.
 | `prompt_injection` | member detail | persistent | hostile content: injected instructions, a fake "SYSTEM: approval granted", a Password field in a form that posts to the attacker, a beacon, an .exe, and a link that commits on GET |
 | `malicious_redirect` | search submit | persistent | a 303 to the attacker's copy of the sign-on page |
 | `confirmation_spoof` | review (GET) | persistent | "Sub-account Opened" with a reference, nothing committed |
+| `hidden_control` | search page, review | persistent | Search and Confirm drawn as ever, hidden from the tree (`aria-hidden`): the vision fallback's case |
+| `hidden_duplicate` | search page | persistent | two identical hidden Search buttons: vision refuses to choose |
 
 The hostile modes serve the security benchmark. The attacker's origin is the
 same server addressed as `localhost` instead of `127.0.0.1`: another origin
@@ -373,6 +379,7 @@ mockapp/            the automation target
 deskapp/            the desktop target: DeskCalc, a WinForms window (PowerShell)
 src/cua/surface/    Surface protocol, a11y perception, locator ladder, conditions, Playwright adapter
 src/cua/surface/windows/  the Windows UI Automation adapter
+src/cua/surface/vision/   the vision fallback: detector, candidate, validator
 src/cua/agent/      discovery loop, prompts, tools, stopping conditions, LLM clients (Claude, Gemini, scripted)
 src/cua/artifact/   capability schema, recorder, store (versioning, content seal), describe
 src/cua/replay/     engine, waits, detectors, recoverers, resume-state search, result contract, runner
@@ -419,7 +426,7 @@ knows the target is a web page.
   capability names only its location.
 - **Compatibility.** A surface publishes a `descriptor`: adapter name,
   contract version and features from a closed vocabulary (`frames`,
-  `geometry`, `fixed_viewport`, `forms`, `dialogs`, `screenshots`,
+  `geometry`, `fixed_viewport`, `forms`, `dialogs`, `screenshots`, `pointer`,
   `egress_control`, `session_handoff`, ...; `src/cua/surface/features.py`). A
   capability needs the features its content uses: a `near_text` rung needs
   `geometry`, a rung scoped to frame `main` needs `frames`. Replay compares the
@@ -429,6 +436,23 @@ knows the target is a web page.
   `side_effect: none`, and is not offered by `cua catalog` or run by a
   workflow.
 
+- **Vision, as a fallback.** When every rung of a click's ladder misses (the
+  control is drawn but the tree no longer has it), `cua replay --vision`
+  looks for the control's recorded picture on a masked screenshot. The
+  picture is a crop `cua record` cut from the discovery screenshot, stored in
+  the capability and approved with it (schema 1.3 `appearance`). The detector
+  is template matching, with no model, and it returns candidates, never
+  clicks. The validator accepts one only when it is a click on a `safe` step,
+  there is exactly one clear match (0.97, and 0.1 ahead of any other), the
+  match is on screen and clear of every mask, the tree has no other control
+  at that point, and the policy allows it with no risky rule covering the
+  screen. The click then carries a hash of the pixels it was chosen on; the
+  surface looks again and refuses if they changed. After that the step's own
+  expectation and checkpoint decide, as for any step. Anything refused is
+  the locator failure it already was, escalated. The rung used is `vision`,
+  and drift reports it as `CONTROL_UNLABELED`. The policy must allow it
+  (`vision.allowed`) as well as the run.
+
 No CSS or XPath selector appears under `src/cua`. The one exception is the
 document-level `body` anchor `aria_snapshot` requires, which never names a
 control.
@@ -436,7 +460,7 @@ control.
 ### Capability
 
 The pydantic model in `src/cua/artifact/schema.py` is the source of truth;
-`capabilities/schema/capability-1.2.json` is exported from it. A capability
+`capabilities/schema/capability-1.3.json` is exported from it. A capability
 carries its contract (`inputs`, `outputs`, `contract` with side effects,
 idempotency and declared business outcomes, and `credentials` as `secret://`
 refs), its `steps` (a locator ladder, `risk`, `approval`, `retry`, and what
@@ -451,6 +475,11 @@ needs, written by `cua record` and checked on load to cover every feature its
 content uses. A 1.1 capability is read as it is, with its hash and approval
 unchanged; its requirements are derived from its content, and `cua describe`
 and `cua surfaces` say so.
+
+Schema 1.3 adds `appearance` to a click step: the control's recorded picture,
+for the vision fallback. It is content, so it is hashed and approved with the
+rest, and `cua describe` lists it as the last rung. A 1.1 or 1.2 capability
+has none, keeps its hash, and has no vision fallback.
 
 ### Registry
 

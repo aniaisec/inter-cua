@@ -95,8 +95,9 @@ def _session(request: Request) -> dict[str, Any]:
 def _armed(session: dict[str, Any], mode: Inject) -> bool:
     """Is this mode armed? Records nothing and consumes nothing.
 
-    Only for presentation-only modes (renamed_button, ambiguous_button), where
-    nothing "happens" — a screen simply renders differently.
+    Only for presentation-only modes (renamed_button, ambiguous_button, the
+    hidden-control modes), where nothing "happens" — a screen simply renders
+    differently.
     """
     return bool(session["inject"] == mode)
 
@@ -215,6 +216,12 @@ def _search_button_label(session: dict[str, Any]) -> str:
     return "Find" if _armed(session, Inject.RENAMED_BUTTON) else "Search"
 
 
+def _hidden(session: dict[str, Any]) -> dict[str, bool]:
+    """The search form's hidden-control modes, as template flags."""
+    duplicate = _armed(session, Inject.HIDDEN_DUPLICATE)
+    return {"hidden": duplicate or _armed(session, Inject.HIDDEN_CONTROL), "duplicate": duplicate}
+
+
 @app.get("/search", response_class=HTMLResponse)
 async def search_form(request: Request) -> Response:
     session = _session(request)
@@ -224,6 +231,7 @@ async def search_form(request: Request) -> Response:
         request,
         "search.html",
         submit_label=_search_button_label(session),
+        **_hidden(session),
         error=None,
         member_id="",
     )
@@ -245,6 +253,7 @@ async def search_submit(request: Request, F_MBRID: str = Form(default="")) -> Re
             request,
             "search.html",
             submit_label=_search_button_label(session),
+            **_hidden(session),
             error="No matching member",
             member_id=member_id,
         )
@@ -280,6 +289,7 @@ async def member_detail(request: Request, member_id: str) -> Response:
             request,
             "search.html",
             submit_label=_search_button_label(session),
+            **_hidden(session),
             error="No matching member",
             member_id=member_id,
         )
@@ -410,6 +420,7 @@ async def review(request: Request, member_id: str) -> Response:
         # time. Nothing is recorded here, because nothing has happened yet —
         # what matters is whether the POST arrives at all.
         confirm_prompt=injects.CONFIRM_TEXT if _armed(session, Inject.NATIVE_CONFIRM) else None,
+        hidden=_armed(session, Inject.HIDDEN_CONTROL),
     )
 
 

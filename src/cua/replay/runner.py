@@ -95,6 +95,7 @@ from cua.replay.result import (
 from cua.secrets.resolver import Credential, SecretError, resolve
 from cua.surface.playwright_surface import BrowserProcess, PlaywrightSurface, kill_browser
 from cua.surface.protocol import Surface, SurfaceError
+from cua.surface.vision import image as vision_image
 from cua.tenant import Tenant
 
 SurfaceFactory = Callable[[], AbstractContextManager[Surface]]
@@ -203,8 +204,16 @@ def replay(
             f"{cap.name} is for app family {cap.target.app_family!r}; tenant {tenant.id!r} "
             f"runs {tenant.app_family!r}",
         )
+    settings = config or ReplayConfig()
+    if settings.vision and not vision_image.available():
+        raise InvocationError(
+            "--vision needs the vision extra (Pillow and numpy): pip install 'inter-cua[vision]'"
+        )
     unfit = requirements.refusal(
-        cap, handoff=handoff is not None, screenshots=(config or ReplayConfig()).screenshots
+        cap,
+        handoff=handoff is not None,
+        screenshots=settings.screenshots,
+        vision=settings.vision,
     )
     if unfit is not None:
         return _refused(cap, invocation, "SURFACE_INCOMPATIBLE", unfit)
@@ -326,6 +335,7 @@ def _run(
             "request": request_summary(invocation, cap),
             "allow_draft": allow_draft,
             "handoff": handoff.model_dump() if handoff else None,
+            "vision": config.vision,
         },
     )
     if allow_draft and cap.approval_state != "approved":

@@ -30,6 +30,11 @@ What it derives, and from what:
 * **detectors, recoverers, masks** from the app-family template
   (``capabilities/families/<app_family>.yaml``) — what the product does when
   things go wrong is not something one happy-path run can learn.
+* **appearances** (schema 1.3): each click's control cut out of the
+  screenshot of the screen it was clicked on, for the vision fallback. The
+  screenshot was masked when it was taken; a crop that touches a mask, or a
+  run kept without screenshots, or a build without the vision extra, records
+  no appearance, and that step has no vision fallback.
 * **provenance**: run id, the model that actually answered (from
   ``model_calls.jsonl``, not the alias that was asked for), and the SHA-256
   of ``log.jsonl``.
@@ -86,7 +91,7 @@ from cua.surface.conditions import (
     ValueSet,
     Visible,
 )
-from cua.surface.locators import Ladder, Within, ladder_for
+from cua.surface.locators import Ladder, Resolved, Within, ladder_for, resolve_ladder
 from cua.surface.protocol import (
     Action,
     Click,
@@ -94,9 +99,12 @@ from cua.surface.protocol import (
     Observation,
     Press,
     RecordingEnv,
+    Rect,
     SelectOption,
     TypeText,
 )
+from cua.surface.vision import image
+from cua.surface.vision.candidate import MAX_APPEARANCE_BYTES, Appearance
 
 FAMILIES_DIR = Path("capabilities/families")
 _LADDER: TypeAdapter[Ladder] = TypeAdapter(_ArtifactLadder)
@@ -270,6 +278,8 @@ class _Acted(BaseModel):
     key: str | None
     before: Observation
     after: Observation | None
+    before_shot: str | None = None
+    """The screenshot of ``before``, relative to the run directory."""
 
 
 # --------------------------------------------------------------------------
@@ -301,8 +311,12 @@ def record(
     checkpoints: list[Checkpoint] = []
     used: set[str] = set()
     cp_used: set[str] = set()
+    masks = [*family.redaction.screenshot_masks, *policy.screenshot_masks]
     for i, act in enumerate(acted):
         step = _step(act, params, policy, used, index=i + 1)
+        appearance = _appearance(run, act, masks)
+        if appearance is not None:
+            step = step.model_copy(update={"appearance": appearance})
         steps.append(step)
         cp = _checkpoint_after(step, act, params, cp_used)
         if cp is not None:
@@ -392,25 +406,27 @@ def record(
 def _walk(run: _Run) -> tuple[list[_Acted], Observation, dict[str, str]]:
     """Pair each step with the screen it acted on and the screen it left."""
     current: Observation | None = None
-    pending: list[tuple[dict[str, Any], Observation]] = []
+    shot: str | None = None
+    pending: list[tuple[dict[str, Any], Observation, str | None]] = []
     acted: list[_Acted] = []
     done_refs: dict[str, str] | None = None
     final: Observation | None = None
 
     def close(after: Observation | None) -> None:
-        for event, before in pending:
-            acted.append(_acted(event, before, after, run))
+        for event, before, before_shot in pending:
+            acted.append(_acted(event, before, after, run, before_shot))
         pending.clear()
 
     for event in run.events:
         kind = event.get("event")
         if kind == "observe" and "observation" in event:
             current = run.observation(event["observation"])
+            shot = event.get("screenshot")
             close(current)
         elif kind == "step" and event.get("tool") != "read":
             if current is None:
                 raise RecordError("a step was logged before any observation")
-            pending.append((event, current))
+            pending.append((event, current, shot))
         elif kind == "agent.done":
             done_refs = {name: o["ref"] for name, o in event.get("outputs", {}).items()}
             final = current
@@ -424,7 +440,11 @@ def _walk(run: _Run) -> tuple[list[_Acted], Observation, dict[str, str]]:
 
 
 def _acted(
-    event: dict[str, Any], before: Observation, after: Observation | None, run: _Run
+    event: dict[str, Any],
+    before: Observation,
+    after: Observation | None,
+    run: _Run,
+    before_shot: str | None = None,
 ) -> _Acted:
     node = Node.model_validate(event["node"]) if event.get("node") else None
     ladder: Ladder | None = None
@@ -445,7 +465,41 @@ def _acted(
         key=event.get("key"),
         before=before,
         after=after,
+        before_shot=before_shot,
     )
+
+
+def _appearance(run: _Run, act: _Acted, masks: list[Ladder]) -> Appearance | None:
+    """The clicked control as the screenshot of its screen shows it."""
+    node = act.node
+    if act.tool != "click" or node is None or node.bbox is None or node.bbox.empty:
+        return None
+    if act.before_shot is None or not image.available():
+        return None
+    path = run.dir / act.before_shot
+    if not path.is_file():
+        return None
+    png = path.read_bytes()
+    box = node.bbox
+    for mask in masks:
+        found = resolve_ladder(mask, act.before)
+        hidden = found.node.bbox if isinstance(found, Resolved) else None
+        if hidden is not None and _overlaps(box, hidden):
+            return None  # painted out when it was taken: not the control's picture
+    try:
+        scale = image.scale_of(png, act.before.viewport)
+        pixels = Rect(x=box.x * scale, y=box.y * scale, w=box.w * scale, h=box.h * scale)
+        crop = image.crop(png, pixels)
+        w, h = image.size_of(crop)
+    except (OSError, ValueError):
+        return None  # not a picture that can be read: no fallback, not a failed recording
+    if len(crop) > MAX_APPEARANCE_BYTES or w == 0 or h == 0:
+        return None
+    return Appearance.of(crop, w=w, h=h, scale=round(scale, 4))
+
+
+def _overlaps(a: Rect, b: Rect) -> bool:
+    return a.x < b.right and b.x < a.right and a.y < b.bottom and b.y < a.bottom
 
 
 # -- steps --------------------------------------------------------------------

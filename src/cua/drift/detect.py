@@ -184,8 +184,14 @@ class _Reader:
         step = e.step_id or "?"
         first = attempts[0] if len(attempts) > 1 else {"rung": recorded, "matches": 0}
         expected = str(recorded or first.get("rung"))
-        if step.startswith("outputs."):
-            kind: DriftKind = "OUTPUT_CHANGED"
+        if rung == "vision":
+            kind: DriftKind = "CONTROL_UNLABELED"
+            why = (
+                f"no rung found it in the accessibility tree ({expected} recorded); "
+                "vision found its recorded picture"
+            )
+        elif step.startswith("outputs."):
+            kind = "OUTPUT_CHANGED"
             why = f"the output was read by {rung}, not by {expected} as recorded"
         elif int(first.get("matches") or 0) > 1:
             kind = "CONTROL_AMBIGUOUS"

@@ -460,3 +460,86 @@ Status: COMPLETE
 
 ### Next
 - Phase 9: vision as a controlled fallback.
+
+## Phase 9 — Vision as a controlled fallback
+
+Status: COMPLETE
+
+### Changes
+- `src/cua/surface/vision/`:
+  - `detector`: `TemplateDetector` returns every match of a recorded picture on a screenshot, best first, with a confidence. It never acts. It uses zero-mean normalised cross-correlation, computed with FFTs padded to 5-smooth lengths (about 0.1 s for a 1280x800 screen), and no model.
+  - `candidate`: `Appearance` is a recorded, masked crop of a control, with its hash checked on load. `VisualCandidate` holds the action, confidence, bounds and the evidence screenshot it was found on.
+  - `validator`: one pure function. It refuses, in order: a non-click (`unsupported`), a risky or approval-required step (`unsafe`), a different screen scale (`scale`), a weak best match (`not_found`), a rival within the margin (`ambiguous`), off screen (`outside`), touching a mask (`masked`), on a control the tree already has (`contradicted`), and a policy block or a risky rule covering the screen (`policy`).
+  - `image`: PNG decode, crop and pixel hash. This is the only module that decodes an image.
+- `ClickPoint` action:
+  - It carries a guard box and the SHA-256 of the pixels it was chosen on.
+  - `PlaywrightSurface` captures the box again and raises `PerceptionDrift` if the pixels changed, and `StaleRefError` if its observation is gone. It then clicks.
+  - `WindowsSurface` refuses it.
+- New surface feature `pointer`. Playwright claims it; windows-uia does not. `--vision` adds `screenshots` and `pointer` as run requirements, so a desktop run asking for vision is `SURFACE_INCOMPATIBLE` before it starts.
+- Capability schema 1.3 (`capabilities/schema/capability-1.3.json`) adds `step.appearance`, on click steps only. A 1.1 or 1.2 capability hashes as before: a step without an appearance is left out of the hash.
+- `cua record` crops each clicked control from the screenshot of the screen it was clicked on. There is no appearance when the crop touches a mask, when the run kept no screenshots, or when the vision extra is missing. `cua describe` lists the appearance as the last rung.
+- Policy `vision:` (`allowed`, `min_confidence` 0.97, `min_margin` 0.1). Allowed is false by default and on in `policies/default.yaml`. The policy judges a `ClickPoint` by the control it claims to hit, and any risky rule covering the screen makes it need approval.
+- Replay:
+  - `ReplayConfig.vision` / `cua replay --vision`. When every rung misses (never when the tree is ambiguous) and the step has an appearance, the engine keeps a masked screenshot as evidence, detects, validates, and then permits, acts and lands exactly like any other step.
+  - Refusals end as the locator failure the step already had, escalated `STUCK`: `LOCATOR_AMBIGUOUS` for ambiguous, `POLICY_BLOCKED` for unsafe, policy or masked, and `LOCATOR_UNRESOLVED` otherwise. The message carries the vision verdict.
+  - Events `vision.candidates`, `vision.accepted` and `vision.refused` map to canonical `policy.checked` and `policy.blocked`. The rung used is `vision`.
+- Drift kind `CONTROL_UNLABELED`: a control only vision found. It is not repairable from the evidence.
+- Mock app injects:
+  - `hidden_control`: the Search and Confirm buttons are drawn as always, with `aria-hidden`.
+  - `hidden_duplicate`: two identical hidden Search buttons.
+- `pyproject.toml`:
+  - a `vision` extra (numpy, Pillow), included in `dev`;
+  - numpy's stubs are skipped by mypy, because they use syntax that mypy rejects when checking for Python 3.11.
+- README, REPORT and the threat model: the vision fallback, and the visual look-alike residual risk.
+- `evidence/replay-vision-{recovered,ambiguous,not-found,commit-refused}/`: the verification runs, each with the 1.3 capability it ran (`capability.json`), approved by the person verifying. Drift on record now includes `CONTROL_UNLABELED` and the vision duplicate's `CONTROL_AMBIGUOUS`.
+
+### Decisions
+- **Model-free.** Replay still initialises no model. The detector matches a picture recorded at discovery and approved with the capability, so vision never acts on something a reviewer did not see.
+- **Candidates, then validation, then policy, then execution.** The detector cannot click. The validator is pure and runs every check before the policy. The click is then guarded by pixels, and the step's own expectation and checkpoint decide whether it landed.
+- **Vision fills gaps in the tree and never overrules it.**
+  - A tree that finds several controls is `LOCATOR_AMBIGUOUS` without vision looking at all.
+  - A match on top of a control the tree has is refused.
+- **Never on a commit.** A step that is risky, irreversible or approval-required, or a screen a risky rule covers, is refused with or without consent. A person does it.
+- **Two switches.** The policy governs whether vision is permitted and how sure it must be. The run asks for it. Either one off means no vision.
+- **Committed capabilities are not re-recorded.** v3 of the web capabilities keeps its hash and approval, and has no vision fallback. A 1.3 recording of the same discovery run gets one.
+- Found while testing: recording under a policy for another origin marks a commit `safe`, because the recorder treats `Block` like `Allow`. Vision still refused the click through its risky-rule check. The recorder fix is filed as its own task.
+
+### Tests
+- `tests/unit/test_vision.py` (no browser):
+  - the detector on synthetic pictures;
+  - every validator refusal, and the accepted candidate's guard;
+  - the policy's reading of `ClickPoint`;
+  - the run requirements;
+  - schema 1.3: click only, 1.3 only, older hashes stand, the exported schema;
+  - the recorder's crops and the mask rule;
+  - drift `CONTROL_UNLABELED`.
+- `tests/integration/test_vision.py` (browser):
+  - the 1.3 recording;
+  - `hidden_control` → `success` on the vision rung;
+  - with the flag off, the policy off, or no appearance → unchanged `LOCATOR_UNRESOLVED`;
+  - `hidden_duplicate` → `LOCATOR_AMBIGUOUS`, nothing clicked;
+  - `renamed_button` → `not_found`;
+  - a hidden Confirm with a valid token → `POLICY_BLOCKED`, no commit;
+  - the pointer guard: an unchanged point is clicked, changed pixels are `PerceptionDrift` with nothing submitted, and a point from a gone observation is `StaleRefError`.
+
+### Results
+- Gate: ruff, `ruff format --check` and `mypy --strict` are clean. 726 tests pass (682 before this phase), in about 12 minutes of test time.
+- Detection: 0.1 s per 1280x800 screen. On the mock app, the recorded Search button scores 1.000 where it is drawn, and the runner-up scores 0.514. The renamed "Find" button scores 0.510. The nav frame's differently styled Search button scores 0.956.
+- A clip screenshot of a box is pixel-identical to the same box of a full screenshot, which is what lets the guard compare hashes.
+- CLI, 1.3 recording of the goal-1 discovery run, approved in a scratch directory:
+  - `--inject hidden_control --vision` → `success`, savings 1411.21, `search.submit` on the `vision` rung, with a warning naming the skipped rungs;
+  - the same without `--vision` → `LOCATOR_UNRESOLVED`;
+  - `hidden_duplicate` → `LOCATOR_AMBIGUOUS` (1.000 and 0.997), nothing clicked.
+- The goal-2 recording with a valid token and `hidden_control` → `POLICY_BLOCKED`, `side_effect: none`, no POST to the review screen.
+
+### Known issues
+- Web only. The desktop surface takes no screenshots and has no pointer input.
+- Only clicks. Typing into a field found by pixels would need the field's identity for the credential sink as well.
+- Template matching finds a control drawn as recorded. A restyled or re-scaled control is not found, and is escalated. A different device pixel ratio is refused (`scale`).
+- A page that draws one convincing copy of a safe control on an allowed screen could steer a click (threat model, residual risks).
+
+### Commit
+- `feat: add controlled vision fallback`.
+
+### Next
+- Phase 10: API layer.
