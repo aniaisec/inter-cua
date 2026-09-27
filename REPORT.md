@@ -143,12 +143,18 @@ and its conditions are surface-neutral.
 
 - **Legacy web** changes nothing. The mock app is a legacy web app, and it
   still has an accessibility tree.
-- **Desktop** swaps `PlaywrightSurface` for a UIA or AX surface. Control
-  types map to roles, `location_matches` reads the window title, and
-  `region_present` looks for a named pane. `target.surface` is what picks the
-  adapter: this build registers `web` and `legacy_web`, and a capability
-  naming any other surface is refused before a browser starts rather than
-  driven by the wrong one. A registered adapter must also have every feature
+- **Desktop** swaps `PlaywrightSurface` for `WindowsSurface`, over Windows UI
+  Automation (`src/cua/surface/windows/`). It is built. UIA control types map to
+  the same roles, a window becomes the same `Observation`,
+  `location_matches` reads `uia://<app>/<window title>`, and the ladder, the
+  conditions, the recorder, the policy and the replay engine are unchanged.
+  DeskCalc (`deskapp/`), a deterministic WinForms window, is discovered,
+  recorded and replayed through the same CLI. Its Record step needs the same
+  signed consent as Confirm on the web, and commits once.
+  `target.surface` is what picks the adapter: `web` and `legacy_web` get the
+  browser, `desktop` gets UI Automation (on Windows; elsewhere there is no
+  adapter, and it is refused before anything starts). A registered adapter
+  must also have every feature
   the capability uses (`surface_requirements`: frames, geometry, forms,
   dialogs, ...); one that lacks a feature is refused with
   `SURFACE_INCOMPATIBLE` before the first action. A UIA surface that has no
@@ -283,7 +289,7 @@ this console.
 
 | Cut | Why | Next |
 |---|---|---|
-| Desktop surface | One surface done properly. The seam exists | A UIA `Surface` |
+| Desktop screenshots, handoff | The UIA surface takes no screenshots (a mask cannot yet be painted in before the capture) and has no session a person could attach to, so a desktop run has neither, and asking for either is refused | Masking overlays painted before a screen capture; a remote-desktop handoff |
 | Tenant overlays | Designed above, not built: there is one tenant | Overlay loader, per-tenant rung roll-up, drift alerts |
 | Vision locator rung, LLM fallback in replay | Both need a model at replay time, which breaks determinism | A bounded, policy-checked fallback that *proposes* a new ladder for review and never clicks |
 | Real operator console | Out of scope in the brief. Lease, CDP, capture and resume search are real; the page is minimal | Co-browsing view, request assignment, operator auth |

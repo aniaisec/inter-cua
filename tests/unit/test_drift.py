@@ -469,7 +469,10 @@ def test_drift_rates_are_events_per_invocation_by_capability_tenant_and_rung() -
 def test_every_run_on_record_can_be_scanned() -> None:
     runs = list(scan([REPO_ROOT / "evidence"], known()))
     assert runs and all(r.capability for r in runs)
-    kinds = {e.kind for r in runs for e in r.events}
+    # The web evidence drifts only by a renamed button. Desktop runs, when a
+    # machine has them under evidence/runs/, drift in their own ways
+    # (DeskCalc's ambiguous and renamed buttons) and are classified alike.
+    kinds = {e.kind for r in runs if r.app_family == "legacy-core" for e in r.events}
     assert kinds <= {"CONTROL_RENAMED"} and "CONTROL_RENAMED" in kinds
 
 

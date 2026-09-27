@@ -11,6 +11,7 @@ that offers capabilities as tools.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any, get_args
 
@@ -34,7 +35,7 @@ from cua.replay.invocation import Invocation
 from cua.replay.result import Failure
 from cua.replay.runner import replay
 from cua.surface import SUPPORTED_SURFACES
-from cua.surface.adapters import ADAPTERS, PLAYWRIGHT
+from cua.surface.adapters import ADAPTERS, PLAYWRIGHT, WINDOWS_UIA
 from cua.surface.features import FEATURE_MEANINGS, FEATURES, SurfaceDescriptor
 from cua.surface.playwright_surface import PlaywrightSurface
 from cua.workflow import validator
@@ -91,7 +92,8 @@ def test_the_playwright_surface_publishes_the_registered_descriptor() -> None:
         "features": list(FEATURES),
     }
     assert frozenset(ADAPTERS) == SUPPORTED_SURFACES
-    assert "desktop" not in ADAPTERS
+    # The desktop adapter is UI Automation, registered on Windows only.
+    assert ADAPTERS.get("desktop") == (WINDOWS_UIA if sys.platform == "win32" else None)
 
 
 def test_the_lease_wrapper_passes_the_descriptor_through() -> None:
@@ -157,14 +159,14 @@ def test_an_unknown_construct_is_refused_not_assumed_harmless() -> None:
         requirements.derive({"steps": [{"action": "hover"}]})
 
 
-def test_screenshots_are_a_run_requirement_unless_the_run_takes_none() -> None:
+def test_screenshots_are_required_only_when_the_run_insists_or_a_person_is_asked() -> None:
     cap = parse(golden())
-    assert "screenshots" in requirements.for_run(cap, handoff=False).run
+    assert requirements.for_run(cap, handoff=False).run == ["egress_control"]  # when it can
+    assert "screenshots" in requirements.for_run(cap, handoff=False, screenshots=True).run
     assert "screenshots" not in requirements.for_run(cap, handoff=False, screenshots=False).run
     # A person asked to help always gets the screen.
     handed = requirements.for_run(cap, handoff=True, screenshots=False).run
     assert {"screenshots", "session_handoff"} <= set(handed)
-    assert requirements.for_run(cap, handoff=False).run == ["screenshots", "egress_control"]
 
 
 # --------------------------------------------------------------------------
@@ -294,13 +296,18 @@ def test_replay_with_handoff_needs_a_surface_a_person_can_take_over(
 def test_the_catalog_does_not_offer_what_no_adapter_can_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    entries, _ = catalog.scan(REPO / "capabilities")
-    assert entries and all(e.invocable for e in entries)
+    def web() -> list[catalog.Entry]:
+        return [
+            e
+            for e in catalog.scan(REPO / "capabilities")[0]
+            if e.capability.target.surface == "web"
+        ]
+
+    assert web() and all(e.invocable for e in web())
     monkeypatch.setitem(ADAPTERS, "web", without("forms"))
-    entries, _ = catalog.scan(REPO / "capabilities")
-    assert not any(e.invocable for e in entries)
-    assert catalog.tools(entries) == []
-    assert all("forms" in (e.unfit or "") for e in entries)
+    assert not any(e.invocable for e in web())
+    assert catalog.tools(web()) == []
+    assert all("forms" in (e.unfit or "") for e in web())
 
 
 def test_a_workflow_is_refused_whole_when_a_step_cannot_run_here(

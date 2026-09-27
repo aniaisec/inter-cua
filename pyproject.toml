@@ -24,6 +24,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# The Windows UI Automation surface (target.surface: desktop). Windows only;
+# nothing else imports it, so the web adapter and CI elsewhere never need it.
+windows = ["comtypes>=1.4 ; sys_platform == 'win32'"]
 dev = [
   "httpx>=0.27,<1.0",
   "jsonschema>=4.20,<5.0",
@@ -52,6 +55,7 @@ filterwarnings = [
 ]
 markers = [
   "browser: requires a Playwright Chromium install",
+  "desktop: drives DeskCalc through Windows UI Automation (Windows, the windows extra)",
 ]
 
 [tool.ruff]
@@ -70,6 +74,12 @@ python_version = "3.11"
 files = ["src", "mockapp"]
 strict = true
 warn_unreachable = true
+
+[[tool.mypy.overrides]]
+# comtypes ships no types, and its UI Automation bindings are generated at
+# first use. Everything taken from it is held as Any inside cua.surface.windows.uia.
+module = ["comtypes", "comtypes.*"]
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["mockapp.*"]

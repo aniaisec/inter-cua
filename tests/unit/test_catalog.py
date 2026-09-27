@@ -7,6 +7,7 @@ listed, before one would be.
 from __future__ import annotations
 
 import json
+import sys
 from decimal import Decimal
 from pathlib import Path
 
@@ -16,6 +17,8 @@ from cua import catalog
 from cua.artifact.store import load, save, with_changes
 from cua.cli import main
 from tests.conftest import REPO_ROOT
+
+WINDOWS = sys.platform == "win32"
 
 CAPS = REPO_ROOT / "capabilities"
 GOAL1 = CAPS / "member_savings_balance.json"
@@ -64,7 +67,9 @@ def test_a_capability_this_build_cannot_drive_is_not_offered_as_a_tool(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Approved is not enough: the catalog offers only what unattended replay
-    would accept, and replay refuses a surface it has no adapter for."""
+    would accept. Replay refuses a surface it has no adapter for, and on
+    Windows, where the desktop adapter exists, a frameset capability it has no
+    frames for."""
     cap = load(GOAL1)
     target = cap.target.model_dump(mode="json")
     target["surface"] = "desktop"
@@ -75,7 +80,8 @@ def test_a_capability_this_build_cannot_drive_is_not_offered_as_a_tool(
     assert not entry.invocable and catalog.tools([entry]) == []
 
     code, out, _ = run(["catalog", "--all", "--capabilities-dir", str(tmp_path)], capsys)
-    assert code == 0 and "drives a 'desktop' surface" in out
+    why = "windows-uia v1 surface does not have: frames" if WINDOWS else "drives a 'desktop'"
+    assert code == 0 and why in out
 
 
 def test_a_tool_definition_carries_the_typed_inputs_and_the_contract() -> None:
@@ -196,7 +202,11 @@ def test_unknown_names_and_mismatched_requests_are_usage_errors(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     code, _, err = run(["catalog", "invoke", "close_account"], capsys)
-    assert code == 64 and "known: member_savings_balance, open_subaccount" in err
+    assert (
+        code == 64
+        and "known: deskcalc_compute, deskcalc_record, member_savings_balance, open_subaccount"
+        in err
+    )
 
     request = tmp_path / "request.json"
     request.write_text('{"capability": "open_subaccount"}', encoding="utf-8")

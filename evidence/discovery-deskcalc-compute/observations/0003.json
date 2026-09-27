@@ -1,0 +1,359 @@
+{
+ "observed_at": "2026-09-27T03:31:51.201312Z",
+ "location": "uia://deskcalc/DeskCalc",
+ "title": "DeskCalc",
+ "viewport": {
+  "w": 476,
+  "h": 469
+ },
+ "frames": [
+  {
+   "name": "",
+   "url": "uia://deskcalc/DeskCalc",
+   "status": null
+  }
+ ],
+ "nodes": [
+  {
+   "ref": "n61",
+   "role": "window",
+   "name": "DeskCalc",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 0.0,
+    "y": 0.0,
+    "w": 476.0,
+    "h": 469.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n62",
+   "role": "menubar",
+   "name": "",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 8.0,
+    "y": 31.0,
+    "w": 460.0,
+    "h": 24.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n63",
+   "role": "menuitem",
+   "name": "File",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 14.0,
+    "y": 33.0,
+    "w": 37.0,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n62",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n64",
+   "role": "menuitem",
+   "name": "Help",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 51.0,
+    "y": 33.0,
+    "w": 44.0,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n62",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n65",
+   "role": "text",
+   "name": "First number",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 28.0,
+    "y": 74.0,
+    "w": 120.0,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n66",
+   "role": "textbox",
+   "name": "First number",
+   "value": "12.5",
+   "frame": "",
+   "bbox": {
+    "x": 158.0,
+    "y": 71.0,
+    "w": 160.0,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n67",
+   "role": "text",
+   "name": "Second number",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 28.0,
+    "y": 109.0,
+    "w": 120.0,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n68",
+   "role": "textbox",
+   "name": "Second number",
+   "value": "4",
+   "frame": "",
+   "bbox": {
+    "x": 158.0,
+    "y": 106.0,
+    "w": 160.0,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n69",
+   "role": "text",
+   "name": "Operation",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 28.0,
+    "y": 144.0,
+    "w": 120.0,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n70",
+   "role": "combobox",
+   "name": "Operation",
+   "value": "Divide",
+   "frame": "",
+   "bbox": {
+    "x": 158.0,
+    "y": 141.0,
+    "w": 160.0,
+    "h": 21.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n71",
+   "role": "checkbox",
+   "name": "Round to cents",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 158.0,
+    "y": 174.0,
+    "w": 160.0,
+    "h": 22.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n72",
+   "role": "button",
+   "name": "Calculate",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 158.0,
+    "y": 206.0,
+    "w": 100.0,
+    "h": 28.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n73",
+   "role": "text",
+   "name": "Result",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 28.0,
+    "y": 254.0,
+    "w": 120.0,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 3,
+   "attrs": {}
+  },
+  {
+   "ref": "n74",
+   "role": "textbox",
+   "name": "Result",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 158.0,
+    "y": 251.0,
+    "w": 160.0,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n75",
+   "role": "text",
+   "name": "",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 158.0,
+    "y": 279.0,
+    "w": 290.0,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 4,
+   "attrs": {}
+  },
+  {
+   "ref": "n76",
+   "role": "button",
+   "name": "Record",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 158.0,
+    "y": 303.0,
+    "w": 100.0,
+    "h": 28.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n77",
+   "role": "text",
+   "name": "History",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 28.0,
+    "y": 344.0,
+    "w": 120.0,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 5,
+   "attrs": {}
+  },
+  {
+   "ref": "n78",
+   "role": "listbox",
+   "name": "History",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 158.0,
+    "y": 341.0,
+    "w": 290.0,
+    "h": 69.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n79",
+   "role": "status",
+   "name": "",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 8.0,
+    "y": 439.0,
+    "w": 460.0,
+    "h": 22.0
+   },
+   "near_text": null,
+   "parent": "n61",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n80",
+   "role": "text",
+   "name": "Ready",
+   "value": null,
+   "frame": "",
+   "bbox": {
+    "x": 9.0,
+    "y": 442.0,
+    "w": 39.0,
+    "h": 17.0
+   },
+   "near_text": null,
+   "parent": "n79",
+   "ordinal": 6,
+   "attrs": {}
+  }
+ ],
+ "dialogs": []
+}

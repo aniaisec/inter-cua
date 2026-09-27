@@ -1,0 +1,69 @@
+{
+  "run_id": "run_01M3GEXQCYBK1ZBCBPX04K9G4T",
+  "started_at": "2026-09-27T03:35:47.123Z",
+  "goal": {
+    "goal": "Work out a calculation in DeskCalc and record it in the ledger",
+    "name": "deskcalc_record",
+    "entry": "/",
+    "params": [
+      {
+        "name": "first",
+        "type": "decimal",
+        "value": "12.5"
+      },
+      {
+        "name": "second",
+        "type": "decimal",
+        "value": "4"
+      },
+      {
+        "name": "operation",
+        "type": "string",
+        "value": "Multiply"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "result",
+        "type": "decimal",
+        "optional": false,
+        "description": ""
+      }
+    ],
+    "credentials": {}
+  },
+  "entry_url": "uia://deskcalc/",
+  "tenant": {
+    "id": "desk",
+    "app_family": "deskcalc",
+    "base_url": "uia://deskcalc",
+    "desktop": {
+      "launch": [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "deskapp/deskcalc.ps1"
+      ],
+      "inject_flag": "-Inject"
+    }
+  },
+  "credentials": {},
+  "provider": "scripted",
+  "model": "scripted",
+  "limits": {
+    "max_steps": 30,
+    "timeout_s": 600.0,
+    "dead_end_repeats": 3
+  },
+  "screenshots": false,
+  "auto_approve_risky": true,
+  "recording_env": {
+    "viewport": {
+      "w": 476,
+      "h": 469
+    },
+    "dpr": 1.0
+  }
+}

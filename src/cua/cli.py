@@ -444,6 +444,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _discover(args: argparse.Namespace) -> int:
     # Imported here so that `cua --help` and the pending subcommands do not
     # pay for Playwright, or for the model SDK.
+    from contextlib import AbstractContextManager
+
     from cua.agent.goal import Goal, SpecError, parse_credential, parse_output, parse_param
     from cua.agent.llm import LLMClient, NoProviderError, ScriptedClient, select_client
     from cua.agent.loop import DiscoveryConfig, DiscoveryLoop
@@ -453,6 +455,7 @@ def _discover(args: argparse.Namespace) -> int:
     from cua.policy.allowlist import load_policy
     from cua.secrets.resolver import SecretError, resolve
     from cua.surface.playwright_surface import PlaywrightSurface
+    from cua.surface.protocol import Surface
     from cua.tenant import SYSTEM_SECRET_PREFIX, load_tenant
 
     try:
@@ -495,6 +498,30 @@ def _discover(args: argparse.Namespace) -> int:
     if args.inject:
         entry_url += ("&" if "?" in entry_url else "?") + f"inject={args.inject}"
 
+    handoff = _handoff_settings(args)
+    screenshots = not args.no_screenshots
+    if tenant.desktop is not None:
+        # A desktop tenant is driven through UI Automation, which takes no
+        # screenshots and has no session to hand a person (WINDOWS_UIA).
+        if handoff is not None:
+            print(
+                "cua discover: a desktop tenant cannot be handed to a person (the "
+                "windows-uia surface has no session_handoff); run it without --handoff",
+                file=sys.stderr,
+            )
+            return EX_USAGE
+        if screenshots:
+            print(
+                "cua discover: the windows-uia surface takes no screenshots; this run keeps "
+                "its log and the trees it observed",
+                file=sys.stderr,
+            )
+            screenshots = False
+        from cua.surface.windows.adapter import WindowsSurface
+
+        opened: AbstractContextManager[Surface] = WindowsSurface.launch(tenant)
+    else:
+        opened = PlaywrightSurface.launch(headed=args.headed or None)
     log = RunLog.create(args.runs_dir)
     print(
         f"cua discover: run {log.run_id} ({llm.provider}: {llm.model}) -> {link(log.dir)}",
@@ -502,16 +529,17 @@ def _discover(args: argparse.Namespace) -> int:
     )
     config = DiscoveryConfig(
         limits=StopLimits(max_steps=args.max_steps, timeout_s=args.timeout_s),
-        screenshots=not args.no_screenshots,
+        screenshots=screenshots,
         auto_approve_risky=args.auto_approve_risky,
     )
     try:
-        with PlaywrightSurface.launch(headed=args.headed or None) as surface:
-            surface.restrict_egress(policy.allowed_origins)
+        with opened as surface:
+            if isinstance(surface, PlaywrightSurface):
+                surface.restrict_egress(policy.allowed_origins)
             driven: Any = surface
             channel = None
-            handoff = _handoff_settings(args)
             if handoff is not None:
+                assert isinstance(surface, PlaywrightSurface)
                 from cua.escalation.channel import OperatorChannel
                 from cua.escalation.controller import ControlStore
                 from cua.escalation.lease import LeasedSurface
@@ -615,7 +643,7 @@ def _invoke(
     from cua.policy.allowlist import load_policy
     from cua.replay.engine import ReplayConfig
     from cua.replay.invocation import ApprovalGrant, Budget, Invocation
-    from cua.replay.runner import InvocationError, launched, replay
+    from cua.replay.runner import InvocationError, replay
     from cua.tenant import load_tenant
 
     request = request or {}
@@ -649,10 +677,11 @@ def _invoke(
             runs_dir=args.runs_dir,
             allow_draft=allow_draft,
             config=ReplayConfig(
-                step_timeout_s=args.step_timeout, screenshots=not args.no_screenshots
+                step_timeout_s=args.step_timeout,
+                screenshots=False if args.no_screenshots else None,
             ),
-            surface=lambda: launched(headed=args.headed or None, detached=handoff is not None),
             handoff=handoff,
+            headed=args.headed or None,
         )
     except (InvocationError, OSError, ValueError, ValidationError) as exc:
         print(f"cua {command}: {exc}", file=sys.stderr)

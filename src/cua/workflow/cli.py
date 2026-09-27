@@ -278,7 +278,8 @@ def _run(args: argparse.Namespace) -> int:
             capabilities_dir=args.capabilities_dir,
             runs_dir=args.runs_dir,
             config=ReplayConfig(
-                step_timeout_s=args.step_timeout, screenshots=not args.no_screenshots
+                step_timeout_s=args.step_timeout,
+                screenshots=False if args.no_screenshots else None,
             ),
             surface=lambda: launched(headed=args.headed or None, detached=handoff is not None),
             handoff=handoff,

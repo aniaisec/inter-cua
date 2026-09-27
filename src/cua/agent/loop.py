@@ -54,6 +54,7 @@ from cua.agent.tools import (
     DoneCall,
     PressCall,
     ReadCall,
+    SelectCall,
     StuckCall,
     ToolInputError,
     TypeCall,
@@ -76,6 +77,7 @@ from cua.surface.protocol import (
     Observation,
     Press,
     ReadText,
+    SelectOption,
     Surface,
     SurfaceError,
     TypeText,
@@ -412,7 +414,7 @@ class DiscoveryLoop:
         )
         self._reply_with_screen(call_id, note)
 
-    def _action(self, call: ClickCall | TypeCall | PressCall | ReadCall) -> Action:
+    def _action(self, call: ClickCall | TypeCall | SelectCall | PressCall | ReadCall) -> Action:
         if isinstance(call, ClickCall):
             return Click(ref=call.ref)
         if isinstance(call, TypeCall):
@@ -421,6 +423,8 @@ class DiscoveryLoop:
             text = self._expand(call.text)
             self._credential_sink(call)
             return TypeText(ref=call.ref, text=text)
+        if isinstance(call, SelectCall):
+            return SelectOption(ref=call.ref, value=self._expand(call.text))
         if isinstance(call, PressCall):
             return Press(key=call.key, ref=call.ref)
         return ReadText(ref=call.ref)
@@ -728,7 +732,7 @@ class DiscoveryLoop:
 
     def _record_step(
         self,
-        call: ClickCall | TypeCall | PressCall | ReadCall,
+        call: ClickCall | TypeCall | SelectCall | PressCall | ReadCall,
         node: Node | None,
         screen: Observation,
     ) -> None:
@@ -741,7 +745,7 @@ class DiscoveryLoop:
             self.log.event("script.unnamed_target", turn=self.watch.steps, node=node.label)
         # A secret the model typed literally, instead of by placeholder, is
         # masked here like anywhere else; the recorder then refuses the run.
-        text = self.redactor.text(call.text) if isinstance(call, TypeCall) else None
+        text = self.redactor.text(call.text) if isinstance(call, TypeCall | SelectCall) else None
         key = call.key if isinstance(call, PressCall) else None
         self.script.append(
             ScriptStep(tool=call.tool, target=target, text=text, key=key, reason=call.reason)
@@ -784,6 +788,11 @@ class DiscoveryLoop:
                     "id": self.tenant.id,
                     "app_family": self.tenant.app_family,
                     "base_url": self.tenant.base_url,
+                    **(
+                        {"desktop": self.tenant.desktop.model_dump()}
+                        if self.tenant.desktop is not None
+                        else {}
+                    ),
                 },
                 "credentials": {
                     name: {"ref": c.ref, "fields": c.field_names}

@@ -94,10 +94,10 @@ from cua.replay.result import (
 )
 from cua.secrets.resolver import Credential, SecretError, resolve
 from cua.surface.playwright_surface import BrowserProcess, PlaywrightSurface, kill_browser
-from cua.surface.protocol import Surface
+from cua.surface.protocol import Surface, SurfaceError
 from cua.tenant import Tenant
 
-SurfaceFactory = Callable[[], AbstractContextManager[PlaywrightSurface]]
+SurfaceFactory = Callable[[], AbstractContextManager[Surface]]
 HANDOFF_STATE = "handoff_state.json"
 SESSION_FILE = "session.json"
 
@@ -110,6 +110,20 @@ class InvocationError(Exception):
 def launched(headed: bool | None = None, *, detached: bool = False) -> Iterator[PlaywrightSurface]:
     with PlaywrightSurface.launch(headed=headed, detached=detached) as surface:
         yield surface
+
+
+def surface_for(
+    cap: Capability, tenant: Tenant, *, headed: bool | None = None, detached: bool = False
+) -> SurfaceFactory:
+    """The adapter ``cap.target.surface`` names, for this tenant: a browser for
+    a web target, the tenant's application under UI Automation for a desktop
+    one. Imported only when chosen, so a web replay loads no COM and a desktop
+    one starts no browser."""
+    if cap.target.surface == "desktop":
+        from cua.surface.windows.adapter import WindowsSurface
+
+        return lambda: WindowsSurface.launch(tenant)
+    return lambda: launched(headed, detached=detached)
 
 
 class SessionRecord(BaseModel):
@@ -158,8 +172,11 @@ def replay(
     surface: SurfaceFactory | None = None,
     environ: dict[str, str] | None = None,
     handoff: HandoffSettings | None = None,
+    headed: bool | None = None,
 ) -> ReplayResult:
     """``handoff``: attach the operator channel (``cua replay --handoff``).
+    ``surface``: overrides the adapter ``cap.target.surface`` picks
+    (``surface_for``); ``headed`` is passed to a browser it launches.
     Without it, a fault that should go to a person is returned as a
     ``Failure`` naming the escalation it replaced."""
     try:
@@ -191,6 +208,14 @@ def replay(
     )
     if unfit is not None:
         return _refused(cap, invocation, "SURFACE_INCOMPATIBLE", unfit)
+    if cap.target.surface == "desktop" and tenant.desktop is None:
+        return _refused(
+            cap,
+            invocation,
+            "SURFACE_INCOMPATIBLE",
+            f"{cap.name} drives a desktop application, and tenant {tenant.id!r} says of none "
+            "how to start it (desktop.launch in its tenant file)",
+        )
 
     problems = validate_inputs(cap, invocation.inputs)
     if problems:
@@ -252,7 +277,7 @@ def replay(
         allow_draft=allow_draft,
         lifecycle=lifecycle,
         config=config or ReplayConfig(),
-        surface=surface or (lambda: launched(detached=handoff is not None)),
+        surface=surface or surface_for(cap, tenant, headed=headed, detached=handoff is not None),
         handoff=handoff,
     )
     if cache is not None and invocation.idempotency_key is not None:
@@ -377,13 +402,21 @@ def _execute(
     secrets = [v for c in credentials.values() for v in c.values()]
     secrets += [v for n, v in invocation.inputs.items() if cap.inputs[n].sensitive]
     with surface() as live:
-        live.restrict_egress(policy.allowed_origins)
-        context = live.page.context
-        trace.start(context)
+        # The egress guard and the trace are the browser's. A surface without
+        # them is one whose target kind does not need them (``requirements``
+        # asks egress_control of web targets, session_handoff of handoff).
+        browser = live if isinstance(live, PlaywrightSurface) else None
+        context = None
+        if browser is not None:
+            browser.restrict_egress(policy.allowed_origins)
+            context = browser.page.context
+            trace.start(context)
         driven: Surface = live
         channel: OperatorChannel | None = None
         control: ControlStore | None = None
         if handoff is not None:
+            if browser is None:
+                raise SurfaceError(f"{live.descriptor.name} has no session to hand a person")
             control = ControlStore(log.dir)
             if fresh_control:
                 control.start(log.run_id)
@@ -391,17 +424,17 @@ def _execute(
                 log=log,
                 runs_dir=runs_dir,
                 control=control,
-                session=live.expose,
+                session=browser.expose,
                 kind="replay",
                 capability=cap.name,
                 capability_version=cap.version,
                 tenant=tenant.id,
                 settings=handoff,
-                while_waiting=live.egress_lifted,
+                while_waiting=browser.egress_lifted,
             )
             # Every action the engine takes asks the lease first.
             driven = LeasedSurface(live, control.lease)
-            log.write_json(SESSION_FILE, _session_record(live))
+            log.write_json(SESSION_FILE, _session_record(browser))
         engine = ReplayEngine(
             capability=cap,
             surface=driven,
@@ -424,20 +457,26 @@ def _execute(
                 spent.spend(approval, log.run_id)
                 log.event("approval.spent", token_sha256=approval.token_sha256[:12])
 
-        if live.egress_blocked:
-            log.event("egress.blocked", origins=sorted(set(live.egress_blocked)))
-        saved = resume_context(engine, live) if result.kind == "escalated" else None
+        if browser is not None and browser.egress_blocked:
+            log.event("egress.blocked", origins=sorted(set(browser.egress_blocked)))
+        saved = (
+            resume_context(engine, browser)
+            if result.kind == "escalated" and browser is not None
+            else None
+        )
         kept: Path | None = None
-        if saved is not None:
+        if browser is None or context is None:
+            pass  # no trace, no guard, no session to leave anyone
+        elif saved is not None:
             # The session is the person's now: leave it up, and leave what
             # ``resume`` needs beside it. The trace so far is discarded.
             log.write_json(HANDOFF_STATE, saved)
-            if live.process is None:
+            if browser.process is None:
                 log.event(
                     "session.not_detached",
                     warning="this browser closes with this process; `cua resume` will not find it",
                 )
-            live.keep_open()
+            browser.keep_open()
             try:
                 trace.stop(context, keep_as=None, redactor=Redactor([]))
             except Exception:
@@ -452,7 +491,8 @@ def _execute(
         # The guard is this process's to service. A session left for a person
         # is theirs, and a browser that outlives the run must not stall on a
         # handler nobody is running.
-        live.lift_egress()
+        if browser is not None:
+            browser.lift_egress()
 
     if kept is not None:
         evidence = result.evidence.model_copy(

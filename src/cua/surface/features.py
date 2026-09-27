@@ -41,7 +41,8 @@ FEATURES: tuple[SurfaceFeature, ...] = get_args(SurfaceFeature)
 FEATURE_MEANINGS: dict[SurfaceFeature, str] = {
     "accessibility_tree": "nodes with a role, an accessible name and a value",
     "geometry": "a box for each control and label, in one coordinate space",
-    "fixed_viewport": "the target can be shown at the viewport a capability was recorded in",
+    "fixed_viewport": "pixel positions are measured in a viewport that is the same at replay "
+    "as at recording, and a pixel rung is refused when it is not",
     "frames": "named sub-documents (a frameset's panes) that nodes and scopes can name",
     "locations": "the target can be sent to a location and reports where it is",
     "document_status": "the load status of each document (an HTTP 500 page has no ARIA)",

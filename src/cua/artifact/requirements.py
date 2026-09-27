@@ -17,9 +17,10 @@ and every report says they were (``source: derived``). That is the whole
 compatibility layer: an old capability runs as it always did, on a surface
 that has what it uses, and is refused on one that does not.
 
-Replay adds what the *run* needs on top: a guarded egress (the policy),
-masked screenshots (the evidence, unless the run is configured without them,
-and always for a person asked to help), and a session a person can take over
+Replay adds what the *run* needs on top: a guarded egress for a web target
+(the policy), masked screenshots when the run insists on them (by default a
+run keeps them when the surface can take them) and always for a person asked
+to help, and a session a person can take over
 when ``--handoff`` is on. A surface short of those cannot run anything
 safely, whatever the capability.
 """
@@ -76,9 +77,14 @@ _BY_ACTION: dict[str, tuple[SurfaceFeature, ...]] = {
 """Step and recoverer actions. Clicking and reading need only the node, which
 the target's rungs already account for."""
 
-RUN_FEATURES: tuple[SurfaceFeature, ...] = ("egress_control",)
-"""What every replay needs of a surface, whatever it runs: egress restricted
-to the policy's origins."""
+WEB_TARGETS: frozenset[str] = frozenset({"web", "legacy_web"})
+WEB_RUN_FEATURES: tuple[SurfaceFeature, ...] = ("egress_control",)
+"""What every replay of a web target needs, whatever it runs: the page's
+requests held to the policy's origins. A page runs content the application
+does not control (a script, a form's destination), which is what the guard is
+for. A desktop application's own network traffic is outside what a UI surface
+can govern, so for a desktop target this is not asked; its replay still
+enforces the policy on every action and on the entry location."""
 EVIDENCE_FEATURES: tuple[SurfaceFeature, ...] = ("screenshots",)
 HANDOFF_FEATURES: tuple[SurfaceFeature, ...] = ("screenshots", "session_handoff")
 """An intervention request always carries the screen, screenshots or not."""
@@ -164,18 +170,24 @@ def of(cap: Capability) -> tuple[list[SurfaceFeature], Source]:
     return derive(cap.model_dump(mode="json", by_alias=True)), "derived"
 
 
-def for_run(cap: Capability, *, handoff: bool, screenshots: bool = True) -> Requirements:
+def for_run(cap: Capability, *, handoff: bool, screenshots: bool | None = None) -> Requirements:
+    """``screenshots``: ``True`` requires them; ``None`` (take them where the
+    surface can) and ``False`` do not (``ReplayConfig.screenshots``)."""
     features, source = of(cap)
     run = [
-        *RUN_FEATURES,
-        *(EVIDENCE_FEATURES if screenshots else ()),
+        *(WEB_RUN_FEATURES if cap.target.surface in WEB_TARGETS else ()),
+        *(EVIDENCE_FEATURES if screenshots is True else ()),
         *(HANDOFF_FEATURES if handoff else ()),
     ]
     return Requirements(capability=features, source=source, run=ordered(run))
 
 
 def check(
-    cap: Capability, descriptor: SurfaceDescriptor, *, handoff: bool, screenshots: bool = True
+    cap: Capability,
+    descriptor: SurfaceDescriptor,
+    *,
+    handoff: bool,
+    screenshots: bool | None = None,
 ) -> Compatibility:
     """Would this run of ``cap`` get everything it uses from this surface?"""
     wanted = for_run(cap, handoff=handoff, screenshots=screenshots)
@@ -186,7 +198,9 @@ def check(
     )
 
 
-def refusal(cap: Capability, *, handoff: bool = False, screenshots: bool = True) -> str | None:
+def refusal(
+    cap: Capability, *, handoff: bool = False, screenshots: bool | None = None
+) -> str | None:
     """Why this build cannot run ``cap``, or None if it can: no adapter for
     its target kind, or an adapter short of a feature it uses. Checked with
     the registered adapter, before any surface exists."""

@@ -1,0 +1,34 @@
+{"seq": 1, "ts": "2026-09-27T15:21:59.305Z", "event": "run.start", "capability": "deskcalc_record", "capability_id": "cap_01M3GEYDV64FZSR5S108XBMYJZ", "version": 1, "content_sha256": "4fef1ac4e7d54584cc0a831389c7d911e60b3a189639e919c4ec60f7a87a6a41", "approval_state": "approved", "tenant": "desk", "entry": "uia://deskcalc/"}
+{"seq": 2, "ts": "2026-09-27T15:21:59.306Z", "event": "surface.checked", "adapter": {"name": "windows-uia", "version": "1", "targets": ["desktop"], "features": ["accessibility_tree", "geometry", "fixed_viewport", "locations", "forms", "keyboard", "dialogs"]}, "requires": ["accessibility_tree", "geometry", "fixed_viewport", "locations", "forms"], "requires_source": "declared", "run_requires": [], "missing": []}
+{"seq": 3, "ts": "2026-09-27T15:21:59.317Z", "event": "navigate", "url": "uia://deskcalc/"}
+{"seq": 4, "ts": "2026-09-27T15:22:00.525Z", "event": "step.start", "step": "deskcalc.first", "action": "type", "mode": "run"}
+{"seq": 5, "ts": "2026-09-27T15:22:00.644Z", "event": "locator.resolved", "target": "deskcalc.first", "rung": "role_name", "recorded": "role_name", "attempts": [{"rung": "role_name", "matches": 1, "refs": ["n6"], "refused": null}]}
+{"seq": 6, "ts": "2026-09-27T15:22:00.855Z", "event": "action.done", "step": "deskcalc.first", "action": "type", "ms": 207, "dialogs": []}
+{"seq": 7, "ts": "2026-09-27T15:22:01.359Z", "event": "step.passed", "step": "deskcalc.first"}
+{"seq": 8, "ts": "2026-09-27T15:22:01.363Z", "event": "step.start", "step": "deskcalc.second", "action": "type", "mode": "run"}
+{"seq": 9, "ts": "2026-09-27T15:22:01.494Z", "event": "locator.resolved", "target": "deskcalc.second", "rung": "role_name", "recorded": "role_name", "attempts": [{"rung": "role_name", "matches": 1, "refs": ["n48"], "refused": null}]}
+{"seq": 10, "ts": "2026-09-27T15:22:01.721Z", "event": "action.done", "step": "deskcalc.second", "action": "type", "ms": 223, "dialogs": []}
+{"seq": 11, "ts": "2026-09-27T15:22:02.277Z", "event": "step.passed", "step": "deskcalc.second"}
+{"seq": 12, "ts": "2026-09-27T15:22:02.281Z", "event": "step.start", "step": "deskcalc.operation", "action": "select", "mode": "run"}
+{"seq": 13, "ts": "2026-09-27T15:22:02.391Z", "event": "locator.resolved", "target": "deskcalc.operation", "rung": "role_name", "recorded": "role_name", "attempts": [{"rung": "role_name", "matches": 1, "refs": ["n90"], "refused": null}]}
+{"seq": 14, "ts": "2026-09-27T15:22:02.603Z", "event": "action.done", "step": "deskcalc.operation", "action": "select", "ms": 208, "dialogs": []}
+{"seq": 15, "ts": "2026-09-27T15:22:03.017Z", "event": "step.passed", "step": "deskcalc.operation"}
+{"seq": 16, "ts": "2026-09-27T15:22:03.020Z", "event": "step.start", "step": "deskcalc.submit", "action": "click", "mode": "run"}
+{"seq": 17, "ts": "2026-09-27T15:22:03.108Z", "event": "locator.resolved", "target": "deskcalc.submit", "rung": "role_name", "recorded": "role_name", "attempts": [{"rung": "role_name", "matches": 1, "refs": ["n132"], "refused": null}]}
+{"seq": 18, "ts": "2026-09-27T15:22:03.318Z", "event": "action.done", "step": "deskcalc.submit", "action": "click", "ms": 206, "dialogs": []}
+{"seq": 19, "ts": "2026-09-27T15:22:03.772Z", "event": "step.passed", "step": "deskcalc.submit"}
+{"seq": 20, "ts": "2026-09-27T15:22:03.775Z", "event": "step.start", "step": "deskcalc.record", "action": "click", "mode": "run"}
+{"seq": 21, "ts": "2026-09-27T15:22:03.872Z", "event": "locator.resolved", "target": "deskcalc.record", "rung": "role_name", "recorded": "role_name", "attempts": [{"rung": "role_name", "matches": 1, "refs": ["n176"], "refused": null}]}
+{"seq": 22, "ts": "2026-09-27T15:22:03.877Z", "event": "policy.approved", "step": "deskcalc.record", "rule": "record_entry", "approved_by": "anil", "via": "token", "token_sha256": "40e74b254e36", "expires_at": 1790523418}
+{"seq": 23, "ts": "2026-09-27T15:22:03.893Z", "event": "irreversible.act", "step": "deskcalc.record"}
+{"seq": 24, "ts": "2026-09-27T15:22:04.106Z", "event": "action.done", "step": "deskcalc.record", "action": "click", "ms": 207, "dialogs": []}
+{"seq": 25, "ts": "2026-09-27T15:22:04.690Z", "event": "irreversible.committed", "step": "deskcalc.record"}
+{"seq": 26, "ts": "2026-09-27T15:22:04.704Z", "event": "locator.resolved", "target": "outputs.result", "rung": "role_name", "recorded": "role_name", "attempts": [{"rung": "role_name", "matches": 1, "refs": ["n194"], "refused": null}]}
+{"seq": 27, "ts": "2026-09-27T15:22:04.712Z", "event": "output.extracted", "name": "result", "rung": "role_name"}
+{"seq": 28, "ts": "2026-09-27T15:22:04.716Z", "event": "outputs.captured_at_commit", "step": "deskcalc.record", "names": ["result"]}
+{"seq": 29, "ts": "2026-09-27T15:22:04.719Z", "event": "step.passed", "step": "deskcalc.record"}
+{"seq": 30, "ts": "2026-09-27T15:22:04.899Z", "event": "locator.resolved", "target": "outputs.result", "rung": "role_name", "recorded": "role_name", "attempts": [{"rung": "role_name", "matches": 1, "refs": ["n215"], "refused": null}]}
+{"seq": 31, "ts": "2026-09-27T15:22:04.906Z", "event": "output.extracted", "name": "result", "rung": "role_name"}
+{"seq": 32, "ts": "2026-09-27T15:22:04.911Z", "event": "checkpoint.passed", "checkpoint": "cp.done", "step": "done"}
+{"seq": 33, "ts": "2026-09-27T15:22:04.916Z", "event": "run.end", "kind": "success", "code": null}
+{"seq": 34, "ts": "2026-09-27T15:22:04.922Z", "event": "approval.spent", "token_sha256": "40e74b254e36"}

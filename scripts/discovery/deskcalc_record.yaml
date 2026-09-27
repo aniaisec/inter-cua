@@ -1,0 +1,37 @@
+# Scripted discovery for DeskCalc's committing path: work out a calculation,
+# then Record it, which appends it to the ledger. The desk policy
+# (policies/deskcalc.yaml) marks Record as needing approval, exactly as the
+# web policy marks Confirm, so a scripted run needs --auto-approve-risky; at
+# replay the step needs an approval token or a person.
+#
+#   cua discover --llm scripted --script scripts/discovery/deskcalc_record.yaml \
+#     --tenant desk --policy policies/deskcalc.yaml --auto-approve-risky \
+#     --goal "Work out a calculation in DeskCalc and record it in the ledger" \
+#     --name deskcalc_record --entry / \
+#     --param first:decimal=12.5 --param second:decimal=4 --param operation:string=Multiply \
+#     --output result:decimal
+goal: Work out a calculation in DeskCalc and record it in the ledger
+steps:
+  - tool: type
+    target: [{strategy: role_name, role: textbox, name: First number}]
+    text: "12.5"
+    reason: The first operand goes in the field labelled First number.
+  - tool: type
+    target: [{strategy: role_name, role: textbox, name: Second number}]
+    text: "4"
+    reason: Then the second operand.
+  - tool: select
+    target: [{strategy: role_name, role: combobox, name: Operation}]
+    text: Multiply
+    reason: The operation is chosen from the Operation list.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Calculate}]
+    reason: Calculate fills the read-only Result field.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Record}]
+    reason: Record appends the calculation to the ledger; this is the step that commits.
+  - tool: done
+    outputs:
+      result:
+        - {strategy: role_name, role: textbox, name: Result}
+    reason: The result was recorded; the Result field still holds it.

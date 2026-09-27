@@ -1,0 +1,36 @@
+{
+  "run_id": "run_01M3HQBMSKE8ADKFAJB4QNGRKN",
+  "kind": "replay",
+  "started_at": "2026-09-27T15:22:24.950Z",
+  "capability": {
+    "id": "cap_01M3GERM83BCXA5VK611C6W1HD",
+    "name": "deskcalc_compute",
+    "version": 1,
+    "approval_state": "approved",
+    "approved_by": "anil",
+    "content_sha256": "95bc24f2cf29b6c6b30a22a8113c9b8fab7e0950349e59d80b052f779c0acd2e",
+    "lifecycle": "approved"
+  },
+  "tenant": {
+    "id": "desk",
+    "app_family": "deskcalc",
+    "base_url": "uia://deskcalc"
+  },
+  "request": {
+    "inputs": {
+      "first": "12.5",
+      "second": "4",
+      "operation": "Divide"
+    },
+    "idempotency_key": null,
+    "approval": null,
+    "budget": {
+      "timeout_s": 120.0,
+      "max_recoveries": 3,
+      "allow_escalation": true
+    },
+    "inject": null
+  },
+  "allow_draft": false,
+  "handoff": null
+}

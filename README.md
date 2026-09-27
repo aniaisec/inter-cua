@@ -35,6 +35,9 @@ playwright install chromium
 cp .env.example .env
 ```
 
+On Windows, `pip install -e ".[dev,windows]"` also installs `comtypes`, which
+the desktop target (DeskCalc, through Windows UI Automation) needs.
+
 `.env` holds everything the system reads from the environment:
 
 | Variable | Needed for | Notes |
@@ -154,9 +157,12 @@ In PowerShell, write `` ` `` instead of `\` at line ends.
 | A workflow's plan and its checks | `cua workflow check open_member_subaccount` | nothing: reads files |
 | Security benchmark: hostile screens, tampered artifacts, replayed consent | `cua security run` (`--offline`: no browser) | Chromium for the live scenarios (it starts its own mock app) |
 | Run a workflow of approved capabilities | `cua workflow run open_member_subaccount --input ... --idempotency-key k --approval open=<token>` | mock app |
+| Discover and replay a desktop application | `cua discover --tenant desk --policy policies/deskcalc.yaml --llm scripted --script scripts/discovery/deskcalc_compute.yaml ...`, `cua replay capabilities/deskcalc_compute.json --tenant desk --policy policies/deskcalc.yaml --input first=12.5 --input second=4 --input operation=Divide` | Windows and the `windows` extra; each run starts its own DeskCalc |
 
-The browser tests start their own mock app on a free port. No test calls a
-model: the discovery tests use the scripted client and recorded fixtures.
+The browser tests start their own mock app on a free port, and the desktop
+tests (`-m desktop`, Windows only, skipped elsewhere) their own DeskCalc. No
+test calls a model: the discovery tests use the scripted client and recorded
+fixtures.
 
 ## CLI
 
@@ -278,6 +284,7 @@ mock app in Chromium; `tests/unit` do not).
 | – | Registry | | versions coexist after a re-record; only the allowed lifecycle moves; a revoked version starts nothing, a cached retry still answers; the catalog agrees with the registry | `unit/test_registry.py` |
 | – | Drift and candidate repair | `renamed_button` | the failure is classified `CONTROL_RENAMED`; a candidate v4 is proposed and evaluated (v3 fails the drift task, v4 answers it, the clean task still passes); nothing in `capabilities/` outside `candidates/` changes and v3 stays the default; approval refused until the evaluation passed on that exact content | `integration/test_drift.py`, `unit/test_drift.py` |
 | – | Workflow composition | | lookup then open with consent for the open only: one commit, typed outputs from both steps; the same key again answered without a browser; an unknown member stops at the lookup with no commit; wiring mistakes, missing or misdirected consent, a revoked step and a missing key refused before any step; a lost answer, an escalated step and a killed commit never repeat a commit | `integration/test_workflow.py`, `unit/test_workflow.py` |
+| – | Desktop target | `renamed_button`, `ambiguous`, `disabled`, `modal` | DeskCalc under Windows UI Automation, through the unchanged runner: `success` with every step on `role_name`; divide by zero is `business_outcome DIVIDE_BY_ZERO`; the four faults stop with the web's codes (`LOCATOR_UNRESOLVED`, `ACTION_FAILED`, the message box answered and reported); Record refused without consent, one token one ledger entry, the same key answered from the cache; a run asking for screenshots refused before DeskCalc starts | `desktop/test_desktop_replay.py`, `desktop/test_windows_surface.py`, `unit/test_windows_surface.py` |
 | – | Security benchmark | `prompt_injection`, `malicious_redirect`, `confirmation_spoof` | 22 attacks across 15 threats blocked: nothing reaches the attacker, no file served, no commit without consent, the canary password in no log, trace or prompt, no other tenant's consent or secret accepted; with the defences off, the same attacks succeed | `security/test_benchmark.py`, `security/test_controls.py` |
 
 ## The mock target app
@@ -333,6 +340,29 @@ could succeed and the recovery tests would prove nothing. Persistent modes
 model states the app is really in, where replay should report rather than
 recover.
 
+## The desktop target app
+
+`deskapp/deskcalc.ps1` is DeskCalc: a WinForms window, run by Windows
+PowerShell, with no clock and no randomness. It has two number fields named
+only by the label beside them, an Operation combo box, a Round to cents
+checkbox, Calculate, a read-only Result, and Record. Record is the commit: it
+appends a line to the ledger file (`DESKCALC_LEDGER`, default
+`%TEMP%\deskcalc-ledger.txt`), which the tests read to judge what happened.
+`-Inject` switches on one fault per launch, as `?inject=` does on the entry
+location:
+
+| Mode | Effect |
+|---|---|
+| `renamed_button` | Calculate is labelled Compute |
+| `ambiguous` | a second Calculate button, in a Legacy group |
+| `disabled` | Calculate is disabled |
+| `slow` | the result appears 2.5 s after Calculate |
+| `modal` | Calculate raises a native message box instead of a result |
+
+Dividing by zero shows "Cannot divide by zero" in a label, which the
+`deskcalc` app family (`capabilities/families/deskcalc.yaml`) turns into the
+business outcome `DIVIDE_BY_ZERO`.
+
 ## How it works
 
 The reasoning behind each choice is in [REPORT.md](REPORT.md). This is the
@@ -340,7 +370,9 @@ map of the code.
 
 ```
 mockapp/            the automation target
+deskapp/            the desktop target: DeskCalc, a WinForms window (PowerShell)
 src/cua/surface/    Surface protocol, a11y perception, locator ladder, conditions, Playwright adapter
+src/cua/surface/windows/  the Windows UI Automation adapter
 src/cua/agent/      discovery loop, prompts, tools, stopping conditions, LLM clients (Claude, Gemini, scripted)
 src/cua/artifact/   capability schema, recorder, store (versioning, content seal), describe
 src/cua/replay/     engine, waits, detectors, recoverers, resume-state search, result contract, runner
@@ -354,7 +386,7 @@ policies/           allowlist, risk rules, masks and scrub patterns
 tenants/            per-deployment binding: base_url, secret refs, overlay
 capabilities/       approved capabilities, the app-family template, the exported JSON Schema
 evidence/           discovery, replay and escalation runs
-tests/              unit | integration (`-m browser` needs Chromium)
+tests/              unit | integration (`-m browser` needs Chromium) | desktop (`-m desktop`, Windows)
 ```
 
 ### Surface
@@ -376,6 +408,15 @@ knows the target is a web page.
   `value_set`, `error_banner_present`, `validation_message_present`, ...) are
   pure functions of an observation, and each documents what it would mean on
   a desktop surface.
+- **Desktop.** `WindowsSurface` drives a Windows application through UI
+  Automation with the same protocol: UIA control types become the same roles,
+  a window becomes the same `Observation` (location
+  `uia://<app>/<window title>`, boxes from the window's corner), and refs are
+  just as observation-scoped. Input is posted, never invoked: a button's
+  `Invoke` does not return while the message box it opened is up, and the
+  surface must be free to answer that box, as the web answers a `confirm`.
+  The tenant says how the application starts (`tenants/desk.yaml`); the
+  capability names only its location.
 - **Compatibility.** A surface publishes a `descriptor`: adapter name,
   contract version and features from a closed vocabulary (`frames`,
   `geometry`, `fixed_viewport`, `forms`, `dialogs`, `screenshots`,

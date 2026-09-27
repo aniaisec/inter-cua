@@ -159,8 +159,12 @@ class ReplayConfig(BaseModel):
     well under a second, so this is an order of magnitude of slack; a slower
     core raises it. A step that exceeds it is a timeout, which a capability may
     recover from by retrying — if, and only if, the step is retryable."""
-    screenshots: bool = True
-    """A masked screenshot of the screen every step landed on."""
+    screenshots: bool | None = None
+    """A masked screenshot of the screen every step landed on. ``True``: always,
+    and a surface that cannot take one is refused before the run starts.
+    ``False``: none (an intervention request still carries the screen).
+    ``None``: whenever the surface can; a run on one that cannot says so in
+    its warnings, and its evidence is the log and the observed trees."""
     trust_low_confidence_rungs: bool = False
     """Act on a control found only by pixels. Off: a ladder that reaches its
     ``bbox`` rung has lost every way of naming the control, and clicking
@@ -291,6 +295,12 @@ class ReplayEngine:
         self.clock = clock if isinstance(clock, PausableClock) else PausableClock(clock)
         self.handoff = handoff
         self.ev = surface.evaluator
+        self.shots = (
+            self.config.screenshots
+            if self.config.screenshots is not None
+            else "screenshots" in surface.descriptor.features
+        )
+        """Whether this run keeps a screenshot of every step (``ReplayConfig``)."""
 
         sensitive = [
             v
@@ -413,6 +423,11 @@ class ReplayEngine:
             screenshots=self.config.screenshots,
         )
         self.log.event("surface.checked", **fits.summary())
+        if self.config.screenshots is None and not self.shots:
+            self.warnings.append(
+                f"{self.surface.descriptor.name} takes no screenshots; this run's evidence is "
+                "its log and the trees it observed"
+            )
         if not fits.ok:
             self._fail(
                 "SURFACE_INCOMPATIBLE",
@@ -1693,7 +1708,7 @@ class ReplayEngine:
     def _snapshot(self, label: str, *, always: bool = False) -> str | None:
         """``always``: taken even on a run configured without screenshots —
         an intervention request is not complete without the screen."""
-        if not self.config.screenshots and not always:
+        if not self.shots and not always:
             return None
         raw = self.surface.observe(screenshot=True, masks=self.masks)
         screen = self.redactor.observation(raw)

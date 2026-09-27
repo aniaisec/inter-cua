@@ -378,3 +378,85 @@ Status: COMPLETE
 
 ### Next
 - Phase 8: Windows UI Automation surface.
+
+## Phase 8 — Windows UI Automation surface
+
+Status: COMPLETE
+
+### Changes
+- `src/cua/surface/windows/`:
+  - `perception`: a UIA snapshot into the existing `Observation`. UIA control types map to the web's roles; the title bar, scroll bars, a combo box's own parts, off-screen items and message boxes are left out; boxes are measured from the window's corner; disabled and checked are `attrs`; a password is never read. Pure, so it is tested on any platform.
+  - `uia`: the COM and Win32 layer (`comtypes`): cached subtree snapshots, windows found by `EnumWindows` per process, and posted input.
+  - `locator`: the live element is re-read before acting and must still be the observed control (`PerceptionDrift` otherwise).
+  - `actions`: click, type, select, press, read.
+  - `conditions`: `DesktopEvaluator`, and what each condition reads on a desktop.
+  - `adapter`: `WindowsSurface`. `Navigate` to the tenant's `uia://<app>` location starts the application fresh. Message boxes are answered and reported as dialogs. Screenshots and `expose` raise.
+- `WINDOWS_UIA` (`windows-uia` v1) is registered for `target.surface: desktop`, on Windows only. Its features are `accessibility_tree`, `geometry`, `fixed_viewport`, `locations`, `forms`, `keyboard` and `dialogs`; the missing ones are documented in `adapters.py`.
+- `deskapp/deskcalc.ps1`: DeskCalc, a deterministic WinForms window. It has unnamed number fields, a combo box, a checkbox, Calculate, a read-only result and Record (the commit, appended to a ledger file). `-Inject` switches on `renamed_button`, `ambiguous`, `disabled`, `slow` or `modal`.
+- Tenant `desktop` binding (`launch`, `inject_flag`) and `tenants/desk.yaml`. The capability names only `uia://deskcalc`; the command that starts the program is tenant configuration.
+- `policies/deskcalc.yaml`: the same policy engine with desktop data. The allowed path is `/DeskCalc` (the window title), and Record is a risky rule.
+- `capabilities/families/deskcalc.yaml`: the business outcomes `DIVIDE_BY_ZERO` and `NOT_A_NUMBER`.
+- Runner: the adapter is picked from `target.surface` (`surface_for`). The browser's egress guard, trace and handoff apply only to a browser surface. `cua replay` no longer hard-wires a browser.
+- `cua discover` drives a desktop tenant through `WindowsSurface`. It keeps no screenshots (and says so) and refuses `--handoff`.
+- `ReplayConfig.screenshots` defaults to `None`: screenshots are taken wherever the surface can take them. `True` insists on them (a surface without them is refused), and `--no-screenshots` is `False`. A run on a surface without them says so in `warnings`. Before this, the default `True` made the catalog and `cua describe` report a desktop capability as not runnable.
+- Discovery gained a `select` tool; the recorder and replay already had `select` steps.
+- `requirements`: `egress_control` is a run requirement of web targets only.
+- `ladder_for(for_value=True)` keeps a `role_name` rung when the node's value is held apart from its name (a desktop edit box named "Result"). Web cells, whose name is the value, are unchanged.
+- `scripts/discovery/deskcalc_{compute,record}.yaml`, `evidence/discovery-deskcalc-{compute,record}/`, `capabilities/deskcalc_{compute,record}.json` (approved by the user), and `evidence/replay-desktop-{success,commit}/`.
+- `pyproject.toml`: a `windows` extra (`comtypes`, Windows only), a mypy override for comtypes, and the `desktop` test marker.
+
+### Decisions
+- **No second model of the screen.** A desktop control is a `Node`, so the ladder, the conditions, the recorder, drift classification and the replay engine run on it unchanged. That is the acceptance line: the same capability, runtime, policy and replay path.
+- **Input is posted, never invoked.** Measured: `InvokePattern.Invoke` on a button whose handler opens a message box does not return until the box is closed, so the surface could not answer it. Buttons get `BM_CLICK` and keys `WM_KEYDOWN`/`WM_KEYUP`; both return at once.
+- **A WinForms combo box has no ExpandCollapse or SelectionItem pattern** (measured). An option is selected with `CB_FINDSTRINGEXACT` and `CB_SETCURSEL`, and `CBN_SELCHANGE` tells the owner, so the application's own handler runs.
+- **Windows are found by process id through `EnumWindows`**, never by a UIA search from the desktop root. That search asks every window on the machine and hung on one (measured).
+- **Message boxes (`#32770`) are the desktop's native dialogs.** They are answered at once (as declared, else dismissed), reported on the action and on the next observation, and never shown as screen content: the web adapter's `confirm` rule.
+- **What the surface cannot do, it does not claim.**
+  - Screenshots: a mask cannot yet be painted in before capture, and a screenshot cleaned afterwards has already held the secret.
+  - Handoff and egress control: not available on this surface.
+  - So a desktop replay keeps no screenshots and says so in its warnings. A run that insists on screenshots is refused (`SURFACE_INCOMPATIBLE`) before DeskCalc starts.
+- **`fixed_viewport` is claimed** because boxes are window-relative and the viewport is the window's size. `resolve_ladder` still refuses a pixel rung when the size or the scale differs, and pixels are never acted on unattended.
+- Found while building: a risky rule's `location` is searched in the whole location URL, not its path. `^/DeskCalc$` therefore never matched, and Record was recorded as `safe`. Caught by reading the recorded capability; the rule is now `/DeskCalc$`, like the web's `/review/`.
+
+### Tests
+- `tests/unit/test_windows_surface.py` (any platform):
+  - perception: roles, what is left out, window-relative boxes, parents, ordinals, state, passwords;
+  - the ladder on a desktop observation;
+  - the settle signature;
+  - the live-element check;
+  - the desk tenant binding;
+  - the desktop capabilities need only what `windows-uia` has, and web runs still need egress control;
+  - the `select` tool.
+- `tests/desktop/` (`-m desktop`; Windows with the `windows` extra; skipped elsewhere):
+  - `test_windows_surface.py`: the protocol on DeskCalc; observation-scoped refs; a disabled control, a missing option and a read-only field are `ActionFailed`; a message box answered and reported, and accepted when declared; screenshots, `expose` and a foreign location refused; closing stops the application.
+  - `test_desktop_replay.py`: through `cua.replay.runner.replay`:
+    - `success` on `role_name` rungs only;
+    - `DIVIDE_BY_ZERO`;
+    - `renamed_button`, `ambiguous`, `disabled` and `modal` stop with `side_effect: none`;
+    - Record: refused without consent (empty ledger), then one token gives one ledger line, the same key is answered from the cache, and the spent token is refused;
+    - a run asking for screenshots is refused before start.
+- Updated: the catalog and replay tests that assumed no desktop adapter exists (on Windows the web capability retargeted to desktop is now refused for `frames`). The drift evidence scan is scoped to the web app family, since local desktop runs drift in their own ways and are classified correctly.
+
+### Results
+- Gate: ruff, `ruff format --check` and `mypy --strict` are clean. 682 tests pass (652 before this phase; 14 of the new ones drive DeskCalc live) in about 13 minutes.
+- Scripted discovery of `deskcalc_compute` reached `done` with 12.5 / 4 = 3.125 in 9 s. `cua record` wrote a schema 1.2 capability, `surface: desktop`, with every step and the output on a `role_name` rung.
+- Replay of `deskcalc_compute`: `success` with `result` 3.125, no model and no browser, and a warning that windows-uia takes no screenshots.
+  - `renamed_button` → `LOCATOR_UNRESOLVED`; `ambiguous` → `LOCATOR_UNRESOLVED` (2 matches); `disabled` → `ACTION_FAILED`; `modal` → `ACTION_FAILED`, the message box answered and reported.
+  - Divide by zero → `business_outcome DIVIDE_BY_ZERO`; `second=abc` → `INPUT_INVALID` before DeskCalc starts.
+  - `drift scan` classifies the ambiguous run `CONTROL_AMBIGUOUS`, the same as the web.
+- `deskcalc_record` without a token → `POLICY_BLOCKED` / `NEEDS_APPROVAL` and an empty ledger. With a token → `committed` and one ledger line. The same key again is served from the cache; the spent token is refused.
+- `cua surfaces` lists `windows-uia` v1 and both desktop capabilities (`needs (declared)`, `runs here`).
+
+### Known issues
+- No screenshots and no handoff on a desktop target.
+- DeskCalc's recorded Calculate step has no wait, since the window's location does not change. With `slow`, the output is read before it exists: a safe `EXTRACTION_FAILED`, not a wait.
+- Posted input reaches Win32 common controls (every WinForms control, and the classic dialogs). A UI toolkit with no window handles (WPF, UWP, Electron) would fall back to `Invoke`, which blocks while a modal is open.
+- DPI: boxes are in physical pixels, and `recording_env.dpr` is recorded as 1.0. A recording at another scale refuses its pixel rungs, and nothing else depends on scale.
+- The desk tenant starts Windows PowerShell; a cold start takes about a second.
+- The target window takes the foreground when it starts, so a person typing somewhere else at that moment types into it. Seen once while making the evidence: the first field read `imp12.5`. The step's `value_set` check turned it into a safe `TIMEOUT` with `side_effect: none`, not a wrong answer. Starting the application without activating it, or on a separate desktop, would remove the hazard.
+
+### Commit
+- `feat: add Windows UI Automation surface`.
+
+### Next
+- Phase 9: vision as a controlled fallback.

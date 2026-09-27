@@ -272,14 +272,17 @@ def ladder_for(
     is the value, which differs on every visit, so it cannot name the node:
     a ``role_name`` rung for "$1,411.21" finds nothing for the next member. A
     value is named by where it sits instead — its row and column, or the label
-    to its left.
+    to its left. A control whose value is held apart from its name (a desktop
+    edit box named "Result" and holding "3.125") is the exception: its name is
+    a label, not the value, and names it as well as for any control.
 
     Rungs are scoped to the node's frame, so a control in the main pane cannot
     later be confused with a namesake in the nav pane.
     """
     within = Within(frame=node.frame)
     candidates: Ladder = []
-    if node.name and not for_value:
+    name_is_label = bool(node.value) and node.name != node.value
+    if node.name and (not for_value or name_is_label):
         candidates.append(RoleName(role=node.role, name=node.name, within=within))
     if node.near_text:
         candidates.append(NearText(text=node.near_text, role=node.role, within=within))

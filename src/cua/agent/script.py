@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from cua.surface.locators import Ladder
 
-ScriptTool = Literal["click", "type", "press", "read", "done", "stuck"]
+ScriptTool = Literal["click", "type", "select", "press", "read", "done", "stuck"]
 
 
 class ScriptStep(BaseModel):

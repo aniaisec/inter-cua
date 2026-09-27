@@ -1,0 +1,325 @@
+{
+  "schema_version": "1.2",
+  "id": "cap_01M3GERM83BCXA5VK611C6W1HD",
+  "name": "deskcalc_compute",
+  "version": 1,
+  "approval_state": "approved",
+  "approved_by": "anil",
+  "approved_at": "2026-09-27T15:19:20Z",
+  "content_sha256": "95bc24f2cf29b6c6b30a22a8113c9b8fab7e0950349e59d80b052f779c0acd2e",
+  "description": "Work out a calculation in DeskCalc and return the result",
+  "target": {
+    "app_family": "deskcalc",
+    "vendor": "DeskCalc",
+    "version_hint": "1.0",
+    "surface": "desktop",
+    "entry": {
+      "kind": "location",
+      "pattern": "{tenant.base_url}/"
+    }
+  },
+  "contract": {
+    "side_effects": "none",
+    "idempotent": true,
+    "may_escalate": false,
+    "preconditions": {
+      "session": "fresh"
+    },
+    "outcomes": {
+      "DIVIDE_BY_ZERO": {
+        "payload": {}
+      },
+      "NOT_A_NUMBER": {
+        "payload": {}
+      }
+    }
+  },
+  "credentials": {},
+  "inputs": {
+    "first": {
+      "type": "decimal",
+      "required": true,
+      "sensitive": false,
+      "description": ""
+    },
+    "second": {
+      "type": "decimal",
+      "required": true,
+      "sensitive": false,
+      "description": ""
+    },
+    "operation": {
+      "type": "string",
+      "required": true,
+      "sensitive": false,
+      "description": ""
+    }
+  },
+  "outputs": {
+    "result": {
+      "type": "decimal",
+      "optional": false,
+      "description": "",
+      "extract": {
+        "target": [
+          {
+            "strategy": "role_name",
+            "role": "textbox",
+            "name": "Result",
+            "exact": true,
+            "within": {
+              "frame": ""
+            }
+          },
+          {
+            "strategy": "bbox",
+            "x": 158.0,
+            "y": 251.0,
+            "w": 160.0,
+            "h": 20.0,
+            "role": "textbox",
+            "confidence": "low",
+            "within": {
+              "frame": ""
+            }
+          }
+        ],
+        "parse": "decimal"
+      }
+    }
+  },
+  "recording_env": {
+    "viewport": {
+      "w": 476,
+      "h": 469
+    },
+    "dpr": 1.0
+  },
+  "steps": [
+    {
+      "id": "deskcalc.first",
+      "action": "type",
+      "target": [
+        {
+          "strategy": "role_name",
+          "role": "textbox",
+          "name": "First number",
+          "exact": true,
+          "within": {
+            "frame": ""
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 158.0,
+          "y": 71.0,
+          "w": 160.0,
+          "h": 20.0,
+          "role": "textbox",
+          "confidence": "low",
+          "within": {
+            "frame": ""
+          }
+        }
+      ],
+      "value": "${first}",
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "value_set",
+        "target": "self",
+        "value": "${first}"
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate"
+    },
+    {
+      "id": "deskcalc.second",
+      "action": "type",
+      "target": [
+        {
+          "strategy": "role_name",
+          "role": "textbox",
+          "name": "Second number",
+          "exact": true,
+          "within": {
+            "frame": ""
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 158.0,
+          "y": 106.0,
+          "w": 160.0,
+          "h": 20.0,
+          "role": "textbox",
+          "confidence": "low",
+          "within": {
+            "frame": ""
+          }
+        }
+      ],
+      "value": "${second}",
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "value_set",
+        "target": "self",
+        "value": "${second}"
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate"
+    },
+    {
+      "id": "deskcalc.operation",
+      "action": "select",
+      "target": [
+        {
+          "strategy": "role_name",
+          "role": "combobox",
+          "name": "Operation",
+          "exact": true,
+          "within": {
+            "frame": ""
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 158.0,
+          "y": 141.0,
+          "w": 160.0,
+          "h": 21.0,
+          "role": "combobox",
+          "confidence": "low",
+          "within": {
+            "frame": ""
+          }
+        }
+      ],
+      "value": "${operation}",
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "expect_after": {
+        "kind": "value_set",
+        "target": "self",
+        "value": "${operation}"
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate"
+    },
+    {
+      "id": "deskcalc.submit",
+      "action": "click",
+      "target": [
+        {
+          "strategy": "role_name",
+          "role": "button",
+          "name": "Calculate",
+          "exact": true,
+          "within": {
+            "frame": ""
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 158.0,
+          "y": 206.0,
+          "w": 100.0,
+          "h": 28.0,
+          "role": "button",
+          "confidence": "low",
+          "within": {
+            "frame": ""
+          }
+        }
+      ],
+      "wait_before": {
+        "kind": "visible",
+        "target": "self"
+      },
+      "risk": "safe",
+      "approval": "none",
+      "retry": {
+        "allowed": true
+      },
+      "on_fail": "escalate"
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "cp.done",
+      "after_step": "done",
+      "all_of": [
+        {
+          "kind": "output_extracted",
+          "name": "result"
+        }
+      ]
+    }
+  ],
+  "outcome_detectors": [
+    {
+      "code": "DIVIDE_BY_ZERO",
+      "class": "business",
+      "match": {
+        "kind": "text_present",
+        "text": "Cannot divide by zero"
+      }
+    },
+    {
+      "code": "NOT_A_NUMBER",
+      "class": "business",
+      "match": {
+        "kind": "text_present",
+        "text": "is not a number"
+      }
+    }
+  ],
+  "recovery_limits": {
+    "per_step": 1,
+    "per_run": 3
+  },
+  "recoverers": {},
+  "redaction": {
+    "screenshot_masks": []
+  },
+  "surface_requirements": [
+    "accessibility_tree",
+    "geometry",
+    "fixed_viewport",
+    "locations",
+    "forms"
+  ],
+  "provenance": {
+    "discovery_run_id": "run_01M3GEPAR03J24DC504JYQ35PE",
+    "provider": "scripted",
+    "model": "scripted",
+    "transcript_sha256": "95ee3c8a8b59a831806cd8bed83e79507cfa34fd0d7120398e5a7354db3544dc",
+    "recorded_at": "2026-09-27T03:31:51.975Z",
+    "locator_rungs_used": {
+      "deskcalc.first": "role_name",
+      "deskcalc.second": "role_name",
+      "deskcalc.operation": "role_name",
+      "deskcalc.submit": "role_name",
+      "outputs.result": "role_name"
+    }
+  }
+}

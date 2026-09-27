@@ -53,14 +53,41 @@ class SecretBinding(BaseModel):
         return f"${self.var}" if self.provider == "env" else f"file {self.path}"
 
 
+class DesktopApp(BaseModel):
+    """How this tenant's desktop application is started.
+
+    Tenant configuration, like ``base_url``: a capability names an application
+    family and a ``uia://`` location, never a command, so a reviewed artifact
+    cannot be made to start an arbitrary program. Paths are relative to the
+    working directory."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    launch: list[str] = Field(min_length=1)
+    inject_flag: str | None = None
+    """How a test deployment is told which fault to inject (``?inject=x`` on
+    the entry location). None: this deployment takes no injections."""
+
+
 class Tenant(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     id: str
     app_family: str
     base_url: str
+    """``http(s)://`` for a web deployment; ``uia://<app>`` for a desktop one,
+    which also needs ``desktop``."""
     secrets: dict[str, SecretBinding] = Field(default_factory=dict)
     overlay: str | None = None
+    desktop: DesktopApp | None = None
+
+    @model_validator(mode="after")
+    def _desktop_bound(self) -> Tenant:
+        if self.base_url.startswith("uia://") and self.desktop is None:
+            raise ValueError("a uia:// tenant says how its application starts (desktop.launch)")
+        if self.desktop is not None and not self.base_url.startswith("uia://"):
+            raise ValueError("a desktop tenant's base_url is its uia://<app> location")
+        return self
 
     def url(self, path: str) -> str:
         """An absolute URL on this tenant's deployment."""

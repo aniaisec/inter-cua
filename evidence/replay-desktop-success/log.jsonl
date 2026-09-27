@@ -1,0 +1,23 @@
+{"seq": 1, "ts": "2026-09-27T15:22:24.961Z", "event": "run.start", "capability": "deskcalc_compute", "capability_id": "cap_01M3GERM83BCXA5VK611C6W1HD", "version": 1, "content_sha256": "95bc24f2cf29b6c6b30a22a8113c9b8fab7e0950349e59d80b052f779c0acd2e", "approval_state": "approved", "tenant": "desk", "entry": "uia://deskcalc/"}
+{"seq": 2, "ts": "2026-09-27T15:22:24.962Z", "event": "surface.checked", "adapter": {"name": "windows-uia", "version": "1", "targets": ["desktop"], "features": ["accessibility_tree", "geometry", "fixed_viewport", "locations", "forms", "keyboard", "dialogs"]}, "requires": ["accessibility_tree", "geometry", "fixed_viewport", "locations", "forms"], "requires_source": "declared", "run_requires": [], "missing": []}
+{"seq": 3, "ts": "2026-09-27T15:22:24.967Z", "event": "navigate", "url": "uia://deskcalc/"}
+{"seq": 4, "ts": "2026-09-27T15:22:26.173Z", "event": "step.start", "step": "deskcalc.first", "action": "type", "mode": "run"}
+{"seq": 5, "ts": "2026-09-27T15:22:26.266Z", "event": "locator.resolved", "target": "deskcalc.first", "rung": "role_name", "recorded": "role_name", "attempts": [{"rung": "role_name", "matches": 1, "refs": ["n6"], "refused": null}]}
+{"seq": 6, "ts": "2026-09-27T15:22:26.477Z", "event": "action.done", "step": "deskcalc.first", "action": "type", "ms": 207, "dialogs": []}
+{"seq": 7, "ts": "2026-09-27T15:22:26.911Z", "event": "step.passed", "step": "deskcalc.first"}
+{"seq": 8, "ts": "2026-09-27T15:22:26.914Z", "event": "step.start", "step": "deskcalc.second", "action": "type", "mode": "run"}
+{"seq": 9, "ts": "2026-09-27T15:22:27.059Z", "event": "locator.resolved", "target": "deskcalc.second", "rung": "role_name", "recorded": "role_name", "attempts": [{"rung": "role_name", "matches": 1, "refs": ["n48"], "refused": null}]}
+{"seq": 10, "ts": "2026-09-27T15:22:27.283Z", "event": "action.done", "step": "deskcalc.second", "action": "type", "ms": 220, "dialogs": []}
+{"seq": 11, "ts": "2026-09-27T15:22:27.693Z", "event": "step.passed", "step": "deskcalc.second"}
+{"seq": 12, "ts": "2026-09-27T15:22:27.697Z", "event": "step.start", "step": "deskcalc.operation", "action": "select", "mode": "run"}
+{"seq": 13, "ts": "2026-09-27T15:22:27.784Z", "event": "locator.resolved", "target": "deskcalc.operation", "rung": "role_name", "recorded": "role_name", "attempts": [{"rung": "role_name", "matches": 1, "refs": ["n90"], "refused": null}]}
+{"seq": 14, "ts": "2026-09-27T15:22:27.995Z", "event": "action.done", "step": "deskcalc.operation", "action": "select", "ms": 206, "dialogs": []}
+{"seq": 15, "ts": "2026-09-27T15:22:28.410Z", "event": "step.passed", "step": "deskcalc.operation"}
+{"seq": 16, "ts": "2026-09-27T15:22:28.415Z", "event": "step.start", "step": "deskcalc.submit", "action": "click", "mode": "run"}
+{"seq": 17, "ts": "2026-09-27T15:22:28.503Z", "event": "locator.resolved", "target": "deskcalc.submit", "rung": "role_name", "recorded": "role_name", "attempts": [{"rung": "role_name", "matches": 1, "refs": ["n132"], "refused": null}]}
+{"seq": 18, "ts": "2026-09-27T15:22:28.714Z", "event": "action.done", "step": "deskcalc.submit", "action": "click", "ms": 206, "dialogs": []}
+{"seq": 19, "ts": "2026-09-27T15:22:29.135Z", "event": "step.passed", "step": "deskcalc.submit"}
+{"seq": 20, "ts": "2026-09-27T15:22:29.222Z", "event": "locator.resolved", "target": "outputs.result", "rung": "role_name", "recorded": "role_name", "attempts": [{"rung": "role_name", "matches": 1, "refs": ["n174"], "refused": null}]}
+{"seq": 21, "ts": "2026-09-27T15:22:29.245Z", "event": "output.extracted", "name": "result", "rung": "role_name"}
+{"seq": 22, "ts": "2026-09-27T15:22:29.253Z", "event": "checkpoint.passed", "checkpoint": "cp.done", "step": "done"}
+{"seq": 23, "ts": "2026-09-27T15:22:29.263Z", "event": "run.end", "kind": "success", "code": null}

@@ -1,0 +1,33 @@
+{
+  "run_id": "run_01M3HQAVQZJES9HXDSQ7X3KQGH",
+  "capability": "deskcalc_record",
+  "capability_version": 1,
+  "idempotency_key": null,
+  "duration_ms": 5610,
+  "locator_rungs_used": {
+    "deskcalc.first": "role_name",
+    "deskcalc.second": "role_name",
+    "deskcalc.operation": "role_name",
+    "deskcalc.submit": "role_name",
+    "deskcalc.record": "role_name",
+    "outputs.result": "role_name"
+  },
+  "recoveries": [],
+  "handoffs": [],
+  "warnings": [
+    "windows-uia takes no screenshots; this run's evidence is its log and the trees it observed"
+  ],
+  "evidence": {
+    "run_dir": "evidence/runs/run_01M3HQAVQZJES9HXDSQ7X3KQGH",
+    "screenshots": [],
+    "trace": null,
+    "intervention": null
+  },
+  "cached": false,
+  "kind": "success",
+  "outputs": {
+    "result": "50.0"
+  },
+  "step_id": "deskcalc.record",
+  "side_effect": "committed"
+}

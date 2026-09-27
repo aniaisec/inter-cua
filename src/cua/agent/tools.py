@@ -36,6 +36,13 @@ class TypeCall(_Call):
     text: str
 
 
+class SelectCall(_Call):
+    tool: Literal["select"] = "select"
+    ref: str
+    text: str
+    """The option's visible text."""
+
+
 class PressCall(_Call):
     tool: Literal["press"] = "press"
     key: str
@@ -58,7 +65,7 @@ class StuckCall(_Call):
 
 
 AgentCall: TypeAlias = Annotated[
-    ClickCall | TypeCall | PressCall | ReadCall | DoneCall | StuckCall,
+    ClickCall | TypeCall | SelectCall | PressCall | ReadCall | DoneCall | StuckCall,
     Field(discriminator="tool"),
 ]
 
@@ -118,6 +125,15 @@ def tool_definitions(outputs: list[OutputSpec]) -> list[ToolSpec]:
                 "Replace the contents of a text field. For a credential, type its placeholder "
                 "(e.g. ${credentials.app_login.password}); the runner substitutes the value."
             ),
+            "parameters": {
+                "type": "object",
+                "properties": {"ref": _REF, "text": {"type": "string"}, "reason": _REASON},
+                "required": ["ref", "text", "reason"],
+            },
+        },
+        {
+            "name": "select",
+            "description": "Choose an option of a combo box or list box, by its visible text.",
             "parameters": {
                 "type": "object",
                 "properties": {"ref": _REF, "text": {"type": "string"}, "reason": _REASON},

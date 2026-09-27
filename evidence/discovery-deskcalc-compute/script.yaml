@@ -1,0 +1,90 @@
+goal: Work out a calculation in DeskCalc and return the result
+steps:
+- tool: type
+  target:
+  - strategy: role_name
+    role: textbox
+    name: First number
+    exact: true
+    within:
+      frame: ''
+  - strategy: bbox
+    x: 158.0
+    y: 71.0
+    w: 160.0
+    h: 20.0
+    role: textbox
+    confidence: low
+    within:
+      frame: ''
+  text: '12.5'
+  reason: The first operand goes in the field labelled First number.
+- tool: type
+  target:
+  - strategy: role_name
+    role: textbox
+    name: Second number
+    exact: true
+    within:
+      frame: ''
+  - strategy: bbox
+    x: 158.0
+    y: 106.0
+    w: 160.0
+    h: 20.0
+    role: textbox
+    confidence: low
+    within:
+      frame: ''
+  text: '4'
+  reason: Then the second operand.
+- tool: select
+  target:
+  - strategy: role_name
+    role: combobox
+    name: Operation
+    exact: true
+    within:
+      frame: ''
+  - strategy: bbox
+    x: 158.0
+    y: 141.0
+    w: 160.0
+    h: 21.0
+    role: combobox
+    confidence: low
+    within:
+      frame: ''
+  text: Divide
+  reason: The operation is chosen from the Operation list.
+- tool: click
+  target:
+  - strategy: role_name
+    role: button
+    name: Calculate
+    exact: true
+    within:
+      frame: ''
+  - strategy: bbox
+    x: 158.0
+    y: 206.0
+    w: 100.0
+    h: 28.0
+    role: button
+    confidence: low
+    within:
+      frame: ''
+  reason: Calculate fills the read-only Result field.
+- tool: done
+  outputs:
+    result:
+    - strategy: bbox
+      x: 158.0
+      y: 251.0
+      w: 160.0
+      h: 20.0
+      role: textbox
+      confidence: low
+      within:
+        frame: ''
+  reason: The Result field holds the answer.

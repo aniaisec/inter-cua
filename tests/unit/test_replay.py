@@ -278,7 +278,9 @@ def test_a_surface_this_build_cannot_drive_is_refused_before_a_browser(tmp_path:
     )
     assert isinstance(result, Failure)
     assert (result.code, result.side_effect) == ("SURFACE_INCOMPATIBLE", "none")
-    assert "desktop" in result.message
+    # Windows has a desktop adapter, but not the frames this web capability uses.
+    why = "windows-uia v1 surface does not have: frames" if sys.platform == "win32" else "desktop"
+    assert why in result.message
     assert not (tmp_path / "runs").exists()
 
 

@@ -1,0 +1,60 @@
+{
+  "kind": "done",
+  "reason": null,
+  "message": "The result was recorded; the Result field still holds it.",
+  "outputs": {
+    "result": {
+      "name": "result",
+      "type": "decimal",
+      "ref": "n114",
+      "value": "50.0",
+      "normalized": "50.0",
+      "node": {
+        "ref": "n114",
+        "role": "textbox",
+        "name": "Result",
+        "value": "50.0",
+        "frame": "",
+        "bbox": {
+          "x": 158.0,
+          "y": 251.0,
+          "w": 160.0,
+          "h": 20.0
+        },
+        "near_text": null,
+        "parent": "n101",
+        "ordinal": 2,
+        "attrs": {}
+      },
+      "ladder": [
+        {
+          "strategy": "role_name",
+          "role": "textbox",
+          "name": "Result",
+          "exact": true,
+          "within": {
+            "frame": ""
+          }
+        },
+        {
+          "strategy": "bbox",
+          "x": 158.0,
+          "y": 251.0,
+          "w": 160.0,
+          "h": 20.0,
+          "role": "textbox",
+          "confidence": "low",
+          "within": {
+            "frame": ""
+          }
+        }
+      ]
+    }
+  },
+  "steps": 6,
+  "run_id": "run_01M3GEXQCYBK1ZBCBPX04K9G4T",
+  "run_dir": "evidence/runs/run_01M3GEXQCYBK1ZBCBPX04K9G4T",
+  "duration_ms": 9379,
+  "handoffs": [],
+  "human_assisted": false
+}

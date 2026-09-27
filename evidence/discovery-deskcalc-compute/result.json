@@ -1,0 +1,51 @@
+{
+  "kind": "done",
+  "reason": null,
+  "message": "The Result field holds the answer.",
+  "outputs": {
+    "result": {
+      "name": "result",
+      "type": "decimal",
+      "ref": "n94",
+      "value": "3.125",
+      "normalized": "3.125",
+      "node": {
+        "ref": "n94",
+        "role": "textbox",
+        "name": "Result",
+        "value": "3.125",
+        "frame": "",
+        "bbox": {
+          "x": 158.0,
+          "y": 251.0,
+          "w": 160.0,
+          "h": 20.0
+        },
+        "near_text": null,
+        "parent": "n81",
+        "ordinal": 2,
+        "attrs": {}
+      },
+      "ladder": [
+        {
+          "strategy": "bbox",
+          "x": 158.0,
+          "y": 251.0,
+          "w": 160.0,
+          "h": 20.0,
+          "role": "textbox",
+          "confidence": "low",
+          "within": {
+            "frame": ""
+          }
+        }
+      ]
+    }
+  },
+  "steps": 5,
+  "run_id": "run_01M3GEPAR03J24DC504JYQ35PE",
+  "run_dir": "evidence/runs/run_01M3GEPAR03J24DC504JYQ35PE",
+  "duration_ms": 8391,
+  "handoffs": [],
+  "human_assisted": false
+}

@@ -1,0 +1,30 @@
+# App-family template for DeskCalc (deskapp/deskcalc.ps1), the desktop target
+# driven through Windows UI Automation. The recorder merges it into every
+# capability recorded against a "deskcalc" deployment, as legacy-core.yaml
+# does for the web app: the business answers a discovery run does not see on
+# its one happy path.
+#
+# Written in the same condition vocabulary as the web. The one thing this
+# family cannot use is error_banner_present, which reads an HTTP status that
+# does not exist behind a window (the windows-uia surface has no
+# document_status); DeskCalc reports its errors in a label, read as text.
+
+target:
+  vendor: DeskCalc
+  version_hint: "1.0"
+  surface: desktop
+
+outcomes:
+  DIVIDE_BY_ZERO: {payload: {}}
+  NOT_A_NUMBER: {payload: {}}
+
+outcome_detectors:
+  - code: DIVIDE_BY_ZERO
+    class: business
+    match: {kind: text_present, text: Cannot divide by zero}
+
+  - code: NOT_A_NUMBER
+    class: business
+    match: {kind: text_present, text: is not a number}
+
+recovery_limits: {per_step: 1, per_run: 3}

@@ -1,0 +1,19 @@
+# Tenant binding for the desktop target: DeskCalc (deskapp/deskcalc.ps1), a
+# WinForms window driven through Windows UI Automation. Where web tenants say
+# where their app is served, this one says how its app is started; the
+# capability itself only names the uia://deskcalc location.
+id: desk
+app_family: deskcalc
+base_url: uia://deskcalc
+
+desktop:
+  launch: [powershell.exe, -NoProfile, -ExecutionPolicy, Bypass, -File, deskapp/deskcalc.ps1]
+  inject_flag: -Inject
+
+secrets:
+  # Signs approval tokens for DeskCalc's Record step, as for the web tenant.
+  cua/approval-signing-key:
+    provider: file
+    path: .cua/approval-signing.key
+
+overlay: null
