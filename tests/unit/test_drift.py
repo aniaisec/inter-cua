@@ -467,13 +467,13 @@ def test_drift_rates_are_events_per_invocation_by_capability_tenant_and_rung() -
 
 
 def test_every_run_on_record_can_be_scanned() -> None:
-    runs = list(scan([REPO_ROOT / "evidence"], known()))
+    # The committed evidence only: evidence/runs/ is this machine's scratch,
+    # and a run made there today would share the vision runs' id prefix.
+    committed = [p for p in (REPO_ROOT / "evidence").iterdir() if p.is_dir() and p.name != "runs"]
+    runs = list(scan(committed, known()))
     assert runs and all(r.capability for r in runs)
     # The web evidence drifts by a renamed button, and in the vision runs by a
     # control hidden from the tree (found by its picture, or drawn twice).
-    # Desktop runs, when a machine has them under evidence/runs/, drift in
-    # their own ways (DeskCalc's ambiguous and renamed buttons) and are
-    # classified alike.
     kinds = {e.kind for r in runs if r.app_family == "legacy-core" for e in r.events}
     assert kinds == {"CONTROL_RENAMED", "CONTROL_UNLABELED", "CONTROL_AMBIGUOUS"}
     by_run = {

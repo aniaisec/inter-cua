@@ -1,0 +1,30 @@
+# Who may call the capability runtime over HTTP (`cua serve`), for which
+# tenants, and what for. Keys are bound like tenant secrets: to a file or an
+# environment variable, never written here. A file-bound key that does not
+# exist yet is created (random, 32 bytes) when the server starts; the local one
+# lives under the gitignored .cua/.
+#
+# scopes: read (list capabilities, read runs), invoke (start runs), approve
+# (carry a signed approval token into a run), operate (resume and abort
+# escalated runs). capabilities: the names a client may see and run; "*" for all.
+
+tenants:
+  local:
+    policy: policies/default.yaml
+  desk:
+    policy: policies/deskcalc.yaml
+
+clients:
+  # The local agent: everything, on both local tenants.
+  local-agent:
+    key: {provider: file, path: .cua/api-keys/local-agent.key}
+    tenants: [local, desk]
+    capabilities: ["*"]
+    scopes: [read, invoke, approve, operate]
+  # A read-only caller for one capability: it may look up balances and read
+  # what it started, and nothing that commits. Disabled until its variable is set.
+  balance-reader:
+    key: {provider: env, var: CUA_API_KEY_BALANCE_READER}
+    tenants: [local]
+    capabilities: [member_savings_balance]
+    scopes: [read, invoke]

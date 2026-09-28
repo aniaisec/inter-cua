@@ -27,6 +27,15 @@ Module boundaries do the job services would otherwise do: `replay/` and
 `artifact/` import nothing from `agent/` or any model SDK, and a test imports
 all of replay in a clean interpreter to check that no model client was loaded.
 
+`cua serve` (`src/cua/api/`) puts the same runner behind HTTP, so an agent or
+a service can invoke a capability without starting a process per call. It adds
+no second execution path. A request is authenticated by an API key, names its
+tenant, and is held to the client's scopes and capabilities. It then becomes
+the same `replay()` call the CLI makes, on a worker thread, and the answer
+carries the `ReplayResult` the CLI would print. Consent over HTTP is a signed
+approval token, never a name. Idempotency keys are scoped to the client and
+tenant, so one caller's retry cannot be answered with another's result.
+
 | Decision | Choice | Why |
 |---|---|---|
 | Runtime | Python 3.11, pydantic v2, Playwright, FastAPI; `mypy --strict` | Typed schemas with a JSON Schema export for free. Playwright gives the accessibility tree, screenshots, coordinate clicks and CDP in one API |
@@ -302,6 +311,7 @@ this console.
 | Real operator console | Out of scope in the brief. Lease, CDP, capture and resume search are real; the page is minimal | Co-browsing view, request assignment, operator auth |
 | Remote CDP | Localhost only | Authenticated proxy, or a VNC/WebRTC viewer |
 | Idempotency and request stores | Files | A table keyed by tenant and key; the request queue as the first service |
+| API hosting | `cua serve` binds to localhost, has no TLS of its own, and keeps its run records in files; which runs are executing is known to one process only, so one server serves one runs directory. Keys do not expire | TLS in front; keys from a secret manager with rotation; run records and the executing set in a shared store, for more than one server |
 | Stretch goals | One built: `cua catalog` lists approved capabilities as tool definitions and invokes them by name with typed arguments, including `escalated` → `cua resume` | A `--times N` stability report |
 
 Two choices differ from where I started. A fault that a person could fix

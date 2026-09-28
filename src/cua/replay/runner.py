@@ -47,6 +47,7 @@ import json
 import sys
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import quote, quote_plus
@@ -64,7 +65,7 @@ from cua.escalation.channel import (
 )
 from cua.escalation.controller import ControlStore, OperatorDecision
 from cua.escalation.lease import LeasedSurface
-from cua.escalation.requests import Queue
+from cua.escalation.requests import Queue, QueueEntry
 from cua.evidence import trace
 from cua.evidence.logger import RUNS_DIR, RunLog, utc_now
 from cua.policy import tokens
@@ -174,12 +175,15 @@ def replay(
     environ: dict[str, str] | None = None,
     handoff: HandoffSettings | None = None,
     headed: bool | None = None,
+    run_id: str | None = None,
 ) -> ReplayResult:
     """``handoff``: attach the operator channel (``cua replay --handoff``).
     ``surface``: overrides the adapter ``cap.target.surface`` picks
     (``surface_for``); ``headed`` is passed to a browser it launches.
     Without it, a fault that should go to a person is returned as a
-    ``Failure`` naming the escalation it replaced."""
+    ``Failure`` naming the escalation it replaced.
+    ``run_id``: the id the run directory gets, if one is started; a caller
+    that answers before the run ends (``cua.api``) names the run up front."""
     try:
         loaded = open_capability(path)
     except ArtifactError as exc:
@@ -288,6 +292,7 @@ def replay(
         config=config or ReplayConfig(),
         surface=surface or surface_for(cap, tenant, headed=headed, detached=handoff is not None),
         handoff=handoff,
+        run_id=run_id,
     )
     if cache is not None and invocation.idempotency_key is not None:
         cache.put(invocation.idempotency_key, request, result)
@@ -310,8 +315,9 @@ def _run(
     config: ReplayConfig,
     surface: SurfaceFactory,
     handoff: HandoffSettings | None,
+    run_id: str | None = None,
 ) -> ReplayResult:
-    log = RunLog.create(runs_dir)
+    log = RunLog.create(runs_dir, run_id)
     log.write_json(
         "run.json",
         {
@@ -544,6 +550,106 @@ def resume(
     console: the caller gets a token from whoever may consent, and resumes
     with it. Consent the first run held is never carried over.
     """
+    ready = _prepare_resume(
+        resume_token, runs_dir=runs_dir, inputs=inputs, approval=approval, environ=environ
+    )
+    if isinstance(ready, _Answered):
+        return ready.result
+    entry, run_dir, ctx, cap = ready.entry, ready.run_dir, ready.ctx, ready.cap
+    invocation, grant = ready.invocation, ready.grant
+    control = ControlStore(run_dir)
+    record = control.read()
+
+    if record.state == "PAUSED":
+        record = control.transition(
+            "HUMAN_IN_CONTROL", by=by, expect_request=entry.request_id, note="cua resume"
+        )
+    if record.state == "HUMAN_IN_CONTROL":
+        control.transition(
+            "RESUMING",
+            by=by,
+            expect_request=entry.request_id,
+            decision=OperatorDecision(kind="hand_back", by=by, resume_at=resume_at),
+            note="handed back with cua resume",
+        )
+
+    log = RunLog(run_dir)
+    handoff = ctx.handoff if wait_s is None else ctx.handoff.model_copy(update={"wait_s": wait_s})
+    credentials = _credentials(cap, ctx.tenant, environ)
+    factory = surface or _attached
+    try:
+        result = _execute(
+            cap,
+            log=log,
+            tenant=ctx.tenant,
+            policy=ctx.policy,
+            invocation=invocation,
+            approval=grant,  # given again here, or on the console; never carried over
+            spent=SpentTokens(runs_dir),
+            credentials=credentials,
+            runs_dir=runs_dir,
+            config=ctx.config,
+            surface=lambda: factory(ctx),
+            handoff=handoff,
+            fresh_control=False,
+            drive=lambda engine: engine.resume(ctx.saved),
+            resume_context=lambda engine, live: _next_context(ctx, engine, live),
+        )
+    except SessionGone as exc:
+        result = finalize_without_session(run_dir, ctx, why=str(exc), control=control)
+
+    if ctx.idempotency_key is not None:
+        request = fingerprint(cap.name, cap.version, invocation.inputs)
+        IdempotencyCache(runs_dir).put(ctx.idempotency_key, request, result)
+    return result
+
+
+def check_resume(
+    resume_token: str,
+    *,
+    runs_dir: Path = RUNS_DIR,
+    inputs: dict[str, str] | None = None,
+    approval: ApprovalGrant | None = None,
+    environ: dict[str, str] | None = None,
+) -> ReplayResult | None:
+    """Every check ``resume`` makes before it touches the run, and nothing
+    else. Raises ``InvocationError`` for what ``resume`` would refuse, returns
+    the stored result of a run that has already been answered, or None when
+    ``resume`` would carry the run on.
+
+    A caller that resumes in the background (``cua.api``) asks this first, so
+    that a refused token is the answer to the request that brought it rather
+    than a note found later. ``resume`` checks it all again: the run may
+    change hands in between."""
+    ready = _prepare_resume(
+        resume_token, runs_dir=runs_dir, inputs=inputs, approval=approval, environ=environ
+    )
+    return ready.result if isinstance(ready, _Answered) else None
+
+
+@dataclass(frozen=True)
+class _Answered:
+    result: ReplayResult
+
+
+@dataclass(frozen=True)
+class _Ready:
+    entry: QueueEntry
+    run_dir: Path
+    ctx: ResumeContext
+    cap: Capability
+    invocation: Invocation
+    grant: Approval | None
+
+
+def _prepare_resume(
+    resume_token: str,
+    *,
+    runs_dir: Path,
+    inputs: dict[str, str] | None,
+    approval: ApprovalGrant | None,
+    environ: dict[str, str] | None,
+) -> _Answered | _Ready:
     queue = Queue(runs_dir)
     entry = queue.by_token(resume_token)
     if entry is None:
@@ -556,13 +662,12 @@ def resume(
     except (OSError, ValueError) as exc:
         raise InvocationError(f"{run_dir.as_posix()} cannot be resumed: {exc}") from None
 
-    control = ControlStore(run_dir)
-    record = control.read()
+    record = ControlStore(run_dir).read()
     stored = _stored_result(run_dir)
     if record.ended is not None and record.ended != "escalated" and stored is not None:
-        return stored.model_copy(update={"cached": True})
+        return _Answered(stored.model_copy(update={"cached": True}))
     if record.request_id != entry.request_id and stored is not None:
-        return stored.model_copy(update={"cached": True})  # asked again since: that answer
+        return _Answered(stored.model_copy(update={"cached": True}))  # asked again since
     if waiter_alive(run_dir):
         raise InvocationError(
             "the run's own process is still waiting on this request; hand back on the "
@@ -616,49 +721,7 @@ def resume(
                 f"approval refused: this token was already used by {used_by}; one consent "
                 "covers one commit"
             )
-
-    if record.state == "PAUSED":
-        record = control.transition(
-            "HUMAN_IN_CONTROL", by=by, expect_request=entry.request_id, note="cua resume"
-        )
-    if record.state == "HUMAN_IN_CONTROL":
-        control.transition(
-            "RESUMING",
-            by=by,
-            expect_request=entry.request_id,
-            decision=OperatorDecision(kind="hand_back", by=by, resume_at=resume_at),
-            note="handed back with cua resume",
-        )
-
-    log = RunLog(run_dir)
-    handoff = ctx.handoff if wait_s is None else ctx.handoff.model_copy(update={"wait_s": wait_s})
-    credentials = _credentials(cap, ctx.tenant, environ)
-    factory = surface or _attached
-    try:
-        result = _execute(
-            cap,
-            log=log,
-            tenant=ctx.tenant,
-            policy=ctx.policy,
-            invocation=invocation,
-            approval=grant,  # given again here, or on the console; never carried over
-            spent=SpentTokens(runs_dir),
-            credentials=credentials,
-            runs_dir=runs_dir,
-            config=ctx.config,
-            surface=lambda: factory(ctx),
-            handoff=handoff,
-            fresh_control=False,
-            drive=lambda engine: engine.resume(ctx.saved),
-            resume_context=lambda engine, live: _next_context(ctx, engine, live),
-        )
-    except SessionGone as exc:
-        result = finalize_without_session(run_dir, ctx, why=str(exc), control=control)
-
-    if ctx.idempotency_key is not None:
-        request = fingerprint(cap.name, cap.version, values)
-        IdempotencyCache(runs_dir).put(ctx.idempotency_key, request, result)
-    return result
+    return _Ready(entry, run_dir, ctx, cap, invocation, grant)
 
 
 class SessionGone(Exception):

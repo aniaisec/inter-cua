@@ -31,10 +31,13 @@ password turned up.
 2. **The model is an untrusted decision-maker.** It proposes one action at a
    time. Every proposal goes through the same deterministic checks, and the
    model never holds a secret, a token or a tool that navigates.
-3. **Callers are trusted to ask, not to commit.** Invoking a capability
-   needs no credential. Committing needs consent: an approval token bound to
-   one capability version and content, one tenant, the exact inputs, one
-   person, one commit and a short lifetime.
+3. **Callers are trusted to ask, not to commit.** On the command line,
+   invoking a capability needs no credential: whoever runs `cua` already has
+   the files. Over HTTP (`cua serve`) a caller is authenticated by an API key
+   and held to the tenants, capabilities and scopes its entry in
+   `api/access.yaml` grants. Either way, committing needs consent: an approval
+   token bound to one capability version and content, one tenant, the exact
+   inputs, one person, one commit and a short lifetime.
 4. **Capability files are trusted only through review.** A file's own
    `approval_state` and seal are bookkeeping. Replay runs a capability only
    if the registry ledger records the approval of exactly its content.
@@ -57,6 +60,7 @@ password turned up.
 | Masks and scrubbing: password fields painted out by the screenshot call; secrets, sensitive fields and personal-data shapes scrubbed from every tree, log and trace | `cua.policy.redaction`, `cua.surface` | secrets in screenshots, logs, traces, and the model's prompt |
 | Approval gate and ledger: a draft never runs unattended; an "approved" file runs only if the ledger records its approval of that content | `cua.replay.runner`, `Registry.approval_on_record` | tampered or forged artifacts |
 | Signed, bound, single-use approval tokens | `cua.policy.tokens` | replayed consent, consent for other inputs, another capability, another person or another tenant |
+| API gate: a bearer key per client, compared in constant time; the tenant named on every request and checked against the client's; scopes and a capability list per client; a request id on every POST; idempotency keys scoped to client and tenant; runs visible only to the client and tenant that started them | `cua.api.access`, `cua.api.service` | an unknown caller; a client reaching another tenant, a capability or an action it was not granted; one client's retry answered with another's result |
 | Tenant scoping of secrets and app families | `cua.secrets.resolver`, `cua.replay.runner` | cross-tenant invocation |
 | Checkpoints and typed results: success only after the run's own steps and checkpoints held | `cua.replay.engine` | spoofed confirmation screens |
 | Control lease and request ids | `cua.escalation` | the automation acting over a person; a stale answer taking a session |
@@ -99,6 +103,12 @@ attacks are real: the controls are what stop them.
   Both are committed files, so the control is code review of the diff. An
   approval signed with a key outside the repository would close this. It is
   not built.
+- **The HTTP API has no TLS of its own.** `cua serve` binds to localhost
+  by default and warns when told to listen elsewhere. API keys and approval
+  tokens are bearer secrets, so anything beyond localhost needs TLS in front
+  of it. Keys do not expire: rotating one means replacing its file or
+  variable and restarting the server. The operator console (`cua operator`)
+  is still unauthenticated and localhost-only, as it was.
 - **Attacks inside the allowed origin and paths.** If the application itself
   serves attacker-controlled script, it can send data back to its own origin
   (stored XSS, for example). A GET inside an allowed path that commits is

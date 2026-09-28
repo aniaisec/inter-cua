@@ -543,3 +543,91 @@ Status: COMPLETE
 
 ### Next
 - Phase 10: API layer.
+
+## Phase 10 — API layer
+
+Status: COMPLETE
+
+### Changes
+- `src/cua/api/`:
+  - `access`: `api/access.yaml`, which lists the tenants served (tenant file, policy) and the clients. Each client has a key binding, tenants, capabilities and scopes (`read`, `invoke`, `approve`, `operate`). Keys are compared in constant time. A client whose key cannot be read, or is shorter than 32 characters, is disabled. File-bound keys are created on first start.
+  - `models`: `RunRequest`, `ApproveRequest`, `ResumeRequest`, `AbortRequest`, `ApiRun` (states `running`, `escalated`, `finished`, `error`, `lost`), and `ApiError`.
+  - `service`: `RunService` runs invocations on a worker pool through `cua.replay.runner`, writes run records and the idempotency index under `<runs>/.api/`, and re-reads a run's directory for anything that happened elsewhere.
+  - `app`: the FastAPI app. It adds a request id to every answer, requires one on every POST, logs every request to `<runs>/.api/requests.jsonl`, uses one error shape, and parses bodies with exact decimals.
+  - `routes/`: `health`, `capabilities`, `runs`, `approvals`.
+  - `cli`: `cua serve`.
+- Endpoints: `GET /health`; `GET /capabilities`, `/capabilities/{name}`, `/capabilities/{name}/versions`; `POST /runs`; `GET /runs/{id}`, `/runs/{id}/events`; `POST /runs/{id}/approve`, `/resume`, `/abort`. `?wait=S` (up to 300 s) holds an answer until the run stands still.
+- `cua.replay.runner`:
+  - `replay(run_id=...)` names the run directory up front.
+  - `check_resume` holds every check `resume` makes before it touches the run. `resume` now calls the same code (`_prepare_resume`).
+- `api/access.yaml`: `local-agent` (file key under `.cua/api-keys/`, every scope, both tenants) and `balance-reader` (env key, read and invoke, `member_savings_balance` only).
+- README (a section and a CLI row), REPORT, the threat model (trust boundary 3, the API gate control, the no-TLS residual risk), `.env.example`.
+
+### Decisions
+- **One execution path.** A request becomes the same `replay()` call as `cua catalog invoke`, with typed arguments checked by `catalog.coerce` and the result dumped by `to_json`, so the fields come in the CLI's order. The API adds identity and bookkeeping, not behaviour.
+- **Asynchronous by default.** A run gets its id at once, and its run directory takes that id. A handoff run is started with `wait_s=0`: it comes back `escalated` at once with the browser left up, and `approve`, `resume` and `abort` act on it later. No worker waits on a person.
+- **The tenant is named, never inferred.** `X-Cua-Tenant` is on every request and checked against the client's list.
+- **Consent over HTTP is a signed token.** `approve` takes a `cua approval-token` token, never a name: the console's name-only Approve relies on a person at a localhost page, and an HTTP caller is not one. Carrying a token (on a new run or on `approve`) needs the `approve` scope. The token is the consent; the scope is the permission to deliver it.
+- **A refused token is the answer to the request.** `check_resume` runs synchronously, so a bad token is `403`, the run stays `escalated`, and the reason is on the record. Only a resume that passes the checks goes to a worker.
+- **Idempotency keys** are required (`428`) for any capability that is not read-only and idempotent.
+  - The key is claimed with an exclusive file create, so concurrent retries start one run. A retry returns the run the key started, even while it is executing, with `Idempotent-Replayed: true`.
+  - The same key with another capability, version or inputs is `409`.
+  - The runner sees `api:<tenant>:<client>:<key>`, so its result cache cannot answer one client with another's result. The caller gets its own key back in the result.
+- **Visibility.** A run is visible only to the client and tenant that started it. Anything else is `404`, so the API does not reveal whether it exists.
+- **The run directory is the record.**
+  - A run aborted on the console or carried on by `cua resume` shows its new result on the next read.
+  - A run left `running` by a stopped server gets its result if the engine wrote one (`INTERRUPTED` included). Otherwise it is `lost`, with a note to read its evidence; it is never assumed.
+- **Capabilities are described, not handed over.** The tool definition, contract and lifecycle are returned. Steps, locators, credential references and paths are not.
+- Workers initialise COM, so a desktop capability runs over HTTP as well.
+- `inject` is refused unless the server is started with `--allow-inject`.
+
+### Tests
+- `tests/unit/test_api.py` (33, fake runner):
+  - health;
+  - authentication, the tenant header, request ids;
+  - disabled keys, key creation, the committed access file;
+  - capability listing, description and authorization;
+  - runs as replay is called; `202` then read; exact decimals; `INPUT_INVALID` with nothing started; malformed bodies;
+  - idempotency: `428`, one key one run, conflict, concurrent retries, per-client scoping;
+  - scopes; run visibility; `inject`; `error`;
+  - approve refused and accepted, approve only for `NEEDS_APPROVAL`, scopes for approve, resume and abort; resume;
+  - a run answered elsewhere; `lost` versus an interrupted result; events of a refused run;
+  - the request log (no keys in it); no model client imported.
+- `tests/integration/test_api.py` (4, browser):
+  - `member_savings_balance` over HTTP and through `cua catalog invoke` give the same logical result, with the same fields in the same order; its events;
+  - `open_subaccount`: escalated `NEEDS_APPROVAL`; a token for other inputs is `403` with the browser still up; the right token commits (`decided_by: api:agent`); a retry with the key returns that run;
+  - an escalated run aborted over HTTP is `ESCALATION_ABORTED`, `side_effect: none`, and its browser is closed.
+- `tests/desktop/test_desktop_api.py`: `deskcalc_compute` over HTTP on a worker thread.
+- `test_an_escalated_run_nobody_answers_expires_when_it_is_read` (browser): a handoff with a 1 s time to live is `ESCALATION_ABORTED` on the next read, and its browser is closed.
+- `tests/unit/test_drift.py::test_every_run_on_record_can_be_scanned` now scans the committed evidence only. `evidence/runs/` is local scratch: a run made there on the day of the vision evidence shares its run-id prefix and broke the count.
+
+### Results
+- Gate: ruff, `ruff format --check` and `mypy --strict` are clean. 772 tests pass (726 before this phase), in about 14 minutes.
+- Live, `cua serve` on :8200 against the mock app, from PowerShell:
+  - no key → `401`;
+  - `GET /capabilities` lists `member_savings_balance` v3 and `open_subaccount` v3;
+  - `member_savings_balance` over HTTP → `success`, 1411.21, in 7.6 s; `cua catalog invoke` answers the same; its events run from `run.started` to `run.completed`;
+  - `open_subaccount`:
+    - without a key → `428`;
+    - with `handoff` → `escalated NEEDS_APPROVAL` at `review.submit`, `side_effect: none`;
+    - a token for 999.00 → `403`, still `escalated`;
+    - the 250.00 token → `success`, `committed`, `REF-10003-0001`, decided by `api:local-agent`;
+    - the same key again → the same run, `Idempotent-Replayed: true`;
+  - another escalation aborted → `ESCALATION_ABORTED`, `side_effect: none`;
+  - every request is in `evidence/runs/.api/requests.jsonl`.
+- Found while testing:
+  - Reading a run while its worker settled it could overwrite the result with `lost`. Records are now read under the service lock.
+  - A desktop run's UI Automation objects, released later on another thread, made faulthandler print `0x80010108` (RPC_E_DISCONNECTED) five times in a full run. Each worker now collects garbage in its own COM apartment when a run ends; the next full run printed none.
+  - An escalated run nobody answers was expired only when someone opened the operator console. The API now expires it on read.
+
+### Known issues
+- No TLS; binds to localhost by default and warns otherwise. Keys do not expire.
+- One server per runs directory: the set of executing runs is in memory.
+- Runs are not listed (`GET /runs`); a caller keeps the ids it was given.
+- The operator console is still unauthenticated. The API's `resume` hands back on the caller's word, as `cua resume` does.
+
+### Commit
+- `feat: expose capability runtime through API`.
+
+### Next
+- Phase 11: MCP integration.

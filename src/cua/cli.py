@@ -2,7 +2,7 @@
 
 Discover a capability, review and approve it, replay it deterministically,
 hand a stuck run to a person and carry it on, and offer the approved ones to
-a calling agent as tools (``cua catalog``).
+a calling agent as tools (``cua catalog``) or over HTTP (``cua serve``).
 """
 
 from __future__ import annotations
@@ -58,6 +58,10 @@ def _build_parser() -> argparse.ArgumentParser:
     from cua.security.cli import add_parser as _add_security
 
     _add_security(sub)
+
+    from cua.api.cli import add_parser as _add_serve
+
+    _add_serve(sub)
     return parser
 
 
@@ -436,6 +440,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         from cua.workflow.cli import main as workflow
 
         return workflow(args)
+    if args.command == "serve":
+        load_dotenv(Path(".env"))
+        from cua.api.cli import main as serve
+
+        return serve(args)
     if args.command == "catalog":
         if args.catalog_command == "invoke":
             load_dotenv(Path(".env"))

@@ -196,6 +196,7 @@ fixtures.
 | `cua workflow approval-token <workflow> --step <id> --input k=v --by <name>` | sign consent for one committing step, for the inputs that step will get | |
 | `cua security list \| run [--offline] [--scenario ID]` | stage each attack in `bench/security/scenarios.yaml` with a scripted model that obeys every injected instruction; write `bench/security/reports/summary.{md,json}` | 0 every attack blocked, 1 otherwise |
 | `cua operator` | the operator console on :8100 | |
+| `cua serve [--port 8200] [--access api/access.yaml] [--workers 2]` | the capability runtime over HTTP: invoke approved capabilities and get the same `ReplayResult`; approve, resume and abort escalated runs; read their events | |
 | `cua benchmark list \| run \| report` | run the benchmark suite (`bench/tasks/`) through the repeated-LLM baseline, discovery and replay; aggregate `bench/reports/runs.jsonl` into `summary.md` ([bench/README.md](bench/README.md)) | |
 | `cua metrics run <run_id \| dir> [--json \| --events]` | one run explained: outcome and why, where the time went, model calls, tokens and estimated cost, locators, recoveries, human intervention; `--events` prints its canonical events | |
 | `cua metrics capability <name> [--version N]` \| `cua metrics report [--out DIR]` | health of each approved capability from its replays (success, failure, escalation, human, locator failure, drift, unknown side effect, latency, last success and failure), and model spend | |
@@ -247,6 +248,78 @@ run found the review screen still holding, so it carried on at
 the run keeps waiting.) The same request also shows up on `cua operator`, where
 **Approve action** does the same thing.
 
+## Calling a capability over HTTP
+
+`cua serve` puts the same runtime behind HTTP, for an agent or a service that
+should not start a CLI process per call. It binds to `127.0.0.1:8200`; the
+OpenAPI page is at `/docs`.
+
+```bash
+cua mockapp                  # in one terminal
+cua serve                    # in another; creates .cua/api-keys/local-agent.key on first start
+```
+
+[`api/access.yaml`](api/access.yaml) says who may call it. Every request but
+`GET /health` carries three things:
+
+- `Authorization: Bearer <key>`: which client is calling. Keys are bound like
+  tenant secrets, to a file or an environment variable, never written in the
+  access file.
+- `X-Cua-Tenant: <id>`: the tenant the call is for. It is never inferred.
+- `X-Request-Id: <id>`, required on every POST and echoed on every answer.
+  It ties the caller, the server's request log (`<runs>/.api/requests.jsonl`)
+  and the run record together.
+
+A client names its tenants, the capabilities it may see and run, and its
+scopes: `read`, `invoke`, `approve` (carry a signed approval token into a
+run) and `operate` (resume and abort escalated runs).
+
+| Endpoint | What it does |
+|---|---|
+| `GET /health` | up or not; no key needed |
+| `GET /capabilities` \| `/capabilities/{name}` \| `/capabilities/{name}/versions` | what `cua catalog` shows, for the tenant's application family and the client's capabilities: the tool definition, the contract, the lifecycle. No steps, locators or credential references |
+| `POST /runs` | start a run: `{"capability", "version"?, "inputs", "approval"?, "budget"?, "handoff"?}`, typed like `catalog invoke --args` |
+| `GET /runs/{id}` | the run, and its `ReplayResult` once there is one |
+| `GET /runs/{id}/events` | its canonical events (`cua metrics run --events`) |
+| `POST /runs/{id}/approve` | `{"token", "approved_by"?}`: consent for the commit an escalated run stopped at |
+| `POST /runs/{id}/resume` | hand an escalated run back to the automation, as `cua resume` does |
+| `POST /runs/{id}/abort` | end an escalated run as `ESCALATION_ABORTED`, as the console's Abort does |
+
+A run gets its id at once and executes on a worker. The POST answers `202`
+while the run executes, or waits for it with `?wait=<seconds>` (up to 300).
+The run's `result` is the `ReplayResult` that `cua replay` prints: the same
+fields, in the same order. It is `null` until the run stands still in one of
+these states:
+
+- `escalated`: waiting on a person or on consent;
+- `finished`: success, business outcome or failure;
+- `error`: the request could not be made at all, as `cua replay` exits 64;
+- `lost`: the server stopped mid-run and the run directory holds no result.
+
+```bash
+KEY=$(cat .cua/api-keys/local-agent.key)
+curl -s -X POST "http://127.0.0.1:8200/runs?wait=60" \
+  -H "Authorization: Bearer $KEY" -H "X-Cua-Tenant: local" -H "X-Request-Id: agent-req-1" \
+  -H "Content-Type: application/json" \
+  -d '{"capability": "member_savings_balance", "inputs": {"member_id": "10003"}}'
+```
+
+A capability that is not read-only needs an `Idempotency-Key` header, and is
+refused with `428` without one. The same key and request return the run it
+first started (`Idempotent-Replayed: true`), including while that run is still
+executing. The same key with other inputs is `409`. Keys are scoped to the
+client and tenant: the runner caches results under `api:<tenant>:<client>:<key>`,
+and the caller gets its own key back. A commit follows the CLI's path over
+HTTP:
+
+1. `POST /runs` with `"handoff": {}` comes back `escalated` (`NEEDS_APPROVAL`)
+   with the browser left up.
+2. `POST /runs/{id}/approve` with a token from `cua approval-token` carries it
+   on. A token for other inputs is `403`, and the run keeps waiting.
+
+Approving over HTTP takes a signed token, never a name: there is no person at
+a console to vouch for who is consenting.
+
 ## Test matrix
 
 Every scenario below is a pytest case (`tests/integration` run against the
@@ -289,6 +362,7 @@ mock app in Chromium; `tests/unit` do not).
 | – | Workflow composition | | lookup then open with consent for the open only: one commit, typed outputs from both steps; the same key again answered without a browser; an unknown member stops at the lookup with no commit; wiring mistakes, missing or misdirected consent, a revoked step and a missing key refused before any step; a lost answer, an escalated step and a killed commit never repeat a commit | `integration/test_workflow.py`, `unit/test_workflow.py` |
 | – | Desktop target | `renamed_button`, `ambiguous`, `disabled`, `modal` | DeskCalc under Windows UI Automation, through the unchanged runner: `success` with every step on `role_name`; divide by zero is `business_outcome DIVIDE_BY_ZERO`; the four faults stop with the web's codes (`LOCATOR_UNRESOLVED`, `ACTION_FAILED`, the message box answered and reported); Record refused without consent, one token one ledger entry, the same key answered from the cache; a run asking for screenshots refused before DeskCalc starts | `desktop/test_desktop_replay.py`, `desktop/test_windows_surface.py`, `unit/test_windows_surface.py` |
 | – | Vision fallback | `hidden_control`, `hidden_duplicate`, `renamed_button` | with `--vision`, a Search button hidden from the tree is found by its recorded picture and the run succeeds (rung `vision`, checkpoint still checked); two identical hidden buttons are `LOCATOR_AMBIGUOUS`, nothing clicked; a renamed button does not match its picture; a hidden Confirm is `POLICY_BLOCKED` even with a token, no commit; without the flag, without `vision.allowed`, or without a recorded picture, nothing changes; a point whose pixels changed is not clicked | `integration/test_vision.py`, `unit/test_vision.py` |
+| – | HTTP API | | an approved capability invoked over HTTP answers what `cua catalog invoke` answers (the same logical result, the same fields in the same order); a commit escalates, a token for other inputs is `403` with the run still waiting, the right token commits once, and a retry with the key returns that run; an escalated run aborted over HTTP closes its browser; keys, tenants, scopes, capability authorization, request ids, key scoping and concurrent retries | `integration/test_api.py`, `unit/test_api.py`, `desktop/test_desktop_api.py` |
 | – | Security benchmark | `prompt_injection`, `malicious_redirect`, `confirmation_spoof` | 22 attacks across 15 threats blocked: nothing reaches the attacker, no file served, no commit without consent, the canary password in no log, trace or prompt, no other tenant's consent or secret accepted; with the defences off, the same attacks succeed | `security/test_benchmark.py`, `security/test_controls.py` |
 
 ## The mock target app
