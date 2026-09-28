@@ -36,6 +36,14 @@ carries the `ReplayResult` the CLI would print. Consent over HTTP is a signed
 approval token, never a name. Idempotency keys are scoped to the client and
 tenant, so one caller's retry cannot be answered with another's result.
 
+`cua mcp` (`src/cua/mcp/`) offers the same calls to an MCP client over stdio.
+Each approved capability is a tool whose schema is its typed inputs and whose
+description is its contract. There is no browser primitive. The protocol
+surface an MCP tool server needs is small (initialize, ping, tools/list and
+tools/call), so it is implemented directly rather than through the SDK. Every
+call goes through the HTTP API's run service. An escalated result names the
+run tool that carries it on.
+
 | Decision | Choice | Why |
 |---|---|---|
 | Runtime | Python 3.11, pydantic v2, Playwright, FastAPI; `mypy --strict` | Typed schemas with a JSON Schema export for free. Playwright gives the accessibility tree, screenshots, coordinate clicks and CDP in one API |

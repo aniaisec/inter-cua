@@ -631,3 +631,65 @@ Status: COMPLETE
 
 ### Next
 - Phase 11: MCP integration.
+
+## Phase 11 — MCP integration
+
+Status: COMPLETE
+
+### Changes
+- `src/cua/mcp/`:
+  - `tools`: the tool list and result shaping. One tool per capability unattended replay would run, for the tenant's application family, that the client may use. Four run tools: `cua_run_status`, `cua_approve_run`, `cua_resume_run` and `cua_abort_run`, each offered only with its scope.
+  - `server`: MCP over stdio, JSON-RPC 2.0, one message per line. It answers `initialize` (protocol 2025-06-18, 2025-03-26 or 2024-11-05), `ping`, `tools/list` and `tools/call`. Notifications need no answer. Each tool call runs on its own thread.
+  - `cli`: `cua mcp --client --tenant --root --handoff consent|all|none --wait`.
+- `catalog.tool_definition(resume=...)`: the escalation sentence names the channel's way to carry a run on (`cua resume` on the CLI, `cua_approve_run` over MCP).
+- README (a section and a CLI row), REPORT, and the threat model (trust boundary 3 and the MCP result control).
+
+### Decisions
+- **No SDK.** A tool server needs `initialize`, `ping`, `tools/list` and `tools/call`. Everything behind them is `cua.api.service`, which already owns authorization, idempotency and the run lifecycle. Implementing the protocol directly adds no dependency, and no network install.
+- **The same path as the API.** A tool call is a `RunRequest` pinned to the listed version. The registry resolves it, the arguments are typed by `catalog.coerce`, the client, tenant, scopes and policy apply, and replay runs with no model. Only a listed tool can be called.
+- **Business operations, not a browser.** A tool's schema is the capability's typed inputs. Its description is the contract:
+  - purpose and outputs;
+  - side effect and idempotency;
+  - business outcomes and escalations.
+- **Tool annotations** carry the contract: `readOnlyHint`, `destructiveHint` and `idempotentHint`.
+- **The invocation's own arguments.** `idempotency_key` is required on any tool that is not read-only and idempotent. `approval_token` is offered only on a tool that may ask for consent, and only to a client with `approve`. A capability declaring an input with either name is not offered.
+- **The agent's view of a result.**
+  - It gets kind, code or reason, step, side effect, outputs, payload, message and warnings.
+  - It does not get locator rungs, screenshots, the observed screen text or evidence paths, which stay in the run directory under `run_id`. An agent is not steered by GUI text through a tool result.
+  - An escalated result adds `resume_token` and `required_action`, which says what has to happen and which run tool to call.
+- **Tool errors versus protocol errors.**
+  - A tool result with `isError` covers a refusal (with its code), a failure, `error` and `lost`. A business outcome and an escalation are not errors.
+  - A JSON-RPC error covers what the client got wrong: an unknown method or tool, or a malformed message.
+- **Identity over stdio.** Whoever starts the process is the caller, and no key is asked for. `--client` names the access-file entry whose tenants, capabilities and scopes apply. `--root` lets an MCP client start it from anywhere.
+- **Handoff** by default only for capabilities that may ask for consent. A commit without a token comes back `escalated` with the session waiting; a stuck lookup is a plain `failure`.
+- stdout carries only the protocol. The process's own `sys.stdout` is redirected to stderr, so a runner warning cannot corrupt a message.
+
+### Tests
+- `tests/unit/test_mcp.py` (19, fake runner):
+  - protocol: version negotiation, protocol errors, notifications, one message per line, a slow call not holding up `ping`;
+  - tools: the exact list and no browser primitive; schemas, descriptions and annotations; a reader's reduced list;
+  - calls: the agent view; GUI details left out; exact decimals; refusals as tool errors; escalation → `required_action` → `cua_approve_run` (refused, then accepted); a token on the capability tool; handoff settings; run-tool argument checks;
+  - the request log;
+  - the real `cua mcp` process (stdout is only JSON; `--root` from another directory); unknown client or tenant; no model client imported.
+- `tests/integration/test_mcp.py` (browser), `cua mcp` as its own process: a balance lookup; `NOT_FOUND` as an answer; a stray argument is `INPUT_INVALID`; `open_subaccount` → `escalated NEEDS_APPROVAL` with `required_action`; a minted token through `cua_approve_run` → `committed`; the same key again → the same run.
+
+### Results
+- Gate: ruff, `ruff format --check` and `mypy --strict` are clean. 792 tests pass (772 before this phase), in about 21 minutes.
+- A real MCP client: headless Claude Code (`claude -p --mcp-config ... --strict-mcp-config`), started from another directory with `cua mcp --root`.
+  - Asked for member 10003's savings balance, it called `member_savings_balance` and answered 1411.21.
+  - Asked to open a sub-account, it got `escalated NEEDS_APPROVAL` with `side_effect: none`, read `required_action`, and said it could not consent itself. It called `cua_abort_run` and reported `ESCALATION_ABORTED`, `side_effect: none`.
+  - Both calls are in `requests.jsonl` as `MCP tools/call ...` under `local-agent`.
+- Found while testing: the per-thread COM initialisation from Phase 10 was never matched by an uninitialisation. A full run printed faulthandler's `0x80010108` twice while a test client shut its workers down. COM is now initialised and uninitialised on the worker around each run, after a collection; the next full run printed none.
+- One full run failed SEC-05 of the security benchmark with Chromium's "Unable to capture screenshot" while a second browser was driven by hand. It passed alone and in the next full run.
+
+### Known issues
+- Only tools. There are no resources, prompts or `listChanged` notifications: the tool list is read afresh on every `tools/list`, and a client that caches it sees a new approval on reconnect.
+- A call that takes longer than `--wait` (300 s at most) returns `running` with `cua_run_status` as the way on. The client's cancellation notifications are accepted and ignored: a replay is never stopped mid-step.
+- stdio only. A remote agent uses the HTTP API.
+- During verification, the machine's antivirus (Surfshark) quarantined Playwright's `chrome.exe`. Handoff runs start that binary detached with a remote-debugging port, a pattern antivirus heuristics flag. Every detached launch then failed with `[WinError 2]`: the CLI handoff, the API commit and the MCP commit tests. Excluding `%LOCALAPPDATA%\ms-playwright\` and reinstalling Chromium (`playwright install --force chromium`) restored them. The MCP integration test now prints the answer it got when escalation fails.
+
+### Commit
+- `feat: expose approved capabilities through MCP`.
+
+### Next
+- Phase 12: multi-tenant isolation.

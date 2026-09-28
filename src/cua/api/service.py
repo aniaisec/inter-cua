@@ -100,9 +100,7 @@ class RunService:
         self._resume = resume
         self._check_resume = check_resume
         self._environ = environ
-        self._pool = ThreadPoolExecutor(
-            max_workers=settings.workers, thread_name_prefix="cua-run", initializer=_thread_setup
-        )
+        self._pool = ThreadPoolExecutor(max_workers=settings.workers, thread_name_prefix="cua-run")
         self._active: dict[str, Future[None]] = {}
         self._lock = threading.RLock()
 
@@ -359,14 +357,11 @@ class RunService:
 
     def _start(self, run_id: str, work: Callable[[], None]) -> None:
         def run() -> None:
+            com = _com_enter()
             try:
                 work()
             finally:
-                # A desktop run leaves UI Automation objects that belong to
-                # this thread's COM apartment. Released here, in it; left to a
-                # later collection on another thread, releasing them raises
-                # RPC_E_DISCONNECTED.
-                gc.collect()
+                _com_leave(com)
                 with self._lock:
                     self._active.pop(run_id, None)
 
@@ -535,14 +530,27 @@ def _by(caller: Caller) -> str:
     return f"api:{caller.client_id}"
 
 
-def _thread_setup() -> None:
-    """A worker may drive a desktop application, and UI Automation is COM:
-    each thread that uses it initialises COM for itself."""
+def _com_enter() -> Any:
+    """A run may drive a desktop application, and UI Automation is COM, which
+    each thread initialises for itself. Initialised per run, not per worker
+    thread, so that it is also uninitialised on the thread that initialised
+    it, when the run is over. The COM module, or None off Windows or without
+    the windows extra (a desktop run is then refused on its own terms)."""
     if sys.platform != "win32":
-        return
+        return None
     try:
         import comtypes
 
         comtypes.CoInitializeEx()
     except Exception:
-        pass  # no windows extra: a desktop run is refused on its own terms
+        return None
+    return comtypes
+
+
+def _com_leave(com: Any) -> None:
+    # The run's UI Automation objects belong to this thread's apartment:
+    # released here, before it closes. Left to a later collection on another
+    # thread, releasing them raises RPC_E_DISCONNECTED.
+    gc.collect()
+    if com is not None:
+        com.CoUninitialize()

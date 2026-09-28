@@ -197,6 +197,7 @@ fixtures.
 | `cua security list \| run [--offline] [--scenario ID]` | stage each attack in `bench/security/scenarios.yaml` with a scripted model that obeys every injected instruction; write `bench/security/reports/summary.{md,json}` | 0 every attack blocked, 1 otherwise |
 | `cua operator` | the operator console on :8100 | |
 | `cua serve [--port 8200] [--access api/access.yaml] [--workers 2]` | the capability runtime over HTTP: invoke approved capabilities and get the same `ReplayResult`; approve, resume and abort escalated runs; read their events | |
+| `cua mcp [--client local-agent] [--tenant local] [--root DIR] [--handoff consent\|all\|none]` | approved capabilities as MCP tools over stdio, for an MCP-compatible agent; calls go through the same run service as `cua serve` | |
 | `cua benchmark list \| run \| report` | run the benchmark suite (`bench/tasks/`) through the repeated-LLM baseline, discovery and replay; aggregate `bench/reports/runs.jsonl` into `summary.md` ([bench/README.md](bench/README.md)) | |
 | `cua metrics run <run_id \| dir> [--json \| --events]` | one run explained: outcome and why, where the time went, model calls, tokens and estimated cost, locators, recoveries, human intervention; `--events` prints its canonical events | |
 | `cua metrics capability <name> [--version N]` \| `cua metrics report [--out DIR]` | health of each approved capability from its replays (success, failure, escalation, human, locator failure, drift, unknown side effect, latency, last success and failure), and model spend | |
@@ -320,6 +321,54 @@ HTTP:
 Approving over HTTP takes a signed token, never a name: there is no person at
 a console to vouch for who is consenting.
 
+## Calling a capability over MCP
+
+`cua mcp` serves the approved capabilities to any agent that speaks the Model
+Context Protocol, over stdio. The agent sees business operations, not a
+browser:
+
+```text
+member_savings_balance(member_id)
+open_subaccount(member_id, initial_deposit, idempotency_key, approval_token?)
+cua_run_status(run_id)  cua_approve_run(run_id, approval_token)  cua_resume_run(run_id)  cua_abort_run(run_id)
+```
+
+There is no `click`, `type` or `press`. Each capability tool's description
+is its contract:
+
+- its purpose and outputs;
+- its side effect and whether it is idempotent;
+- its business outcomes;
+- when it will ask for consent.
+
+Its input schema is the capability's typed inputs. A tool that changes
+something requires an `idempotency_key`. A tool that may ask for consent takes
+an optional `approval_token`, if the client has the `approve` scope. The
+annotations say which tools are read-only, destructive or idempotent.
+
+A call goes where a `POST /runs` goes: the registry resolves the version, the
+arguments are typed, and the access file's client, tenant and scopes apply.
+Replay then runs with no model, and every call is recorded in
+`<runs>/.api/requests.jsonl`. The answer is the `ReplayResult`, reduced to what
+an agent acts on: `kind`, the code or reason, `outputs`, `side_effect` and
+`message`. How the GUI was driven stays in the run directory: locator rungs,
+screenshots, the observed screen text. An `escalated` answer adds
+`resume_token` and `required_action`, which says what has to happen and which
+run tool carries the run on.
+
+To use it from Claude Code (any MCP client takes the same command):
+
+```bash
+claude mcp add inter-cua -- "$PWD/.venv/Scripts/cua.exe" mcp --root "$PWD"
+```
+
+Over stdio the client is whoever started the process, so no key is asked
+for. `--client` names the entry in `api/access.yaml` whose tenants,
+capabilities and scopes it acts under. By default only capabilities that may
+ask for consent run with a handoff (`--handoff consent`). A commit without a
+token therefore comes back `escalated` with the session waiting, while a
+lookup that gets stuck is a plain `failure`.
+
 ## Test matrix
 
 Every scenario below is a pytest case (`tests/integration` run against the
@@ -363,6 +412,7 @@ mock app in Chromium; `tests/unit` do not).
 | – | Desktop target | `renamed_button`, `ambiguous`, `disabled`, `modal` | DeskCalc under Windows UI Automation, through the unchanged runner: `success` with every step on `role_name`; divide by zero is `business_outcome DIVIDE_BY_ZERO`; the four faults stop with the web's codes (`LOCATOR_UNRESOLVED`, `ACTION_FAILED`, the message box answered and reported); Record refused without consent, one token one ledger entry, the same key answered from the cache; a run asking for screenshots refused before DeskCalc starts | `desktop/test_desktop_replay.py`, `desktop/test_windows_surface.py`, `unit/test_windows_surface.py` |
 | – | Vision fallback | `hidden_control`, `hidden_duplicate`, `renamed_button` | with `--vision`, a Search button hidden from the tree is found by its recorded picture and the run succeeds (rung `vision`, checkpoint still checked); two identical hidden buttons are `LOCATOR_AMBIGUOUS`, nothing clicked; a renamed button does not match its picture; a hidden Confirm is `POLICY_BLOCKED` even with a token, no commit; without the flag, without `vision.allowed`, or without a recorded picture, nothing changes; a point whose pixels changed is not clicked | `integration/test_vision.py`, `unit/test_vision.py` |
 | – | HTTP API | | an approved capability invoked over HTTP answers what `cua catalog invoke` answers (the same logical result, the same fields in the same order); a commit escalates, a token for other inputs is `403` with the run still waiting, the right token commits once, and a retry with the key returns that run; an escalated run aborted over HTTP closes its browser; keys, tenants, scopes, capability authorization, request ids, key scoping and concurrent retries | `integration/test_api.py`, `unit/test_api.py`, `desktop/test_desktop_api.py` |
+| – | MCP | | `cua mcp` on stdio: one tool per approved capability with its typed schema and contract, no browser primitive; an agent looks a balance up, is told `NOT_FOUND` as an answer, gets `INPUT_INVALID` for a stray argument, opens a sub-account, is told `escalated` with the run tool to call, and commits through `cua_approve_run`; a retry with the key returns that run; protocol errors, a slow call not holding up `ping`, scopes, and results that leave the GUI details in the run directory | `integration/test_mcp.py`, `unit/test_mcp.py` |
 | – | Security benchmark | `prompt_injection`, `malicious_redirect`, `confirmation_spoof` | 22 attacks across 15 threats blocked: nothing reaches the attacker, no file served, no commit without consent, the canary password in no log, trace or prompt, no other tenant's consent or secret accepted; with the defences off, the same attacks succeed | `security/test_benchmark.py`, `security/test_controls.py` |
 
 ## The mock target app

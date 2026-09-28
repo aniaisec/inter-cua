@@ -2,7 +2,8 @@
 
 Discover a capability, review and approve it, replay it deterministically,
 hand a stuck run to a person and carry it on, and offer the approved ones to
-a calling agent as tools (``cua catalog``) or over HTTP (``cua serve``).
+a calling agent as tools: ``cua catalog``, over HTTP (``cua serve``) or over
+MCP (``cua mcp``).
 """
 
 from __future__ import annotations
@@ -62,6 +63,10 @@ def _build_parser() -> argparse.ArgumentParser:
     from cua.api.cli import add_parser as _add_serve
 
     _add_serve(sub)
+
+    from cua.mcp.cli import add_parser as _add_mcp
+
+    _add_mcp(sub)
     return parser
 
 
@@ -440,6 +445,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         from cua.workflow.cli import main as workflow
 
         return workflow(args)
+    if args.command == "mcp":
+        if args.root is not None:
+            os.chdir(args.root)
+        load_dotenv(Path(".env"))
+        from cua.mcp.cli import main as mcp
+
+        return mcp(args)
     if args.command == "serve":
         load_dotenv(Path(".env"))
         from cua.api.cli import main as serve

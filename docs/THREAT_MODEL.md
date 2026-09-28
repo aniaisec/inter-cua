@@ -35,7 +35,9 @@ password turned up.
    invoking a capability needs no credential: whoever runs `cua` already has
    the files. Over HTTP (`cua serve`) a caller is authenticated by an API key
    and held to the tenants, capabilities and scopes its entry in
-   `api/access.yaml` grants. Either way, committing needs consent: an approval
+   `api/access.yaml` grants. Over MCP (`cua mcp`, stdio) the caller is
+   whoever started the process, held to the scopes of the client it names.
+   Either way, committing needs consent: an approval
    token bound to one capability version and content, one tenant, the exact
    inputs, one person, one commit and a short lifetime.
 4. **Capability files are trusted only through review.** A file's own
@@ -61,6 +63,7 @@ password turned up.
 | Approval gate and ledger: a draft never runs unattended; an "approved" file runs only if the ledger records its approval of that content | `cua.replay.runner`, `Registry.approval_on_record` | tampered or forged artifacts |
 | Signed, bound, single-use approval tokens | `cua.policy.tokens` | replayed consent, consent for other inputs, another capability, another person or another tenant |
 | API gate: a bearer key per client, compared in constant time; the tenant named on every request and checked against the client's; scopes and a capability list per client; a request id on every POST; idempotency keys scoped to client and tenant; runs visible only to the client and tenant that started them | `cua.api.access`, `cua.api.service` | an unknown caller; a client reaching another tenant, a capability or an action it was not granted; one client's retry answered with another's result |
+| MCP results reduced to the agent's view: the contract in, kind, outputs, side effect and message out; locators, screenshots and observed screen text left in the run directory | `cua.mcp.tools` | an agent learning (or being steered by) the GUI's text through a tool result |
 | Tenant scoping of secrets and app families | `cua.secrets.resolver`, `cua.replay.runner` | cross-tenant invocation |
 | Checkpoints and typed results: success only after the run's own steps and checkpoints held | `cua.replay.engine` | spoofed confirmation screens |
 | Control lease and request ids | `cua.escalation` | the automation acting over a person; a stale answer taking a session |

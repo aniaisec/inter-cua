@@ -98,11 +98,16 @@ def find(directory: Path, name: str, version: int | None = None) -> Path:
 _DECIMAL = r"^-?[0-9]+(\.[0-9]+)?$"
 
 
-def tool_definition(cap: Capability) -> dict[str, Any]:
+CLI_RESUME = "once a person has consented, carry it on with `cua resume`"
+
+
+def tool_definition(cap: Capability, *, resume: str = CLI_RESUME) -> dict[str, Any]:
+    """``resume``: how a caller carries an escalated run on, in the words of
+    the channel it calls through (the CLI's ``cua resume``, an MCP tool)."""
     properties = {name: _property(spec) for name, spec in cap.inputs.items()}
     return {
         "name": cap.name,
-        "description": tool_description(cap),
+        "description": tool_description(cap, resume=resume),
         "input_schema": {
             "type": "object",
             "properties": properties,
@@ -132,7 +137,7 @@ def _property(spec: InputSpec) -> dict[str, Any]:
     return out
 
 
-def tool_description(cap: Capability) -> str:
+def tool_description(cap: Capability, *, resume: str = CLI_RESUME) -> str:
     """What a model needs to decide to call it, and to read what comes back."""
     c = cap.contract
     parts = [cap.description.rstrip(".") + "."]
@@ -154,8 +159,7 @@ def tool_description(cap: Capability) -> str:
     if c.may_escalate:
         parts.append(
             "Needs consent for its commit: without an approval token it returns kind "
-            "'escalated' (reason NEEDS_APPROVAL) with a resume_token; once a person has "
-            "consented, carry it on with `cua resume`."
+            f"'escalated' (reason NEEDS_APPROVAL) with a resume_token; {resume}."
         )
     if c.outcomes:
         parts.append(
