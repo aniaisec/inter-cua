@@ -251,7 +251,7 @@ class IdempotencyConflict(Exception):
 
 
 class IdempotencyCache:
-    """One file per key under ``<runs dir>/.idempotency/``.
+    """One file per tenant and key under ``<runs dir>/.idempotency/``.
 
     A file rather than a store because a single process is the whole
     deployment here; the interface is what a shared store would implement.
@@ -259,20 +259,30 @@ class IdempotencyCache:
     retries after a lost answer is exactly the one whose answer may have been
     ``side_effect: unknown``, and running it again is how a commit happens
     twice.
+
+    Keys are the caller's, and two tenants' callers may choose the same one:
+    a record belongs to the tenant and the key together, so one tenant's
+    result is never the answer to another's request. A record kept before
+    that (with no tenant in it) is read as its run's tenant's; see
+    ``_legacy``.
     """
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, tenant: str) -> None:
+        self.root = root
         self.dir = root / ".idempotency"
+        self.tenant = tenant
 
     def _path(self, key: str) -> Path:
         # The key is caller-supplied; hashing it keeps it out of the path.
-        return self.dir / (hashlib.sha256(key.encode("utf-8")).hexdigest()[:32] + ".json")
+        return self.dir / (_digest(f"{self.tenant}\n{key}") + ".json")
 
     def get(self, key: str, request: str) -> ReplayResult | None:
         path = self._path(key)
-        if not path.is_file():
+        stored = (
+            json.loads(path.read_text(encoding="utf-8")) if path.is_file() else self._legacy(key)
+        )
+        if stored is None:
             return None
-        stored = json.loads(path.read_text(encoding="utf-8"))
         if stored["fingerprint"] != request:
             raise IdempotencyConflict(
                 f"idempotency key {key!r} was already used for a different request "
@@ -288,7 +298,50 @@ class IdempotencyCache:
             # aborted; it has to reach the run's current state instead.
             return
         self.dir.mkdir(parents=True, exist_ok=True)
-        record = {"fingerprint": request, "result": result.model_dump(mode="json")}
+        record = {
+            "tenant": self.tenant,
+            "fingerprint": request,
+            "result": result.model_dump(mode="json"),
+        }
         self._path(key).write_text(
             json.dumps(record, indent=2) + "\n", encoding="utf-8", newline="\n"
         )
+
+    def _legacy(self, key: str) -> dict[str, Any] | None:
+        """A record kept under the key alone, before records were per tenant.
+
+        It is this tenant's if the run it answered ran on this tenant. One
+        refused before any run started has no run directory and certainly no
+        side effect, so running the request again is safe: it is no answer.
+        One with a side effect whose tenant cannot be told is a conflict:
+        either answer might be another tenant's, or a second commit."""
+        path = self.dir / (_digest(key) + ".json")
+        if not path.is_file():
+            return None
+        stored: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+        result = stored.get("result") or {}
+        run_id = result.get("run_id")
+        owner = run_tenant(self.root / run_id) if isinstance(run_id, str) else None
+        if owner == self.tenant:
+            return stored
+        if owner is not None or result.get("side_effect", "none") == "none":
+            return None
+        raise IdempotencyConflict(
+            f"idempotency key {key!r} answered a request before results were kept per tenant, "
+            "and which tenant that was cannot be told; use a new key"
+        )
+
+
+def _digest(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:32]
+
+
+def run_tenant(run_dir: Path) -> str | None:
+    """The tenant a run directory's ``run.json`` says it ran on."""
+    try:
+        data = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    tenant = data.get("tenant") if isinstance(data, dict) else None
+    owner = tenant.get("id") if isinstance(tenant, dict) else None
+    return owner if isinstance(owner, str) else None

@@ -92,7 +92,7 @@ class FakeReplay:
 
         cap = open_capability(path).capability
         self.calls.append((cap.name, invocation))
-        cache = IdempotencyCache(self.runs)
+        cache = IdempotencyCache(self.runs, kwargs["tenant"].id)
         request = fingerprint(cap.name, cap.version, invocation.inputs)
         if invocation.idempotency_key:
             cached = cache.get(invocation.idempotency_key, request)
@@ -103,7 +103,12 @@ class FakeReplay:
         run_dir = self.runs / run_id
         run_dir.mkdir(parents=True)
         (run_dir / "run.json").write_text(
-            json.dumps({"request": {"idempotency_key": invocation.idempotency_key}})
+            json.dumps(
+                {
+                    "tenant": {"id": kwargs["tenant"].id},
+                    "request": {"idempotency_key": invocation.idempotency_key},
+                }
+            )
         )
         answer = self.answers.get(cap.name, "success")
         common = {
@@ -596,7 +601,7 @@ def test_a_revoked_step_or_another_app_family_refuses_every_step(
 
     other = tenant.model_copy(update={"app_family": "other-core"})
     result = go(caps, other, policy, fake, key="req-3")
-    refused(result, "POLICY_BLOCKED", fake, "step 'lookup': member_savings_balance v3 is for")
+    refused(result, "POLICY_BLOCKED", fake, "step 'lookup': member_savings_balance is for")
 
 
 # -- retries ----------------------------------------------------------------------------------
@@ -619,7 +624,7 @@ def test_a_lost_answer_is_rebuilt_from_the_steps_without_committing_again(
 ) -> None:
     fake = FakeReplay(tmp_path / "runs")
     go(caps, tenant, policy, fake, approvals={"open": token_for(caps, tenant, INPUTS)})
-    book = Journal(fake.runs)
+    book = Journal(fake.runs, tenant.id)
     entry = book.get("req-1")
     assert entry is not None
     entry.result = None  # the process died before the workflow's answer was stored
@@ -640,7 +645,7 @@ def test_the_retry_runs_the_versions_the_first_attempt_resolved(
 ) -> None:
     fake = FakeReplay(tmp_path / "runs", {"open_subaccount": "escalated"})
     go(caps, tenant, policy, fake, approvals={"open": token_for(caps, tenant, INPUTS)})
-    entry = Journal(fake.runs).get("req-1")
+    entry = Journal(fake.runs, tenant.id).get("req-1")
     assert entry is not None and entry.pins == {"lookup": 3, "open": 3}
 
 
@@ -708,7 +713,7 @@ def test_a_commit_cut_off_mid_run_is_never_started_again(
         evidence=Evidence(run_dir=run_dir.as_posix()),
     )
     (run_dir / "result.json").write_text(cut.model_dump_json())
-    book = Journal(fake.runs)
+    book = Journal(fake.runs, tenant.id)
     entry = book.get("req-1")
     assert entry is not None
     entry.result = None
@@ -732,7 +737,7 @@ def test_a_step_that_could_not_start_is_not_left_looking_interrupted(
     fake = Refusing(tmp_path / "runs")
     with pytest.raises(InvocationError):
         go(caps, tenant, policy, fake, approvals={"open": token})
-    entry = Journal(fake.runs).get("req-1")
+    entry = Journal(fake.runs, tenant.id).get("req-1")
     assert entry is not None and "open" not in entry.steps
 
     result = go(caps, tenant, policy, FakeReplay(fake.runs), approvals={"open": token})

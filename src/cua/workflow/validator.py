@@ -172,11 +172,9 @@ def refusals(plan: Plan, tenant: Tenant) -> list[str]:
                 f"{where} is {step.status}; a workflow runs only approved capabilities"
                 + (f" ({why})" if why else "")
             )
-        if cap.target.app_family != tenant.app_family:
-            out.append(
-                f"{where} is for app family {cap.target.app_family!r}; tenant {tenant.id!r} "
-                f"runs {tenant.app_family!r}"
-            )
+        elsewhere = tenant.refusal(cap.name, cap.target.app_family)
+        if elsewhere is not None:
+            out.append(f"step {step.id!r}: {elsewhere}")
         unfit = requirements.refusal(cap)
         if unfit is not None:
             out.append(f"{where}: {unfit}")

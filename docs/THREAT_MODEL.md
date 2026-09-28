@@ -43,8 +43,14 @@ password turned up.
 4. **Capability files are trusted only through review.** A file's own
    `approval_state` and seal are bookkeeping. Replay runs a capability only
    if the registry ledger records the approval of exactly its content.
-5. **Tenants are isolated.** Secrets are scoped to a tenant id, tokens are
-   signed per tenant, and a capability runs only on its app family.
+5. **Tenants are isolated.** An invocation takes everything from its tenant
+   file: the deployment, the credentials, the policy and the capabilities it
+   may run (its app family, narrowed by an optional list). Secret references
+   resolve only for their own tenant, and no capability may name a system
+   secret (`cua/`). Each tenant has its own signing key, and a token names
+   its tenant. The records kept between requests (idempotency results,
+   workflow journals, intervention requests on the console) are keyed by
+   tenant.
 6. **People on the operator console are trusted.** A person who holds the
    lease can do anything in the session. The system guarantees that the
    automation never acts over them, and that a stale answer cannot take a
@@ -64,7 +70,7 @@ password turned up.
 | Signed, bound, single-use approval tokens | `cua.policy.tokens` | replayed consent, consent for other inputs, another capability, another person or another tenant |
 | API gate: a bearer key per client, compared in constant time; the tenant named on every request and checked against the client's; scopes and a capability list per client; a request id on every POST; idempotency keys scoped to client and tenant; runs visible only to the client and tenant that started them | `cua.api.access`, `cua.api.service` | an unknown caller; a client reaching another tenant, a capability or an action it was not granted; one client's retry answered with another's result |
 | MCP results reduced to the agent's view: the contract in, kind, outputs, side effect and message out; locators, screenshots and observed screen text left in the run directory | `cua.mcp.tools` | an agent learning (or being steered by) the GUI's text through a tool result |
-| Tenant scoping of secrets and app families | `cua.secrets.resolver`, `cua.replay.runner` | cross-tenant invocation |
+| Tenant scoping: one check of what a tenant runs (`Tenant.refusal`) at replay, workflow, API, MCP and registry; credential references checked against the tenant and the system prefix before anything is read; no two tenants bound to one secret (the API refuses to start); idempotency results and workflow journals keyed by tenant and key; one tenant's console sees only its own requests | `cua.tenant`, `cua.secrets.resolver`, `cua.replay.runner`, `cua.replay.result`, `cua.workflow.journal`, `cua.escalation.operator_app`, `cua.api.access` | cross-tenant invocation; one tenant's consent signed with a key another holds; a retry answered with another tenant's result; another tenant's intervention request (its screen excerpt and screenshot) shown or decided |
 | Checkpoints and typed results: success only after the run's own steps and checkpoints held | `cua.replay.engine` | spoofed confirmation screens |
 | Control lease and request ids | `cua.escalation` | the automation acting over a person; a stale answer taking a session |
 | The prompt marks screen content as the application's | `cua.agent.prompts` | nothing, on purpose: defense in depth, and no test depends on it |
@@ -106,6 +112,13 @@ attacks are real: the controls are what stop them.
   Both are committed files, so the control is code review of the diff. An
   approval signed with a key outside the repository would close this. It is
   not built.
+- **Tenants share one machine and one runs directory.** Isolation here is
+  enforced by the runtime, not by the operating system: every run directory,
+  record and key file is readable by the account that runs `cua`. Tenants
+  that must not trust each other's operators need separate deployments
+  (a separate account, runs directory and secret store each). The runtime
+  also does not apply tenant overlays; a tenant file that names one is
+  refused rather than run unadapted.
 - **The HTTP API has no TLS of its own.** `cua serve` binds to localhost
   by default and warns when told to listen elsewhere. API keys and approval
   tokens are bearer secrets, so anything beyond localhost needs TLS in front

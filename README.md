@@ -195,7 +195,7 @@ fixtures.
 | `cua workflow run <workflow> --input k=v --idempotency-key <k> [--approval <step>=<token>] [--handoff]` | run approved capabilities in order through replay, wiring inputs and outputs; prints a JSON `WorkflowResult` | as replay |
 | `cua workflow approval-token <workflow> --step <id> --input k=v --by <name>` | sign consent for one committing step, for the inputs that step will get | |
 | `cua security list \| run [--offline] [--scenario ID]` | stage each attack in `bench/security/scenarios.yaml` with a scripted model that obeys every injected instruction; write `bench/security/reports/summary.{md,json}` | 0 every attack blocked, 1 otherwise |
-| `cua operator` | the operator console on :8100 | |
+| `cua operator [--tenant local]` | the operator console on :8100, for one tenant's intervention requests | |
 | `cua serve [--port 8200] [--access api/access.yaml] [--workers 2]` | the capability runtime over HTTP: invoke approved capabilities and get the same `ReplayResult`; approve, resume and abort escalated runs; read their events | |
 | `cua mcp [--client local-agent] [--tenant local] [--root DIR] [--handoff consent\|all\|none]` | approved capabilities as MCP tools over stdio, for an MCP-compatible agent; calls go through the same run service as `cua serve` | |
 | `cua benchmark list \| run \| report` | run the benchmark suite (`bench/tasks/`) through the repeated-LLM baseline, discovery and replay; aggregate `bench/reports/runs.jsonl` into `summary.md` ([bench/README.md](bench/README.md)) | |
@@ -413,6 +413,7 @@ mock app in Chromium; `tests/unit` do not).
 | – | Vision fallback | `hidden_control`, `hidden_duplicate`, `renamed_button` | with `--vision`, a Search button hidden from the tree is found by its recorded picture and the run succeeds (rung `vision`, checkpoint still checked); two identical hidden buttons are `LOCATOR_AMBIGUOUS`, nothing clicked; a renamed button does not match its picture; a hidden Confirm is `POLICY_BLOCKED` even with a token, no commit; without the flag, without `vision.allowed`, or without a recorded picture, nothing changes; a point whose pixels changed is not clicked | `integration/test_vision.py`, `unit/test_vision.py` |
 | – | HTTP API | | an approved capability invoked over HTTP answers what `cua catalog invoke` answers (the same logical result, the same fields in the same order); a commit escalates, a token for other inputs is `403` with the run still waiting, the right token commits once, and a retry with the key returns that run; an escalated run aborted over HTTP closes its browser; keys, tenants, scopes, capability authorization, request ids, key scoping and concurrent retries | `integration/test_api.py`, `unit/test_api.py`, `desktop/test_desktop_api.py` |
 | – | MCP | | `cua mcp` on stdio: one tool per approved capability with its typed schema and contract, no browser primitive; an agent looks a balance up, is told `NOT_FOUND` as an answer, gets `INPUT_INVALID` for a stray argument, opens a sub-account, is told `escalated` with the run tool to call, and commits through `cua_approve_run`; a retry with the key returns that run; protocol errors, a slow call not holding up `ping`, scopes, and results that leave the GUI details in the run directory | `integration/test_mcp.py`, `unit/test_mcp.py` |
+| – | Tenant isolation | | two tenants on one product: a capability the tenant does not run, another tenant's credential reference or a system secret is `POLICY_BLOCKED` before anything is read; another tenant's approval token is refused before a browser; one idempotency key on two tenants is two requests (replay's cache and workflow journals), and an older record is its run's tenant's only; one tenant's console shows and decides none of another's requests; no two tenants share a secret, and the API refuses to serve two that do | `security/test_tenant_isolation.py` |
 | – | Security benchmark | `prompt_injection`, `malicious_redirect`, `confirmation_spoof` | 22 attacks across 15 threats blocked: nothing reaches the attacker, no file served, no commit without consent, the canary password in no log, trace or prompt, no other tenant's consent or secret accepted; with the defences off, the same attacks succeed | `security/test_benchmark.py`, `security/test_controls.py` |
 
 ## The mock target app
@@ -514,7 +515,7 @@ src/cua/evidence/   run log, trace, `make evidence` builder
 src/cua/observability/ canonical events read from run directories, run metrics, capability health, cost
 src/cua/benchmark/  repeated-LLM baseline vs discover-then-replay (`bench/`)
 policies/           allowlist, risk rules, masks and scrub patterns
-tenants/            per-deployment binding: base_url, secret refs, overlay
+tenants/            per-deployment binding: base_url, policy, the capabilities it runs, secret refs
 capabilities/       approved capabilities, the app-family template, the exported JSON Schema
 evidence/           discovery, replay and escalation runs
 tests/              unit | integration (`-m browser` needs Chromium) | desktop (`-m desktop`, Windows)
@@ -770,6 +771,14 @@ the model refusing an injected instruction ([docs/THREAT_MODEL.md](docs/THREAT_M
   only if the registry ledger records that approval for its exact content.
   The seal is a hash anyone can recompute, and it is not treated as
   approval.
+- **Tenant isolation.** Every invocation takes its deployment, credentials,
+  policy and the capabilities it may run from its tenant file
+  (`tenants/<id>.yaml`) alone. A capability's credential must be its own
+  tenant's (`secret://{tenant.id}/...`) and never a system secret (`cua/`).
+  Approval tokens are signed with a key per tenant and name their tenant.
+  Idempotency results, workflow journals and the operator console are keyed
+  by tenant, so a key or request id one tenant's caller holds opens nothing
+  of another's.
 - **Screen content is labelled** as the application's in the prompt. This is
   defense in depth; no test relies on it.
 

@@ -103,7 +103,9 @@ def _add_discover(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
         help="Credential the agent may type by placeholder (default: the tenant's only app "
         "secret, as app_login)",
     )
-    d.add_argument("--policy", default="policies/default.yaml", type=Path)
+    d.add_argument(
+        "--policy", type=Path, help="Default: the tenant's own (policy: in its tenant file)"
+    )
     d.add_argument(
         "--llm",
         choices=("auto", "anthropic", "gemini", "scripted"),
@@ -164,7 +166,9 @@ def _add_invocation_flags(r: argparse.ArgumentParser) -> None:
         metavar="NAME=VALUE",
         help="An input the capability declares, e.g. member_id=10003",
     )
-    r.add_argument("--policy", default="policies/default.yaml", type=Path)
+    r.add_argument(
+        "--policy", type=Path, help="Default: the tenant's own (policy: in its tenant file)"
+    )
     r.add_argument(
         "--approval-token",
         help="Consent for the capability's risky steps, for this invocation only "
@@ -283,8 +287,14 @@ def _add_handoff_commands(sub: argparse._SubParsersAction[argparse.ArgumentParse
     o.add_argument("--host", default="127.0.0.1")
     o.add_argument("--port", type=int, default=8100)
     o.add_argument("--runs-dir", type=Path, default=Path("evidence/runs"))
-    o.add_argument("--tenant", default="local", help="For the policy's scrub patterns")
-    o.add_argument("--policy", default="policies/default.yaml", type=Path)
+    o.add_argument(
+        "--tenant",
+        default="local",
+        help="Serve this tenant's requests only, scrubbed with its policy",
+    )
+    o.add_argument(
+        "--policy", type=Path, help="Default: the tenant's own (policy: in its tenant file)"
+    )
 
 
 def _add_catalog(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -504,6 +514,7 @@ def _discover(args: argparse.Namespace) -> int:
             credentials=credentials_spec,
         )
         credentials = {name: resolve(ref, tenant) for name, ref in credentials_spec.items()}
+        args.policy = args.policy or tenant.policy_file
         policy = load_policy(args.policy, tenant)
     except (SpecError, SecretError, OSError, ValueError) as exc:
         print(f"cua discover: {exc}", file=sys.stderr)
@@ -677,7 +688,7 @@ def _invoke(
     request = request or {}
     try:
         tenant = load_tenant(tenant_id)
-        policy = load_policy(args.policy, tenant)
+        policy = load_policy(args.policy or tenant.policy_file, tenant)
         budget = Budget.model_validate(
             {
                 **request.get("budget", {}),
@@ -867,17 +878,18 @@ def _operator(args: argparse.Namespace) -> int:
     from cua.tenant import load_tenant
 
     try:
-        policy = load_policy(args.policy, load_tenant(args.tenant))
+        tenant = load_tenant(args.tenant)
+        policy = load_policy(args.policy or tenant.policy_file, tenant)
     except (OSError, ValueError) as exc:
         print(f"cua operator: {exc}", file=sys.stderr)
         return EX_USAGE
     print(
-        f"cua operator: {link(f'http://{args.host}:{args.port}/')} (requests under "
-        f"{link(args.runs_dir / '.interventions')})",
+        f"cua operator: {link(f'http://{args.host}:{args.port}/')} (tenant {tenant.id}'s "
+        f"requests under {link(args.runs_dir / '.interventions')})",
         file=sys.stderr,
     )
     uvicorn.run(
-        create_app(args.runs_dir, policy=policy),
+        create_app(args.runs_dir, policy=policy, tenant=tenant.id),
         host=args.host,
         port=args.port,
         log_level="warning",

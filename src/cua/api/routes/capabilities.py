@@ -39,7 +39,7 @@ def list_capabilities(
         e
         for e in entries
         if caller.client.may_use(e.capability.name)
-        and e.capability.target.app_family == caller.tenant.app_family
+        and caller.tenant.refusal(e.capability.name, e.capability.target.app_family) is None
         and (all or e.invocable)
     ]
     return {
@@ -101,7 +101,7 @@ def _versions(caller: Caller, service: RunService, name: str) -> list[Version]:
     mine = [
         v
         for v in Registry(service.settings.capabilities_dir).versions(name)
-        if v.capability.target.app_family == caller.tenant.app_family
+        if caller.tenant.refusal(name, v.capability.target.app_family) is None
     ]
     if not mine:
         raise ApiError(

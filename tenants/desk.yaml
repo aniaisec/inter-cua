@@ -10,10 +10,15 @@ desktop:
   launch: [powershell.exe, -NoProfile, -ExecutionPolicy, Bypass, -File, deskapp/deskcalc.ps1]
   inject_flag: -Inject
 
+# The policy DeskCalc's runs are held to, unless a caller names another.
+policy: policies/deskcalc.yaml
+
 secrets:
-  # Signs approval tokens for DeskCalc's Record step, as for the web tenant.
+  # Signs approval tokens for DeskCalc's Record step, as for the web tenant,
+  # but with a key of its own: a key two tenants share lets whoever may consent
+  # for one sign consent for the other.
   cua/approval-signing-key:
     provider: file
-    path: .cua/approval-signing.key
+    path: .cua/approval-signing-desk.key
 
 overlay: null

@@ -24,6 +24,11 @@ held the controls when the decision was made.
 Every decision is also a line of ``human_actions.jsonl`` (``source: console``);
 the count a run reports as ``human_actions_count`` is browser actions only.
 
+One tenant's console (``--tenant``) shows and decides that tenant's requests
+only: another tenant's request, its screenshot and its decisions are not
+found here, and scrubbing uses this tenant's policy, which knows this
+tenant's secrets and nobody else's.
+
 No authentication: it binds to localhost, and anyone who can reach it can
 drive the session. A remote console needs auth in front of this and of the
 browser's debugging port; that is out of scope here and said so.
@@ -89,8 +94,13 @@ class View(BaseModel):
 
 
 class Console:
-    def __init__(self, runs_dir: Path, *, policy: Policy | None = None) -> None:
+    def __init__(
+        self, runs_dir: Path, *, policy: Policy | None = None, tenant: str | None = None
+    ) -> None:
+        """``tenant``: serve that tenant's requests only (None: every tenant's,
+        for a caller that manages the queue itself)."""
         self.queue = Queue(runs_dir)
+        self.tenant = tenant
         self.redactor = Redactor.for_policy(policy) if policy is not None else Redactor([])
         self.captures: dict[str, CaptureSession] = {}
         self._lock = threading.Lock()
@@ -101,16 +111,25 @@ class Console:
         out = []
         for entry in self.queue.entries():
             try:
-                out.append(self._view(entry))
+                if self._mine(entry):
+                    out.append(self._view(entry))
             except (OSError, ValueError):
                 continue  # a run directory that was removed under the queue
         return out
 
     def view(self, request_id: str) -> View:
+        return self._view(self._entry(request_id))
+
+    def _entry(self, request_id: str) -> QueueEntry:
+        """The request, if it is this console's to show: another tenant's is
+        not found, the same answer as one that does not exist."""
         entry = self.queue.entry(request_id)
-        if entry is None:
+        if entry is None or not self._mine(entry):
             raise ConsoleError(404, f"no request {request_id}")
-        return self._view(entry)
+        return entry
+
+    def _mine(self, entry: QueueEntry) -> bool:
+        return self.tenant is None or self.queue.request(entry).tenant == self.tenant
 
     def _view(self, entry: QueueEntry) -> View:
         run_dir = self.queue.run_dir(entry)
@@ -131,9 +150,7 @@ class Console:
         )
 
     def screenshot(self, request_id: str) -> Path:
-        entry = self.queue.entry(request_id)
-        if entry is None:
-            raise ConsoleError(404, f"no request {request_id}")
+        entry = self._entry(request_id)
         request = self.queue.request(entry)
         if request.masked_screenshot is None:
             raise ConsoleError(404, "this request has no screenshot")
@@ -159,9 +176,7 @@ class Console:
             raise ConsoleError(400, "say who you are: every decision is recorded by name")
         if action not in ACTIONS:
             raise ConsoleError(404, f"no action {action!r}")
-        entry = self.queue.entry(request_id)
-        if entry is None:
-            raise ConsoleError(404, f"no request {request_id}")
+        entry = self._entry(request_id)
         request = self.queue.request(entry)
         if action not in request.options and action != "take_control":
             raise ConsoleError(409, f"{action} is not offered for this request")
@@ -311,8 +326,10 @@ class Decide(BaseModel):
     why: str = ""
 
 
-def create_app(runs_dir: Path, *, policy: Policy | None = None) -> FastAPI:
-    console = Console(runs_dir, policy=policy)
+def create_app(
+    runs_dir: Path, *, policy: Policy | None = None, tenant: str | None = None
+) -> FastAPI:
+    console = Console(runs_dir, policy=policy, tenant=tenant)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:

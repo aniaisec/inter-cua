@@ -37,7 +37,7 @@ from cua.artifact.store import CAPABILITIES_DIR, ArtifactError, Loaded, open_cap
 from cua.policy.approval import STATE_DIR, last_review
 from cua.registry import lifecycle
 from cua.registry.models import LedgerEntry, Record, Status, Version
-from cua.tenant import TENANTS_DIR, load_tenant
+from cua.tenant import TENANTS_DIR, Tenant, load_tenant
 
 REGISTRY = "registry"
 LEDGER = "lifecycle.jsonl"
@@ -225,7 +225,9 @@ class Registry:
                 description=cap.description,
                 app_family=cap.target.app_family,
                 surface=cap.target.surface,
-                tenant_scope=scope.get(cap.target.app_family, []),
+                tenant_scope=[
+                    t.id for t in scope if t.refusal(cap.name, cap.target.app_family) is None
+                ],
                 side_effects=cap.contract.side_effects,
                 artifact_hash=cap.content_hash(),
                 created_at=cap.provenance.recorded_at,
@@ -246,17 +248,17 @@ class Registry:
     def names(self) -> list[str]:
         return sorted({v.record.name for v in self.all_versions()})
 
-    def _tenant_scope(self) -> dict[str, list[str]]:
-        """App family → the tenants that run it."""
-        out: dict[str, list[str]] = {}
+    def _tenant_scope(self) -> list[Tenant]:
+        """The tenants a capability may be scoped to (``Tenant.refusal`` says
+        which run it). A tenant file that does not load runs nothing."""
+        out: list[Tenant] = []
         if not self.tenants_dir.is_dir():
             return out
         for path in sorted(self.tenants_dir.glob("*.yaml")):
             try:
-                tenant = load_tenant(str(path))
+                out.append(load_tenant(str(path)))
             except (OSError, ValueError):
                 continue
-            out.setdefault(tenant.app_family, []).append(tenant.id)
         return out
 
     # -- changes -------------------------------------------------------------

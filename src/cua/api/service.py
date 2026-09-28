@@ -276,7 +276,7 @@ class RunService:
             request_id = (record.result or {}).get("request_id")
             if not isinstance(request_id, str):
                 raise ApiError(409, "run_not_escalated", f"run {run_id} has no open request")
-            console = Console(self.settings.runs_dir, policy=caller.policy)
+            console = Console(self.settings.runs_dir, policy=caller.policy, tenant=caller.tenant.id)
             try:
                 console.act(request_id, "abort", by=_by(caller), why=body.why)
             except ConsoleError as exc:

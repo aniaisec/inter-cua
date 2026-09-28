@@ -189,7 +189,7 @@ class McpServer:
             e.capability
             for e in entries
             if e.invocable
-            and e.capability.target.app_family == caller.tenant.app_family
+            and caller.tenant.refusal(e.capability.name, e.capability.target.app_family) is None
             and caller.client.may_use(e.capability.name)
             and e.capability.name not in tools.RUN_TOOLS
             and not tools.RESERVED & set(e.capability.inputs)

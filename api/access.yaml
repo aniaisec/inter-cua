@@ -8,11 +8,11 @@
 # (carry a signed approval token into a run), operate (resume and abort
 # escalated runs). capabilities: the names a client may see and run; "*" for all.
 
+# The tenants this server serves. Each is held to the policy its tenant file
+# names, unless `policy:` here says otherwise.
 tenants:
-  local:
-    policy: policies/default.yaml
-  desk:
-    policy: policies/deskcalc.yaml
+  local: {}
+  desk: {}
 
 clients:
   # The local agent: everything, on both local tenants.

@@ -1,6 +1,6 @@
 """What each attempt of a workflow request did, by idempotency key.
 
-``<runs dir>/.workflows/<hash of key>.json``, beside replay's own
+``<runs dir>/.workflows/<hash of tenant and key>.json``, beside replay's own
 ``.idempotency/``. It holds what a retry needs to be safe:
 
 * the request's fingerprint (workflow, its content, the inputs, hashed), so
@@ -56,17 +56,36 @@ class Entry(BaseModel):
 
 
 class Journal:
-    def __init__(self, runs_dir: Path) -> None:
+    """Entries by tenant and key, as replay keeps its results: a key one
+    tenant's caller chose is not another tenant's request."""
+
+    def __init__(self, runs_dir: Path, tenant: str) -> None:
+        self.runs_dir = runs_dir
         self.dir = runs_dir / ".workflows"
+        self.tenant = tenant
 
     def _path(self, key: str) -> Path:
-        return self.dir / (hashlib.sha256(key.encode("utf-8")).hexdigest()[:32] + ".json")
+        return self.dir / (_digest(f"{self.tenant}\n{key}") + ".json")
 
     def get(self, key: str) -> Entry | None:
         path = self._path(key)
+        if path.is_file():
+            return Entry.model_validate_json(path.read_text(encoding="utf-8"))
+        return self._legacy(key)
+
+    def _legacy(self, key: str) -> Entry | None:
+        """An entry kept under the key alone, before entries were per tenant:
+        this tenant's if its first attempt ran on this tenant. One whose
+        attempts say nothing is not taken for anyone's."""
+        path = self.dir / (_digest(key) + ".json")
         if not path.is_file():
             return None
-        return Entry.model_validate_json(path.read_text(encoding="utf-8"))
+        entry = Entry.model_validate_json(path.read_text(encoding="utf-8"))
+        first = entry.attempts[0] if entry.attempts else None
+        record = self.runs_dir / "workflows" / first / "workflow.json" if first else None
+        if record is None or _tenant_of(record) != self.tenant:
+            return None
+        return entry
 
     def put(self, key: str, entry: Entry) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
@@ -93,14 +112,29 @@ def step_key(workflow: str, key: str, step_id: str) -> str:
     return f"wf:{workflow}:{key}:{step_id}"
 
 
-def find_run(runs_dir: Path, idempotency_key: str) -> Path | None:
-    """The newest run directory that ran under this key, if any."""
+def find_run(runs_dir: Path, idempotency_key: str, tenant: str) -> Path | None:
+    """The newest run directory that ran under this key on this tenant, if any."""
     found: list[Path] = []
     for run_json in runs_dir.glob("*/run.json"):
         try:
             data = json.loads(run_json.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if (data.get("request") or {}).get("idempotency_key") == idempotency_key:
+        if (data.get("request") or {}).get("idempotency_key") != idempotency_key:
+            continue
+        if (data.get("tenant") or {}).get("id") == tenant:
             found.append(run_json.parent)
     return max(found, key=lambda p: p.name) if found else None
+
+
+def _digest(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:32]
+
+
+def _tenant_of(record: Path) -> str | None:
+    try:
+        data = json.loads(record.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    owner = (data.get("tenant") or {}).get("id") if isinstance(data, dict) else None
+    return owner if isinstance(owner, str) else None

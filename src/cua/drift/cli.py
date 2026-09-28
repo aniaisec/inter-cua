@@ -71,7 +71,9 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
     p.add_argument("run", help="A run id, or its directory")
     p.add_argument("--step", help="The step to repair (default: the first that broke)")
     p.add_argument("--tenant", default="local", help="Whose policy scrubs the new locators")
-    p.add_argument("--policy", type=Path, default=Path("policies/default.yaml"))
+    p.add_argument(
+        "--policy", type=Path, help="Default: the tenant's own (policy: in its tenant file)"
+    )
     for f in (runs, caps, out):
         f(p)
 
@@ -231,7 +233,8 @@ def _propose(args: argparse.Namespace) -> int:
         print(f"cua drift propose: no run {args.run!r} found", file=sys.stderr)
         return EX_USAGE
     try:
-        policy = load_policy(args.policy, load_tenant(args.tenant))
+        tenant = load_tenant(args.tenant)
+        policy = load_policy(args.policy or tenant.policy_file, tenant)
     except (OSError, ValueError) as exc:
         print(f"cua drift propose: {exc}", file=sys.stderr)
         return EX_USAGE

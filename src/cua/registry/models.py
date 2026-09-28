@@ -51,7 +51,8 @@ class Record(_Model):
     app_family: str
     surface: str
     tenant_scope: list[str]
-    """Tenants whose deployment runs ``app_family`` (``tenants/*.yaml``)."""
+    """Tenants that run it (``tenants/*.yaml``): their deployment runs
+    ``app_family``, and their tenant file does not narrow it away."""
     side_effects: str
     artifact_hash: str
     created_at: str

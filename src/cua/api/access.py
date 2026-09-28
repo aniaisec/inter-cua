@@ -35,7 +35,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from cua.api.models import ApiError
 from cua.policy.allowlist import Policy, load_policy
-from cua.tenant import TENANTS_DIR, SecretBinding, Tenant, load_tenant
+from cua.tenant import TENANTS_DIR, SecretBinding, Tenant, load_tenant, shared_bindings
 
 ACCESS_FILE = Path("api/access.yaml")
 MIN_KEY_CHARS = 32
@@ -48,7 +48,8 @@ class TenantAccess(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    policy: Path = Path("policies/default.yaml")
+    policy: Path | None = None
+    """Default: the tenant file's own (``policy:``)."""
     file: Path | None = None
     """The tenant file; default ``tenants/<id>.yaml``."""
 
@@ -116,7 +117,9 @@ class Gate:
     A client whose key cannot be read (an unset variable, a missing file, a
     key too short to be unguessable) is disabled, never let in without one;
     ``disabled`` says why, for the server to report at startup. A tenant or
-    policy that does not load is an error at startup, not at the first call.
+    policy that does not load is an error at startup, not at the first call,
+    and so are two served tenants bound to one secret: isolation between them
+    would be a claim their keys do not back (``cua.tenant.shared_bindings``).
     """
 
     def __init__(
@@ -145,7 +148,13 @@ class Gate:
             )
             if tenant.id != tenant_id:
                 raise ValueError(f"tenant {tenant_id!r} loads a file for tenant {tenant.id!r}")
-            self.tenants[tenant_id] = (tenant, load_policy(spec.policy, tenant))
+            self.tenants[tenant_id] = (
+                tenant,
+                load_policy(spec.policy or tenant.policy_file, tenant),
+            )
+        shared = shared_bindings([tenant for tenant, _ in self.tenants.values()])
+        if shared:
+            raise ValueError("; ".join(shared))
 
     def authenticate(self, authorization: str | None) -> tuple[str, Client]:
         scheme, _, presented = (authorization or "").partition(" ")

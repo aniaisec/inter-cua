@@ -70,7 +70,9 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
         metavar="STEP=TOKEN",
         help="Consent for one step's commit (from `cua workflow approval-token`)",
     )
-    r.add_argument("--policy", default="policies/default.yaml", type=Path)
+    r.add_argument(
+        "--policy", type=Path, help="Default: the tenant's own (policy: in its tenant file)"
+    )
     r.add_argument(
         "--budget",
         default="",
@@ -253,7 +255,7 @@ def _run(args: argparse.Namespace) -> int:
     try:
         path = find_workflow(args.workflow, args.workflows_dir)
         tenant = load_tenant(args.tenant)
-        policy = load_policy(args.policy, tenant)
+        policy = load_policy(args.policy or tenant.policy_file, tenant)
         handoff = _handoff_settings(args)
         request = WorkflowRequest(
             inputs=dict(_pair(i, "--input") for i in args.input),

@@ -693,3 +693,63 @@ Status: COMPLETE
 
 ### Next
 - Phase 12: multi-tenant isolation.
+
+## Phase 12 — Multi-tenant isolation
+
+Status: COMPLETE
+
+### Changes
+- `cua.tenant`:
+  - A tenant file binds its `policy` (default `policies/default.yaml`) and may list the `capabilities` it runs. Without a list it runs every capability of its app family.
+  - `Tenant.refusal(name, app_family)` is the one check of what a tenant runs. Replay, the workflow validator, the API's capability routes, the MCP tool list and the registry's `tenant_scope` all call it.
+  - A tenant that names an `overlay` is refused when it loads. Overlays are not implemented, and running a tenant's capabilities unadapted would drive a layout they were not written for.
+  - `shared_bindings(tenants)`: secrets two tenants bind to the same source.
+- `tenants/desk.yaml` signs approval tokens with its own key (`.cua/approval-signing-desk.key`), not the one `local` uses. Both tenant files name their policy.
+- `cua.replay.runner`:
+  - Before anything is read, a credential reference must name the running tenant, and never a system secret (`cua/`). Either is `POLICY_BLOCKED`.
+  - The idempotency cache is per tenant.
+- `cua.replay.result.IdempotencyCache(root, tenant)`: records are keyed by tenant and key, and carry the tenant. A record from before this (key only) is read as its run's tenant's (`run.json`). One refused before it ran is not an answer. One with a side effect whose tenant cannot be told is `IdempotencyConflict`.
+- `cua.workflow.journal`: `Journal(runs_dir, tenant)` works the same way, with the same fallback through the first attempt's `workflow.json`. `find_run` matches the tenant too.
+- `cua.escalation.operator_app.Console(tenant=...)`: one tenant's console lists, shows, serves screenshots of and decides only that tenant's requests. Another's is `404`, as if it did not exist. `cua operator --tenant` sets it, and the API's abort uses the caller's tenant.
+- `cua.api.access`: a tenant's policy defaults to its tenant file's. The gate refuses to start when two served tenants share a secret. `api/access.yaml` no longer repeats the policies.
+- CLI: `--policy` defaults to the tenant's own policy for `discover`, `replay`, `catalog invoke`, `operator`, `workflow run` and `drift propose`.
+- README (CLI row, layout, Security, test matrix), REPORT §4, and the threat model (trust boundary 5, the tenant-scoping control, a residual risk).
+
+### Decisions
+- **What "a capability from tenant A" means.** Capabilities are shared per app family by design. The unit of isolation is the tenant's deployment, credentials, policy, records and consent. A tenant can still keep a capability to itself: another tenant's file lists what it runs, and the capability is not on it.
+- **The tenant file decides, not the capability.** The list lives in the tenant file rather than in the artifact, so the schema and every approved capability's content hash stay as they are.
+- **Shared signing keys were the real gap.** A token names its tenant, but that claim is only as good as the key that signed it. With one key file for `local` and `desk`, whoever could consent for DeskCalc could sign consent for `local`. Each tenant now has its own key, and a shared binding is detected (and refused by the API).
+- **Idempotency, carried over safely.** Rekeying the cache could have let a retry after the upgrade commit again. The legacy fallback serves a record only to the tenant its run ran on, and refuses to guess when it may have committed.
+- **System secrets are the runtime's.** Discovery already kept `cua/` secrets from the model. Replay now refuses a capability that names one, so a reviewed-but-wrong capability cannot type the signing key into a page.
+- **Isolation by the runtime, not the OS.** Tenants share one machine, one account and one runs directory. Tenants whose operators must not trust each other need separate deployments. This is stated as a residual risk.
+
+### Tests
+- `tests/security/test_tenant_isolation.py` (22), with two tenants on one product (`alpha` and `beta`, `legacy-core`), each with its own credential and signing key. No browser is started: a run that gets past every check reaches the surface factory, which raises.
+  - Each tenant runs the shared capability on its own deployment, and `run.json` records which one.
+  - A capability the tenant file does not list, and one of another app family: `POLICY_BLOCKED`, no run directory. The registry scopes a capability to the tenants that run it.
+  - Another tenant's credential reference, and a system secret by `{tenant.id}`: `POLICY_BLOCKED` before anything is read. The resolver refuses another tenant's reference.
+  - A token signed for `alpha` does not verify for `beta`. Under one shared key, the tenant claim still refuses it. Through replay it is refused before a browser, and on `alpha` it runs.
+  - The repository's tenants share no secret, and the API gate refuses two tenants bound to one key.
+  - One key on two tenants is two requests. `beta` is never answered with `alpha`'s stored result. A legacy record goes only to its run's tenant, and one with an unknown tenant and a possible commit is a conflict. Workflow journals and step-run lookups are per tenant.
+  - `beta`'s console lists, shows and decides none of `alpha`'s requests. `alpha`'s run stays untouched.
+  - The tenant files resolve their deployment, policy and credentials. A tenant naming an overlay is refused.
+- Existing tests pass the tenant to `IdempotencyCache` and `Journal`. A workflow refusal now reads `step 'lookup': member_savings_balance is for app family ...`.
+
+### Results
+- Gate: ruff, `ruff format --check` and `mypy --strict` are clean. 814 tests pass (792 before this phase), in about 21 minutes.
+- Live, from PowerShell, against the mock app, with a second tenant `beta` on the same product (tenant files under the gitignored `.cua/`):
+  - `beta` narrowed to `open_subaccount`: `member_savings_balance` is `POLICY_BLOCKED` (`tenant 'beta' does not run member_savings_balance`).
+  - A token from `cua approval-token --tenant local`, presented on `beta`: `POLICY_BLOCKED`, `the token's signature does not verify with tenant 'beta''s key`.
+  - One idempotency key: `local` ran (1411.21), `beta` started a run of its own (`cached: false`, another run id), and `local` again was answered from its cache (`cached: true`, its first run id).
+  - The shipped `api/access.yaml` loads: `local` on `policies/default.yaml`, `desk` on `policies/deskcalc.yaml`, no shared secret.
+
+### Known issues
+- The tenant check at resume uses the tenant as the run recorded it (`handoff_state.json`), as before. A capability dropped from a tenant's list after a run escalated can still be carried on. Its consent and credentials are still checked afresh.
+- `cua record` still loads the default policy for a run's tenant: a run's `run.json` records the tenant's id, app family and base URL, not its policy.
+- Overlays remain design only.
+
+### Commit
+- `test: enforce tenant isolation across capability runtime`.
+
+### Next
+- Phase 13: benchmark expansion.

@@ -311,7 +311,7 @@ def test_a_retry_of_a_run_that_already_happened_still_gets_its_answer(
         code="TIMEOUT", message="stored", side_effect="unknown", capability=NAME,
         capability_version=3, idempotency_key="k1",
     )  # fmt: skip
-    IdempotencyCache(tmp_path / "runs").put(
+    IdempotencyCache(tmp_path / "runs", TENANT.id).put(
         "k1", fingerprint(NAME, 3, {"member_id": "10001"}), stored
     )
     registry(caps, state).transition(NAME, 3, "revoke", by="sec", reason="bad")

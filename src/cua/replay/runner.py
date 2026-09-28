@@ -5,15 +5,19 @@ In order, and each check before anything more expensive:
 1. load the capability (a hand-edited file loads as a new draft);
 2. **approval gate** — unattended replay runs only an ``approved`` capability.
    A draft is ``POLICY_BLOCKED`` unless the operator overrides it explicitly;
-3. **this deployment can carry it out** — the tenant runs the capability's app
-   family, and this build has a ``Surface`` adapter for the surface it names.
-   Either mismatch is ``POLICY_BLOCKED``, because the alternative is driving
-   the wrong thing with the wrong adapter;
+3. **this deployment can carry it out** — the tenant runs the capability (its
+   app family, and its tenant file's list if it has one), and this build has a
+   ``Surface`` adapter for the surface it names. Either mismatch is
+   ``POLICY_BLOCKED``, because the alternative is driving the wrong thing with
+   the wrong adapter. A credential the capability names must be this
+   tenant's, and never one of the system's own (``cua/``), or it is
+   ``POLICY_BLOCKED`` too;
 4. **input shape** — ``INPUT_INVALID`` with no browser started;
 5. **approval token**, if one came — signature, expiry, and that it covers
    this capability, content, tenant and inputs. Any mismatch is
    ``POLICY_BLOCKED``: consent for something else is not consent;
-6. **idempotency** — the same key and request returns the stored result;
+6. **idempotency** — the same key and request, on the same tenant, returns
+   the stored result. Another tenant's use of the key is not this one's;
 7. **lifecycle** — a version the registry has revoked starts no new run
    (``POLICY_BLOCKED``); a deprecated one runs, with a warning, because it
    was named. After the idempotency check on purpose: a stored result starts
@@ -93,11 +97,11 @@ from cua.replay.result import (
     SideEffect,
     fingerprint,
 )
-from cua.secrets.resolver import Credential, SecretError, resolve
+from cua.secrets.resolver import Credential, SecretError, parse_ref, resolve
 from cua.surface.playwright_surface import BrowserProcess, PlaywrightSurface, kill_browser
 from cua.surface.protocol import Surface, SurfaceError
 from cua.surface.vision import image as vision_image
-from cua.tenant import Tenant
+from cua.tenant import SYSTEM_SECRET_PREFIX, Tenant
 
 SurfaceFactory = Callable[[], AbstractContextManager[Surface]]
 HANDOFF_STATE = "handoff_state.json"
@@ -200,14 +204,9 @@ def replay(
             f"approved capability. Review it with `cua describe {path.as_posix()}`, then "
             "`cua approve`.",
         )
-    if cap.target.app_family != tenant.app_family:
-        return _refused(
-            cap,
-            invocation,
-            "POLICY_BLOCKED",
-            f"{cap.name} is for app family {cap.target.app_family!r}; tenant {tenant.id!r} "
-            f"runs {tenant.app_family!r}",
-        )
+    elsewhere = tenant.refusal(cap.name, cap.target.app_family) or _foreign_credential(cap, tenant)
+    if elsewhere is not None:
+        return _refused(cap, invocation, "POLICY_BLOCKED", elsewhere)
     settings = config or ReplayConfig()
     if settings.vision and not vision_image.available():
         raise InvocationError(
@@ -241,7 +240,7 @@ def replay(
         except TokenRefused as exc:
             return _refused(cap, invocation, "POLICY_BLOCKED", f"approval refused: {exc}")
 
-    cache = IdempotencyCache(runs_dir) if invocation.idempotency_key else None
+    cache = IdempotencyCache(runs_dir, tenant.id) if invocation.idempotency_key else None
     request = fingerprint(cap.name, cap.version, invocation.inputs)
     if cache is not None and invocation.idempotency_key is not None:
         try:
@@ -600,7 +599,7 @@ def resume(
 
     if ctx.idempotency_key is not None:
         request = fingerprint(cap.name, cap.version, invocation.inputs)
-        IdempotencyCache(runs_dir).put(ctx.idempotency_key, request, result)
+        IdempotencyCache(runs_dir, ctx.tenant.id).put(ctx.idempotency_key, request, result)
     return result
 
 
@@ -896,6 +895,33 @@ def _credentials(
             raise InvocationError(f"credential {name} ({ref}) has no field(s) {missing}")
         out[name] = credential
     return out
+
+
+def _foreign_credential(cap: Capability, tenant: Tenant) -> str | None:
+    """Why a credential the capability names may not be resolved here.
+
+    A reference is written ``secret://{tenant.id}/<key>``, so that it names
+    the running tenant's own secret. One that names another tenant is a
+    request for that tenant's value; one under ``cua/`` asks for the system's
+    own (the approval signing key), which no capability may type anywhere.
+    Both are refused before anything is read."""
+    for name, spec in cap.credentials.items():
+        ref = spec.ref.replace("{tenant.id}", tenant.id)
+        try:
+            owner, key = parse_ref(ref)
+        except SecretError as exc:
+            return f"credential {name}: {exc}"
+        if owner != tenant.id:
+            return (
+                f"credential {name} ({spec.ref}) belongs to tenant {owner!r}; a run on tenant "
+                f"{tenant.id!r} resolves only its own secrets (secret://{{tenant.id}}/...)"
+            )
+        if key.startswith(SYSTEM_SECRET_PREFIX):
+            return (
+                f"credential {name} ({spec.ref}) is one of the system's own secrets "
+                f"({SYSTEM_SECRET_PREFIX}...), which no capability may use"
+            )
+    return None
 
 
 def _encodings(secrets: list[str]) -> list[str]:

@@ -128,7 +128,7 @@ def run(
     wired wrong; returns a ``WorkflowResult`` for everything else."""
     workflow = load_workflow(path)
     key = request.idempotency_key
-    book = Journal(runs_dir) if key else None
+    book = Journal(runs_dir, tenant.id) if key else None
     fp = journal.fingerprint(
         workflow.name, workflow.version, workflow.content_hash(), request.inputs
     )
@@ -354,7 +354,7 @@ def _execute(
     for step in p.steps:
         step_key = journal.step_key(wf.name, key, step.id) if key else None
         prior = entry.steps.get(step.id)
-        result = _earlier_answer(prior, step, runs_dir)
+        result = _earlier_answer(prior, step, runs_dir, tenant.id)
         if result is None and prior is not None and prior.state == "started":
             if not step.idempotent:
                 refusal = (
@@ -407,7 +407,7 @@ def _execute(
                 # Raised before a browser could start (a missing credential):
                 # nothing ran, so the step is not left looking interrupted.
                 # An interruption inside the run is written by the run itself.
-                if _find_step_run(runs_dir, step_key) is None:
+                if _find_step_run(runs_dir, step_key, tenant.id) is None:
                     entry.steps.pop(step.id, None)
                     save()
                 raise
@@ -498,7 +498,7 @@ def _execute(
 
 
 def _earlier_answer(
-    prior: StepEntry | None, step: PlannedStep, runs_dir: Path
+    prior: StepEntry | None, step: PlannedStep, runs_dir: Path, tenant: str
 ) -> ReplayResult | None:
     """What an earlier attempt of this request got from the step, if the step
     must not be started again for it: an escalated run (finished since by a
@@ -510,15 +510,15 @@ def _earlier_answer(
     if prior.state == "started":
         if step.idempotent or prior.idempotency_key is None:
             return None
-        run_dir = _find_step_run(runs_dir, prior.idempotency_key)
+        run_dir = _find_step_run(runs_dir, prior.idempotency_key, tenant)
     stored = _stored(run_dir) if run_dir is not None else None
     if stored is None and prior.result is not None:
         stored = RESULT.validate_python(prior.result)
     return stored.model_copy(update={"cached": True}) if stored is not None else None
 
 
-def _find_step_run(runs_dir: Path, step_key: str | None) -> Path | None:
-    return journal.find_run(runs_dir, step_key) if step_key else None
+def _find_step_run(runs_dir: Path, step_key: str | None, tenant: str) -> Path | None:
+    return journal.find_run(runs_dir, step_key, tenant) if step_key else None
 
 
 def _stored(run_dir: Path) -> ReplayResult | None:

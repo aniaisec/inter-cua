@@ -188,7 +188,7 @@ and its conditions are surface-neutral.
 
 **Multi-tenant reuse.** A capability is keyed by `target.app_family`, not by
 tenant. `tenants/<id>.yaml` binds everything that belongs to one deployment:
-`base_url`, the store behind each `secret://` ref, and an optional overlay.
+`base_url`, the store behind each `secret://` ref, its policy, and an optional overlay.
 The policy is written against `{tenant.base_url}` for the same reason. An
 overlay overrides only what really differs between installs of the same
 vendor product, and it is versioned separately:
@@ -202,6 +202,25 @@ step_overrides:
 detector_overrides:
   NOT_FOUND: {match: {kind: text_present, text: "Member does not exist"}}
 ```
+
+**Isolation between tenants** is a tested property
+(`tests/security/test_tenant_isolation.py`, two tenants on one product). An
+invocation takes its deployment, credentials, policy and the capabilities it
+may run from its tenant file alone. The tenant file can narrow its app family
+to a list of capability names; replay, workflows, the API, MCP and the
+registry's tenant scope all ask the same check. A credential reference must
+name the running tenant and never a system secret (`cua/`), checked before
+anything is read. Each tenant signs approval tokens with its own key. A key
+two tenants shared would let whoever may consent for one sign consent for the
+other, whatever tenant the token names, so the API refuses to serve two
+tenants bound to one secret. Idempotency results and workflow journals are
+keyed by tenant and key, so a key both tenants' callers chose is two
+requests. A record from before this is read as its run's tenant's, and
+refused as a conflict if its tenant cannot be told and it may have committed.
+The operator console serves one tenant's requests. Overlays are designed
+above but not built, so a tenant file that names one is refused rather than
+run unadapted. The limit: isolation is enforced by the runtime, on one
+machine and one runs directory, not by the operating system.
 
 **Drift detection.** Every `ReplayResult` already reports
 `locator_rungs_used`, recoveries, and any failed checkpoint. Rolled up per

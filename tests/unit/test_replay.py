@@ -362,7 +362,7 @@ def test_failure_codes_are_a_closed_set() -> None:
 
 
 def test_same_key_same_request_returns_the_stored_result(tmp_path: Path) -> None:
-    cache = IdempotencyCache(tmp_path)
+    cache = IdempotencyCache(tmp_path, TENANT.id)
     request = fingerprint("c", 1, {"member_id": "10003"})
     assert cache.get("k1", request) is None
     stored = Success(outputs={"x": "1"}, capability="c", capability_version=1)
@@ -374,7 +374,7 @@ def test_same_key_same_request_returns_the_stored_result(tmp_path: Path) -> None
 
 
 def test_the_cache_holds_no_input_values(tmp_path: Path) -> None:
-    cache = IdempotencyCache(tmp_path)
+    cache = IdempotencyCache(tmp_path, TENANT.id)
     request = fingerprint("c", 1, {"ssn": "123-45-6789"})
     cache.put("k", request, Failure(code="TIMEOUT", capability="c", capability_version=1))
     assert all("123-45-6789" not in p.read_text() for p in cache.dir.iterdir())
@@ -770,7 +770,7 @@ def test_the_ledger_lists_a_recovery_as_failed_until_it_is_finished() -> None:
 
 
 def test_an_escalated_result_is_never_served_from_the_cache(tmp_path: Path) -> None:
-    cache = IdempotencyCache(tmp_path)
+    cache = IdempotencyCache(tmp_path, TENANT.id)
     request = fingerprint("c", 1, {"member_id": "10003"})
     cache.put(
         "k",
