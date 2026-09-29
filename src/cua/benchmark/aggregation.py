@@ -101,6 +101,7 @@ def stats(rows: list[RunMetrics]) -> dict[str, Any]:
         "side_effect_unknown": sum(r.side_effect == "unknown" for r in rows),
         "duplicate_side_effects": sum(r.duplicate_side_effects for r in rows),
         "unexpected_side_effects": sum(r.unexpected_side_effects for r in rows),
+        "forbidden_effects": sum(sum(r.forbidden_effects.values()) for r in rows),
         "cached": sum(r.cached for r in rows),
         "models": sorted({r.model for r in rows if r.model}),
         "outcomes": dict(sorted(_count(r.outcome for r in rows).items())),
@@ -119,9 +120,12 @@ def aggregate(rows: list[RunMetrics], tags: dict[str, list[str]]) -> dict[str, A
     by_strategy: dict[str, list[RunMetrics]] = defaultdict(list)
     by_task: dict[tuple[str, str], list[RunMetrics]] = defaultdict(list)
     by_tag: dict[tuple[str, str], list[RunMetrics]] = defaultdict(list)
+    by_category: dict[tuple[str, str], list[RunMetrics]] = defaultdict(list)
     for r in rows:
         by_strategy[r.strategy].append(r)
         by_task[(r.task_id, r.strategy)].append(r)
+        if r.category is not None:
+            by_category[(r.category, r.strategy)].append(r)
         for tag in tags.get(r.task_id, []):
             by_tag[(tag, r.strategy)].append(r)
     strategies = {s: stats(rs) for s, rs in sorted(by_strategy.items())}
@@ -131,6 +135,10 @@ def aggregate(rows: list[RunMetrics], tags: dict[str, list[str]]) -> dict[str, A
         "strategies": strategies,
         "tasks": [
             {"task": t, "strategy": s, **stats(rs)} for (t, s), rs in sorted(by_task.items())
+        ],
+        "categories": [
+            {"category": c, "strategy": s, **stats(rs)}
+            for (c, s), rs in sorted(by_category.items())
         ],
         "tags": [{"tag": t, "strategy": s, **stats(rs)} for (t, s), rs in sorted(by_tag.items())],
         "break_even": break_even(by_strategy),

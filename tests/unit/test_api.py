@@ -221,7 +221,7 @@ def test_capabilities_are_those_of_the_tenants_app_family_the_client_may_use(
     api: TestClient,
 ) -> None:
     names = [c["name"] for c in api.get("/capabilities", headers=AGENT).json()["capabilities"]]
-    assert names == ["member_savings_balance", "open_subaccount"]
+    assert names == ["member_directory", "member_savings_balance", "open_subaccount"]
     names = [c["name"] for c in api.get("/capabilities", headers=READER).json()["capabilities"]]
     assert names == ["member_savings_balance"]
     desk = api.get("/capabilities", headers={**AGENT, "X-Cua-Tenant": "desk"}).json()

@@ -23,11 +23,15 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
     bsub = b.add_subparsers(dest="benchmark_command", required=True)
 
     ls = bsub.add_parser("list", help="The tasks in a suite")
-    ls.add_argument("--suite", default="core", help="bench/tasks/<suite>.yaml, or a path")
+    ls.add_argument(
+        "--suite", default="core", help="core, a category (bench/tasks/<category>/), all, or a path"
+    )
     ls.add_argument("--all", action="store_true", help="Include tasks that need a person")
 
     run = bsub.add_parser("run", help="Run a benchmark session")
-    run.add_argument("--suite", default="core", help="bench/tasks/<suite>.yaml, or a path")
+    run.add_argument(
+        "--suite", default="core", help="core, a category (bench/tasks/<category>/), all, or a path"
+    )
     run.add_argument("--task", action="append", default=[], help="Only this task id (repeatable)")
     run.add_argument("--tag", action="append", default=[], help="Only tasks with this tag")
     run.add_argument(

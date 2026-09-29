@@ -64,7 +64,7 @@ def tasks_for(name: str, suite: str = "core", task_ids: Iterable[str] = ()) -> l
     out = []
     for task in chosen:
         try:
-            if load(Path(task.capability)).name == name:
+            if task.capability is not None and load(Path(task.capability)).name == name:
                 out.append(task)
         except ArtifactError:
             continue

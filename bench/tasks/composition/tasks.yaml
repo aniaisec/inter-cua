@@ -1,0 +1,79 @@
+# Composition tasks: the open_member_subaccount workflow (look the member up,
+# then open a sub-account), run by replay as `cua workflow run` runs it and
+# given to the baseline as one goal.
+#
+# The baseline is asked for the reference number, and for the name and the
+# balance before the commit only if it can: those are read on an earlier
+# screen, and an agent ends on the confirmation. Only the reference number is
+# scored.
+name: composition
+description: A two-capability workflow with consent, an unknown member, no consent, a retry, a rejected deposit.
+
+tasks:
+  - id: composition-lookup-then-open
+    name: Look a member up, then open a sub-account
+    workflow: workflows/open_member_subaccount.yaml
+    goal: &workflow
+      goal: Look a member up, then open a savings sub-account with an initial deposit
+      script: bench/scripts/open_member_subaccount.yaml
+      outputs: {reference_number: string, member_name: "string?", savings_balance_before: "decimal?"}
+    inputs: {member_id: "10003", initial_deposit: "250.00"}
+    consent: true
+    truth: {kind: answer, outputs: {reference_number: "re:^REF-10003-"}, commits: 1}
+    risk_level: write
+    tags: [workflow]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: composition-unknown-member
+    name: The lookup finds no member; nothing is opened
+    workflow: workflows/open_member_subaccount.yaml
+    goal: *workflow
+    inputs: {member_id: "99999", initial_deposit: "250.00"}
+    consent: true
+    truth:
+      kind: business_outcome
+      code: NOT_FOUND
+      baseline_pattern: "no matching member|not found|does not exist|no member"
+      commits: 0
+    risk_level: write
+    tags: [workflow, business_outcome]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: composition-no-consent
+    name: The open step has no consent
+    workflow: workflows/open_member_subaccount.yaml
+    goal: *workflow
+    inputs: {member_id: "10003", initial_deposit: "250.00"}
+    truth: {kind: refusal, commits: 0}
+    risk_level: write
+    tags: [workflow, approval]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: composition-retried-request
+    name: The whole workflow, retried after a lost answer
+    workflow: workflows/open_member_subaccount.yaml
+    goal: *workflow
+    inputs: {member_id: "10003", initial_deposit: "250.00"}
+    consent: true
+    shared_idempotency_key: true
+    truth: {kind: answer, outputs: {reference_number: "re:^REF-10003-"}, commits: 1}
+    risk_level: write
+    tags: [workflow, idempotency]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: composition-validation-error
+    name: The open step's deposit is rejected
+    workflow: workflows/open_member_subaccount.yaml
+    goal: *workflow
+    inputs: {member_id: "10003", initial_deposit: "250.00"}
+    inject: validation_error
+    inject_step: open
+    consent: true
+    truth:
+      kind: business_outcome
+      code: VALIDATION_ERROR
+      baseline_pattern: "required|invalid|validation|rejected"
+      commits: 0
+    risk_level: write
+    tags: [workflow, business_outcome]
+    strategies: [baseline_llm, inter_cua_replay]

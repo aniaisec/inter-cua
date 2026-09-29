@@ -1,0 +1,187 @@
+goal: List the members of a branch in the member directory and read one page of it
+steps:
+- tool: type
+  target:
+  - strategy: near_text
+    text: User ID
+    role: textbox
+    exact: true
+    within:
+      frame: ''
+  - strategy: bbox
+    x: 83.671875
+    y: 64.0
+    w: 154.0
+    h: 20.0
+    role: textbox
+    confidence: low
+    within:
+      frame: ''
+  text: ${credentials.app_login.username}
+  reason: The sign-on screen asks for a user id first.
+- tool: type
+  target:
+  - strategy: near_text
+    text: Password
+    role: textbox
+    exact: true
+    within:
+      frame: ''
+  - strategy: bbox
+    x: 83.671875
+    y: 90.0
+    w: 154.0
+    h: 20.0
+    role: textbox
+    confidence: low
+    within:
+      frame: ''
+  text: ${credentials.app_login.password}
+  reason: Then the password.
+- tool: click
+  target:
+  - strategy: role_name
+    role: button
+    name: Sign On
+    exact: true
+    within:
+      frame: ''
+  - strategy: bbox
+    x: 83.671875
+    y: 116.0
+    w: 67.84375
+    h: 19.0
+    role: button
+    confidence: low
+    within:
+      frame: ''
+  reason: Submit the sign-on form.
+- tool: click
+  target:
+  - strategy: role_name
+    role: link
+    name: Member Directory
+    exact: true
+    within:
+      frame: nav
+  - strategy: bbox
+    x: 20.0
+    y: 72.0
+    w: 99.1875
+    h: 13.0
+    role: link
+    confidence: low
+    within:
+      frame: nav
+  reason: The directory is on the Functions menu.
+- tool: select
+  target:
+  - strategy: near_text
+    text: Branch
+    role: combobox
+    exact: true
+    within:
+      frame: main
+  - strategy: bbox
+    x: 251.3125
+    y: 64.0
+    w: 93.0
+    h: 22.0
+    role: combobox
+    confidence: low
+    within:
+      frame: main
+  text: All
+  reason: Filter the list by branch.
+- tool: type
+  target:
+  - strategy: near_text
+    text: Page
+    role: textbox
+    exact: true
+    within:
+      frame: main
+  - strategy: bbox
+    x: 251.3125
+    y: 92.0
+    w: 32.0
+    h: 20.0
+    role: textbox
+    confidence: low
+    within:
+      frame: main
+  text: '2'
+  reason: The list is paged; ask for the page wanted.
+- tool: click
+  target:
+  - strategy: role_name
+    role: button
+    name: Show
+    exact: true
+    within:
+      frame: main
+  - strategy: bbox
+    x: 251.3125
+    y: 118.0
+    w: 54.171875
+    h: 19.0
+    role: button
+    confidence: low
+    within:
+      frame: main
+  reason: Show that page of the filtered list.
+- tool: done
+  outputs:
+    member_count:
+    - strategy: near_text
+      text: Members found
+      role: cell
+      direction: right
+      exact: true
+      within:
+        frame: main
+    - strategy: bbox
+      x: 292.546875
+      y: 164.0
+      w: 100.5625
+      h: 19.0
+      role: cell
+      confidence: low
+      within:
+        frame: main
+    page_label:
+    - strategy: near_text
+      text: Showing page
+      role: cell
+      direction: right
+      exact: true
+      within:
+        frame: main
+    - strategy: bbox
+      x: 292.546875
+      y: 183.0
+      w: 100.5625
+      h: 19.0
+      role: cell
+      confidence: low
+      within:
+        frame: main
+    first_member:
+    - strategy: near_text
+      text: First on page
+      role: cell
+      direction: right
+      exact: true
+      within:
+        frame: main
+    - strategy: bbox
+      x: 292.546875
+      y: 202.0
+      w: 100.5625
+      h: 19.0
+      role: cell
+      confidence: low
+      within:
+        frame: main
+  reason: The summary under the filter says how many members match, which page this
+    is, and who is first on it.

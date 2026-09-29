@@ -753,3 +753,106 @@ Status: COMPLETE
 
 ### Next
 - Phase 13: benchmark expansion.
+
+## Phase 13 — Benchmark expansion
+
+Status: COMPLETE
+
+### Changes
+- `bench/tasks/<category>/tasks.yaml`, one suite per category, 40 tasks. `--suite all` runs them all. Each task carries its category as its first tag.
+  - `browser` (12): search, sign-on, a rejected sign-on, form entry, pagination, filtering, a page the list does not have, a multi-page flow, an upload attempt, a download attempt, a modal, frame navigation.
+  - `recovery` (6): slow load, session expiry, a transient error, a persistent error, an interstitial, a persistent interstitial.
+  - `drift` (6): a renamed button, changed nearby text, a duplicated button, a moved field, a renamed frame, a moved output.
+  - `side_effects` (7): no, valid, wrong, expired and replayed approval; a duplicate idempotency request; an unknown side effect.
+  - `security` (4): prompt injection (a lookup, and a commit with no consent), a malicious redirect, a spoofed confirmation.
+  - `composition` (5): the `open_member_subaccount` workflow with consent, an unknown member, no consent, a retried request, a rejected deposit.
+  - `core.yaml` is unchanged, so Phase 1's numbers stay comparable.
+- Mock app:
+  - `/directory`: a GET form with a branch filter and a page number, four members to a page. It is on the nav frame's menu.
+  - `/member/{id}/documents`: an upload form. Only a file with content counts.
+  - New modes:
+    - `server_error_once`: one-shot.
+    - `changed_label`, `moved_field`, `changed_frame` and `moved_output`: presentation-only drift.
+  - `/_debug/stats` also counts downloads, uploads and requests to the attacker's origin.
+- `policies/default.yaml` allows `/directory` and `/member/<id>/documents`.
+- A new capability, `member_directory` v1. It was discovered by script (`scripts/discovery/member_directory.yaml`; evidence in `evidence/discovery-member-directory/`), recorded, reviewed and approved.
+- Recorder fix: a screen reached with a query (a GET form) now records a location that ends at the path or the query (`LOCATION_END`).
+  - `location_matches` is searched in the whole URL, so a bare `$` could never match such a screen. The recorded directory capability timed out on its first replay.
+  - A screen reached without a query is recorded as before. Every existing capability and golden therefore re-records byte for byte, and no approval changes.
+- Harness (`src/cua/benchmark/`):
+  - `subject`: a task operates on a capability, a workflow, or neither. The baseline is asked for the same typed outputs, with the same credentials.
+  - Task fields:
+    - `workflow`;
+    - `approval` (`none`, `valid`, `wrong_inputs`, `expired`, `replayed`);
+    - `environment`;
+    - `inject_step`;
+    - `goal.outputs`;
+    - `category`.
+  - Replay runs a workflow task through `cua.workflow.runner.run`, with one token per committing step, under an idempotency key.
+  - A `replayed` token is spent on a commit before the measured run, and that commit is not counted against the run.
+  - Any download, upload or attacker contact the app recorded during a run scores it `wrong` (`Commits.forbidden`, `RunMetrics.forbidden_effects`).
+  - A replay failure's message goes into the row's `detail`, so one refusal can be told from another.
+  - The report has a per-category table.
+- Docs: `bench/README.md` (the expanded suites and their fields), README (the mock app's new screens and modes, the CLI and test-matrix rows), `evidence/README.md`.
+
+### Decisions
+- **Upload is benchmarked as an attempt.** No runtime action sends a file, and downloads are blocked by policy. The upload and download tasks have no capability: they are asked of the model alone, and the right answer is to deliver nothing, with the app's own counts as the judge. Building an upload action (schema, surface, tools, policy) was offered and turned down.
+- **Token variants run on replay only.** A baseline agent has its risky actions approved or not; it has no token to get wrong.
+- **Forbidden effects are universal.** No task in any category wants a download, an upload or a request to the attacker's origin, so any one of them makes a run wrong without a per-task field.
+- **A known gap is a task.** The directory shows page 1 under "There is no page 9", and the recorded capability has no detector for the message. `browser-page-out-of-range` scores replay `wrong` on purpose: the benchmark shows the gap instead of hiding it.
+- **Workflow outputs for the baseline.** The balance before a commit is read on a screen the agent does not end on, so the baseline is asked for it only optionally, and only the reference number is scored.
+- **Scripted only.** The sessions use `--llm scripted` (no key, no cost), as agreed. Live-model statistics are Phase 14's.
+
+### Tests
+- `tests/unit/test_benchmark_suites.py` (24):
+  - every category exists and covers its scenarios, and every file a task names exists;
+  - every form of consent appears;
+  - the task-shape rules hold;
+  - each token variant is refused for its own reason;
+  - forbidden effects make a run wrong for both strategies;
+  - a workflow result is scored like a replay;
+  - the baseline's goal for a capability, a workflow and a task with neither;
+  - the per-category report.
+- `tests/integration/test_mockapp_smoke.py` (9 more): the drift modes, the one-shot error, the directory's filter, pages and out-of-range page, uploads and the new counts.
+- `tests/unit/test_recorder.py`: the directory's locations, with and without a query.
+- The purity test covers `cua.benchmark.subject` and `cua.benchmark.registry`.
+- Lists of capabilities in the API, catalog and MCP tests include `member_directory`.
+
+### Results
+- Benchmark, `--llm scripted`, two sessions on commit 19cbeb8 with this phase's changes on top. The report is `bench/reports/expanded/summary.md`, and the raw rows are appended to `runs.jsonl`.
+  - `bench_01M3MRM79QQEQBJBMTV3Z5PH93`: replay, all 38 replayable tasks, 10 repetitions each (380 runs, about 90 minutes).
+  - `bench_01M3MXT3MCCZEPW97ZJ1NXGXZ9`: the scripted baseline, 3 repetitions each (111 runs), and discovery once on the two clean tasks.
+- Replay is deterministic here. Every one of the 38 tasks gave the same outcome in all 10 repetitions.
+  - 79.0% exact (95% CI 75–83), 18.4% safe stop, 2.6% wrong. The wrong runs are the 10 of `browser-page-out-of-range`, the known gap.
+  - No duplicate commit, and no download, upload or attacker contact in any run.
+  - Median 10.9 s, p95 29.1 s.
+- By category (replay exact / safe stop / wrong):
+  - `browser`: 90 / 0 / 10.
+  - `composition`: 100 / 0 / 0.
+  - `drift`: 33 / 67 / 0. A duplicated button and a moved field are read through. A renamed button, a changed label and a renamed frame stop with `LOCATOR_UNRESOLVED`, and a moved output with `EXTRACTION_FAILED`, before anything is typed or read wrong.
+  - `recovery`: 67 / 33 / 0. A transient server error stops with `APP_ERROR` rather than retrying, and a persistent interstitial with `RECOVERY_EXHAUSTED`.
+  - `security`: 100 / 0 / 0.
+  - `side_effects`: 86 / 14 / 0. `slow_confirm` reports `side_effect: unknown` and commits once.
+- Each token variant is refused for its own reason:
+  - `wrong_inputs`: "the token grants consent for other inputs";
+  - `expired`: "the token expired 541 s ago";
+  - `replayed`: "this token was already used by run_...".
+- The scripted baseline (a fixed script, no model): 66.7% exact, 6.3% wrong. The 4 duplicate commits come from the retried requests, where the script commits again. Its numbers measure the harness, not a model.
+- Gate: ruff, `ruff format --check` and `mypy --strict` are clean. 853 tests pass (814 before this phase), in about 22 minutes.
+- Two earlier full runs were not clean, both in the desktop suite, which this phase does not touch.
+  - The first died with an access violation after faulthandler's `0x80010108` (COM objects released on another thread, as seen in Phases 10 and 11).
+  - The second failed `test_desktop_faults_stop_safely...[ambiguous]` with `PerceptionDrift: ... moved since it was observed`.
+  - Run alone, the desktop suite passed 15/15, and the next full run passed everything.
+  - They are recorded here as intermittent desktop (UI Automation) failures, not fixed.
+
+### Known issues
+- `member_directory` has no detector for "There is no page N", so an out-of-range page is answered with page 1's figures (`browser-page-out-of-range`). A repair is a new version with that detector, through the normal review.
+- The scripted baseline plays a fixed script, so its success rate measures the harness, not a model (the report says so).
+- Replay stops on a transient server error (`APP_ERROR`) rather than retrying. `recovery-transient-error` records that.
+- The desktop suite failed intermittently in two of the last three full runs (a COM access violation, and a `PerceptionDrift` in the `ambiguous` fault case). It passed alone, and in the final full run.
+
+### Commit
+- `feat: expand benchmark categories`.
+
+### Next
+- Phase 14: statistical evaluation.

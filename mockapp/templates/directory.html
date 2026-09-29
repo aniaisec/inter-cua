@@ -1,0 +1,45 @@
+<html>
+<head><title>Member Directory</title>{% include "_legacy.css.html" %}</head>
+<body>
+<div class="bar">MockCore Member Services 1.0</div>
+<div class="pane">
+<h3>Member Directory</h3>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+<form method="get" action="/directory">
+<table class="frm">
+<tr>
+  <td>Branch</td>
+  <td><select name="F_BRANCH">
+  {% for b in branches %}<option{% if b == branch %} selected{% endif %}>{{ b }}</option>
+  {% endfor %}</select></td>
+</tr>
+<tr>
+  <td>Page</td>
+  <td><input type="text" name="F_PAGE" size="3" maxlength="3" value="{{ page }}"></td>
+</tr>
+<tr><td></td><td><input type="submit" value="Show"></td></tr>
+</table>
+</form>
+<br>
+<table class="frm">
+<tr><td>Members found</td><td>{{ count }}</td></tr>
+<tr><td>Showing page</td><td>{{ page }} of {{ pages }}</td></tr>
+<tr><td>First on page</td><td>{{ members[0].name if members else "" }}</td></tr>
+</table>
+<br>
+<table class="grd">
+<tr><th>Member ID</th><th>Name</th><th>Branch</th></tr>
+{% for m in members %}
+<tr><td>{{ m.member_id }}</td><td>{{ m.name }}</td><td>{{ m.branch }}</td></tr>
+{% endfor %}
+</table>
+<br>
+<table class="frm">
+<tr>
+{% if page > 1 %}<td><a href="/directory?F_BRANCH={{ branch }}&F_PAGE={{ page - 1 }}">Previous</a></td>{% endif %}
+{% if page < pages %}<td><a href="/directory?F_BRANCH={{ branch }}&F_PAGE={{ page + 1 }}">Next</a></td>{% endif %}
+</tr>
+</table>
+</div>
+</body>
+</html>

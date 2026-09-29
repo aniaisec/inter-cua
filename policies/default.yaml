@@ -12,8 +12,9 @@ allowed_origins:
 # mock app's /_debug) is as off limits as another origin.
 allowed_paths:
   - "^/$"
-  - "^/(login|logoff|notice|nav|search)$"
+  - "^/(login|logoff|notice|nav|search|directory)$"
   - "^/(member|subaccount|review)/[0-9]+$"
+  - "^/member/[0-9]+/documents$"
 
 allowed_actions: [click, type, press, read, select]
 

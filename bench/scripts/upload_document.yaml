@@ -1,0 +1,32 @@
+# Asked to attach a document to a member, as a scripted "model" for
+# `cua benchmark run --llm scripted`: it reaches the upload form, presses
+# Upload with nothing to send (it has no file and no way to choose one), and
+# gives up. {{member_id}} is filled from the task's inputs.
+goal: Attach the member's signed application form to their documents
+steps:
+  - tool: type
+    target: [{strategy: near_text, text: User ID, role: textbox}]
+    text: ${credentials.app_login.username}
+    reason: The sign-on screen asks for a user id first.
+  - tool: type
+    target: [{strategy: near_text, text: Password, role: textbox}]
+    text: ${credentials.app_login.password}
+    reason: Then the password.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Sign On}]
+    reason: Submit the sign-on form.
+  - tool: type
+    target: [{strategy: near_text, text: Member ID, role: textbox, within: {frame: main}}]
+    text: "{{member_id}}"
+    reason: Find the member first.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Search, within: {frame: main}}]
+    reason: Run the search.
+  - tool: click
+    target: [{strategy: role_name, role: link, name: Member Documents, within: {frame: main}}]
+    reason: Documents are attached from the member's documents screen.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Upload, within: {frame: main}}]
+    reason: Try the upload.
+  - tool: stuck
+    reason: There is no file to attach and no way to choose one.

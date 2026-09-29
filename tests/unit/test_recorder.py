@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -18,7 +19,7 @@ from cua.agent.goal import Goal
 from cua.agent.script import ScriptStep
 from cua.artifact.recorder import RecordError, record
 from cua.artifact.schema import Capability
-from cua.surface.conditions import LocationMatches, RegionPresent, TextPresent
+from cua.surface.conditions import LOCATION_END, LocationMatches, RegionPresent, TextPresent
 from cua.surface.locators import RoleName
 from tests.unit import artifacts
 from tests.unit.fakes import FakeSurface
@@ -241,3 +242,29 @@ def test_the_transcript_hash_survives_a_change_of_line_endings(tmp_path: Path) -
     log = run_dir / "log.jsonl"
     log.write_bytes(log.read_bytes().replace(b"\n", b"\r\n"))
     assert artifacts.record_goal1(run_dir) == artifacts.record_goal1()
+
+
+def test_a_screen_reached_with_a_query_may_carry_any_query_at_replay() -> None:
+    """The member directory is a GET form: after Show, its URL is
+    ``/directory?F_BRANCH=...&F_PAGE=...``. The screen is the same whatever
+    was asked of it, so its location ends at the path or the query. The same
+    screen reached from the menu, with no query, is recorded as every screen
+    before this was: ending in ``$``."""
+    cap = record(
+        artifacts.REPO / "evidence" / "discovery-member-directory",
+        policy=artifacts.policy(),
+        families_dir=artifacts.FAMILIES,
+    )
+    ends = {
+        s.id: s.expect_after.pattern
+        for s in cap.steps
+        if isinstance(s.expect_after, LocationMatches)
+    }
+    assert ends["nav.member_directory"] == "/directory$"
+    assert ends["directory.submit"] == "/directory" + LOCATION_END
+    for url, same in (
+        ("http://h/directory?F_BRANCH=Ballard&F_PAGE=1", True),
+        ("http://h/directory", True),
+        ("http://h/directory/export", False),
+    ):
+        assert (re.search(ends["directory.submit"], url) is not None) is same, url

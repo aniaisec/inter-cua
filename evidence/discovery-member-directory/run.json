@@ -1,0 +1,75 @@
+{
+  "run_id": "run_01M3MNM1BWNJG702GXGWMD9GW0",
+  "started_at": "2026-09-28T18:49:46.586Z",
+  "goal": {
+    "goal": "List the members of a branch in the member directory and read one page of it",
+    "name": "member_directory",
+    "entry": "/login",
+    "params": [
+      {
+        "name": "branch",
+        "type": "string",
+        "value": "All"
+      },
+      {
+        "name": "page",
+        "type": "integer",
+        "value": "2"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "member_count",
+        "type": "integer",
+        "optional": false,
+        "description": ""
+      },
+      {
+        "name": "page_label",
+        "type": "string",
+        "optional": false,
+        "description": ""
+      },
+      {
+        "name": "first_member",
+        "type": "string",
+        "optional": false,
+        "description": ""
+      }
+    ],
+    "credentials": {
+      "app_login": "secret://local/mockcore/operator"
+    }
+  },
+  "entry_url": "http://127.0.0.1:8011/login",
+  "tenant": {
+    "id": "local",
+    "app_family": "legacy-core",
+    "base_url": "http://127.0.0.1:8011"
+  },
+  "credentials": {
+    "app_login": {
+      "ref": "secret://local/mockcore/operator",
+      "fields": [
+        "username",
+        "password"
+      ]
+    }
+  },
+  "provider": "scripted",
+  "model": "scripted",
+  "limits": {
+    "max_steps": 30,
+    "timeout_s": 600.0,
+    "dead_end_repeats": 3
+  },
+  "screenshots": true,
+  "auto_approve_risky": false,
+  "recording_env": {
+    "viewport": {
+      "w": 1280,
+      "h": 800
+    },
+    "dpr": 1.0
+  }
+}

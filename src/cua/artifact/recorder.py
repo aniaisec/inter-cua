@@ -81,6 +81,7 @@ from cua.policy.allowlist import NeedsApproval, Policy, check
 from cua.policy.redaction import MASK
 from cua.surface.a11y import normalize
 from cua.surface.conditions import (
+    LOCATION_END,
     SELF,
     AllOf,
     Condition,
@@ -648,13 +649,19 @@ def _heading(obs: Observation, frame: str) -> str | None:
 def _location(obs: Observation, frame: str, params: dict[str, str]) -> LocationMatches:
     info = obs.frame_info(frame)
     url = info.url if info else obs.location
+    split = urlsplit(url)
     parts = []
-    for segment in urlsplit(url).path.split("/"):
+    for segment in split.path.split("/"):
         if segment in params or segment.isdigit():
             parts.append("[0-9]+" if segment.isdigit() else "[^/]+")
         else:
             parts.append(re.escape(segment))
-    pattern = "/".join(parts) + "$"
+    # A screen reached with a query (a GET form: a filtered list) carries the
+    # form in its URL, and is the same screen whatever was asked of it: its
+    # path may end at the query. One reached without is recorded as it
+    # always was, so a run recorded before this records the same capability.
+    end = LOCATION_END if split.query or split.fragment else "$"
+    pattern = "/".join(parts) + end
     return LocationMatches(pattern=pattern, within=_within(frame))
 
 

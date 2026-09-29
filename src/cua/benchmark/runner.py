@@ -13,7 +13,7 @@ import platform
 import subprocess
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import yaml
@@ -21,18 +21,18 @@ import yaml
 from cua.agent.llm import LLMClient, ScriptedClient, select_client
 from cua.agent.script import Script
 from cua.artifact.recorder import RecordError, record
-from cua.artifact.schema import Capability
-from cua.artifact.store import load, save
+from cua.artifact.store import save
 from cua.benchmark.baseline_runner import run_baseline
 from cua.benchmark.environment import BenchEnv, bench_env, mockapp
 from cua.benchmark.models import BenchmarkTask, RunMetrics, Strategy
-from cua.benchmark.replay_runner import consent, run_replay
+from cua.benchmark.replay_runner import run_replay, run_workflow_replay, token_for
 from cua.benchmark.storage import (
     REPORTS_DIR,
     SessionInfo,
     append_run,
     append_session,
 )
+from cua.benchmark.subject import Subject, subject_for
 from cua.evidence.logger import new_run_id, utc_now
 from cua.observability.cost import PRICING_PATH, PriceTable
 
@@ -104,13 +104,19 @@ def run_session(plan: Plan, progress: Progress | None = None) -> SessionInfo:
     with mockapp() as base_url:
         env = bench_env(base_url, runs_dir)
         for task in plan.tasks:
-            path = Path(task.capability)
-            cap = load(path)
+            subject = subject_for(task)
+            # A task's own environment (a credential the app will reject) is
+            # for its runs only.
+            task_env = (
+                replace(env, environ={**env.environ, **task.environment})
+                if task.environment
+                else env
+            )
             for strategy in plan.strategies:
                 if strategy not in task.strategies:
                     continue
                 try:
-                    for row in _runs(plan, task, cap, path, env, strategy, make_llm, session_id):
+                    for row in _runs(plan, task, subject, task_env, strategy, make_llm, session_id):
                         append_run(row, plan.reports_dir)
                         rows += 1
                         if progress is not None:
@@ -125,8 +131,7 @@ def run_session(plan: Plan, progress: Progress | None = None) -> SessionInfo:
 def _runs(
     plan: Plan,
     task: BenchmarkTask,
-    cap: Capability,
-    path: Path,
+    subject: Subject,
     env: BenchEnv,
     strategy: Strategy,
     make_llm: Callable[[BenchmarkTask], LLMClient],
@@ -137,26 +142,40 @@ def _runs(
         count = min(count, plan.discovery_repetitions)
     out: list[RunMetrics] = []
     group_commits = 0
-    token = consent(cap, task, env) if task.consent and task.shared_idempotency_key else None
-    key = f"{session_id}-{task.id}" if task.shared_idempotency_key else None
+    cap = subject.capability
+    shared = task.shared_idempotency_key
+    token = token_for(cap, task, env) if cap is not None and shared else None
+    key = f"{session_id}-{task.id}" if shared else None
     for rep in range(1, count + 1):
-        earlier = group_commits if task.shared_idempotency_key else 0
-        if strategy == "inter_cua_replay":
-            row = run_replay(
+        earlier = group_commits if shared else 0
+        if strategy == "inter_cua_replay" and subject.plan is not None:
+            row = run_workflow_replay(
                 task,
-                cap,
-                path,
+                subject,
                 env,
                 session_id=session_id,
                 repetition=rep,
-                token=token or (consent(cap, task, env) if task.consent else None),
+                # A workflow that commits runs only under a key.
+                idempotency_key=key or f"{session_id}-{task.id}-{rep}",
+                commits_earlier=earlier,
+            )
+        elif strategy == "inter_cua_replay":
+            assert cap is not None and subject.path is not None
+            row = run_replay(
+                task,
+                cap,
+                subject.path,
+                env,
+                session_id=session_id,
+                repetition=rep,
+                token=token or token_for(cap, task, env),
                 idempotency_key=key,
                 commits_earlier=earlier,
             )
         else:
             row = run_baseline(
                 task,
-                cap,
+                subject,
                 env,
                 make_llm,
                 session_id=session_id,

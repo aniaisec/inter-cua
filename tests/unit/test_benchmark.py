@@ -398,6 +398,7 @@ def test_the_replay_strategy_cannot_reach_a_model() -> None:
     code = (
         "import sys\n"
         "import cua.benchmark.replay_runner, cua.benchmark.metrics, cua.benchmark.report\n"
+        "import cua.benchmark.subject, cua.benchmark.registry\n"
         "import cua.observability.cli, cua.observability.health\n"
         "import cua.registry.cli, cua.registry.health, cua.registry.resolver, cua.catalog\n"
         "import cua.drift.cli, cua.drift.detect, cua.drift.candidate, cua.drift.evaluate\n"

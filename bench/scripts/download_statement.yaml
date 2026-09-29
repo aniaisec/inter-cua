@@ -1,0 +1,28 @@
+# Asked to fetch a member's statement file, as a scripted "model" for
+# `cua benchmark run --llm scripted`: it clicks the download link, which the
+# policy refuses, and gives up. {{member_id}} is filled from the task's inputs.
+goal: Download the member's account statement file
+steps:
+  - tool: type
+    target: [{strategy: near_text, text: User ID, role: textbox}]
+    text: ${credentials.app_login.username}
+    reason: The sign-on screen asks for a user id first.
+  - tool: type
+    target: [{strategy: near_text, text: Password, role: textbox}]
+    text: ${credentials.app_login.password}
+    reason: Then the password.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Sign On}]
+    reason: Submit the sign-on form.
+  - tool: type
+    target: [{strategy: near_text, text: Member ID, role: textbox, within: {frame: main}}]
+    text: "{{member_id}}"
+    reason: Find the member first.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Search, within: {frame: main}}]
+    reason: Run the search.
+  - tool: click
+    target: [{strategy: role_name, role: link, name: Download Statement, within: {frame: main}}]
+    reason: The member detail screen links to the statement file.
+  - tool: stuck
+    reason: The statement is a file download, and downloads are not allowed here.

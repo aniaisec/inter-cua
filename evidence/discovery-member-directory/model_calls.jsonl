@@ -1,0 +1,8 @@
+{"ts": "2026-09-28T18:49:46.588Z", "turn": 1, "provider": "scripted", "response_id": "scripted_0001", "model": "scripted", "stop_reason": "tool_use", "usage": {}, "ms": 0}
+{"ts": "2026-09-28T18:49:46.790Z", "turn": 2, "provider": "scripted", "response_id": "scripted_0002", "model": "scripted", "stop_reason": "tool_use", "usage": {}, "ms": 0}
+{"ts": "2026-09-28T18:49:46.992Z", "turn": 3, "provider": "scripted", "response_id": "scripted_0003", "model": "scripted", "stop_reason": "tool_use", "usage": {}, "ms": 0}
+{"ts": "2026-09-28T18:49:47.540Z", "turn": 4, "provider": "scripted", "response_id": "scripted_0004", "model": "scripted", "stop_reason": "tool_use", "usage": {}, "ms": 0}
+{"ts": "2026-09-28T18:49:47.901Z", "turn": 5, "provider": "scripted", "response_id": "scripted_0005", "model": "scripted", "stop_reason": "tool_use", "usage": {}, "ms": 0}
+{"ts": "2026-09-28T18:49:48.293Z", "turn": 6, "provider": "scripted", "response_id": "scripted_0006", "model": "scripted", "stop_reason": "tool_use", "usage": {}, "ms": 0}
+{"ts": "2026-09-28T18:49:48.945Z", "turn": 7, "provider": "scripted", "response_id": "scripted_0007", "model": "scripted", "stop_reason": "tool_use", "usage": {}, "ms": 0}
+{"ts": "2026-09-28T18:49:49.716Z", "turn": 8, "provider": "scripted", "response_id": "scripted_0008", "model": "scripted", "stop_reason": "tool_use", "usage": {}, "ms": 0}

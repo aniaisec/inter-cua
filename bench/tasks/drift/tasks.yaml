@@ -1,0 +1,70 @@
+# Drift tasks: the screen the lookup was recorded on has changed, the way a
+# vendor upgrade changes it. The balance is still on the screen to be read by
+# anyone who can find it, so the truth is the answer every time; what differs is
+# whether a strategy finds it, stops safely, or reads the wrong thing.
+name: drift
+description: Renamed, relabelled, duplicated and moved controls, a renamed frame, a moved output.
+
+tasks:
+  - id: drift-renamed-button
+    name: The Search button reads Find
+    capability: capabilities/member_savings_balance.json
+    goal: &lookup
+      goal: Look up a member by id and return the current savings balance
+      script: bench/scripts/member_savings_balance.yaml
+    inputs: {member_id: "10003"}
+    inject: renamed_button
+    truth: {kind: answer, outputs: {savings_balance: "1411.21"}}
+    tags: [control_renamed]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: drift-changed-label
+    name: The field's label reads Member Number
+    description: The text next to the member id field changed; the field and button did not.
+    capability: capabilities/member_savings_balance.json
+    goal: *lookup
+    inputs: {member_id: "10003"}
+    inject: changed_label
+    truth: {kind: answer, outputs: {savings_balance: "1411.21"}}
+    tags: [nearby_text]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: drift-duplicated-button
+    name: A second Search button elsewhere on the screen
+    capability: capabilities/member_savings_balance.json
+    goal: *lookup
+    inputs: {member_id: "10003"}
+    inject: ambiguous_button
+    truth: {kind: answer, outputs: {savings_balance: "1411.21"}}
+    tags: [control_ambiguous]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: drift-moved-field
+    name: The member id field moves below its label
+    capability: capabilities/member_savings_balance.json
+    goal: *lookup
+    inputs: {member_id: "10003"}
+    inject: moved_field
+    truth: {kind: answer, outputs: {savings_balance: "1411.21"}}
+    tags: [layout_changed]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: drift-changed-frame
+    name: The work frame is renamed
+    capability: capabilities/member_savings_balance.json
+    goal: *lookup
+    inputs: {member_id: "10003"}
+    inject: changed_frame
+    truth: {kind: answer, outputs: {savings_balance: "1411.21"}}
+    tags: [frame_changed]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: drift-moved-output
+    name: The balances table is turned on its side
+    capability: capabilities/member_savings_balance.json
+    goal: *lookup
+    inputs: {member_id: "10003"}
+    inject: moved_output
+    truth: {kind: answer, outputs: {savings_balance: "1411.21"}}
+    tags: [output_changed]
+    strategies: [baseline_llm, inter_cua_replay]

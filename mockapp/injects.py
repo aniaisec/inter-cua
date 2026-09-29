@@ -39,6 +39,7 @@ class Inject(StrEnum):
     SLOW_LOAD = "slow_load"
     SESSION_EXPIRED = "session_expired"
     SERVER_ERROR = "server_error"
+    SERVER_ERROR_ONCE = "server_error_once"
     RENAMED_BUTTON = "renamed_button"
     AMBIGUOUS_BUTTON = "ambiguous_button"
     SLOW_CONFIRM = "slow_confirm"
@@ -46,6 +47,13 @@ class Inject(StrEnum):
     NATIVE_CONFIRM = "native_confirm"
     HIDDEN_CONTROL = "hidden_control"
     HIDDEN_DUPLICATE = "hidden_duplicate"
+    # Drift: the screen a capability was recorded on, changed the way a vendor
+    # upgrade changes it. Presentation only, and persistent: the app now looks
+    # like this.
+    CHANGED_LABEL = "changed_label"
+    MOVED_FIELD = "moved_field"
+    CHANGED_FRAME = "changed_frame"
+    MOVED_OUTPUT = "moved_output"
     # Hostile content, for the security benchmark (see ATTACKER_HOST below).
     PROMPT_INJECTION = "prompt_injection"
     MALICIOUS_REDIRECT = "malicious_redirect"
@@ -59,6 +67,7 @@ ONE_SHOT: frozenset[Inject] = frozenset(
         Inject.SLOW_LOAD,
         Inject.SESSION_EXPIRED,
         Inject.SLOW_CONFIRM,
+        Inject.SERVER_ERROR_ONCE,
     }
 )
 HOSTILE: frozenset[Inject] = frozenset(
@@ -66,6 +75,22 @@ HOSTILE: frozenset[Inject] = frozenset(
 )
 
 PERSISTENT: frozenset[Inject] = frozenset(set(Inject) - set(ONE_SHOT))
+
+# ``server_error`` is an outage: every member detail request fails.
+# ``server_error_once`` is a blip: the first one fails and the next succeeds,
+# so a caller that tries again gets its answer.
+#
+# The four drift modes, each on the screen the lookup was recorded on:
+#
+# ``changed_label``  the search screen's "Member ID" label reads "Member
+#     Number"; the field and the button are where they were.
+# ``moved_field``    the member id field moves to a row of its own below its
+#     label, so nothing sits to the label's right any more.
+# ``changed_frame``  the frameset's work frame is named "work", not "main";
+#     every screen in it is otherwise the same.
+# ``moved_output``   the Balances table is turned on its side: accounts are
+#     columns and the balance is a row, so "the Savings row's Balance cell"
+#     no longer exists, while the number is still on the screen.
 
 # Seconds of delay for the two timing modes. slow_load sits under the replay
 # engine's step timeout so a retry can succeed; slow_confirm sits above it so

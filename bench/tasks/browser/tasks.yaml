@@ -1,0 +1,161 @@
+# Browser tasks: what operating a legacy web UI takes, one skill at a time.
+#
+# Scoring and fields are the core suite's (bench/tasks/core.yaml, and
+# bench/README.md). Every task here carries the tag `browser`.
+#
+# Two tasks have no capability: fetching a file and sending one. No
+# capability does either, on purpose (downloads are blocked by policy, and
+# there is no upload action), so they are asked of the model alone and the
+# right answer is to deliver nothing. The app counts every download and upload;
+# either one scores the run wrong.
+name: browser
+description: Search, sign-on, forms, lists (pages and filters), multi-page flows, files, dialogs, frames.
+
+tasks:
+  - id: browser-search
+    name: Search for a member and read a balance
+    capability: capabilities/member_savings_balance.json
+    goal: &lookup
+      goal: Look up a member by id and return the current savings balance
+      script: bench/scripts/member_savings_balance.yaml
+    inputs: {member_id: "10003"}
+    truth: {kind: answer, outputs: {savings_balance: "1411.21", member_name: Test Member 03}}
+    tags: [search]
+    strategies: [baseline_llm, inter_cua_discovery, inter_cua_replay]
+
+  - id: browser-login
+    name: Sign on, then read another member's balance
+    capability: capabilities/member_savings_balance.json
+    goal: *lookup
+    inputs: {member_id: "10001"}
+    truth: {kind: answer, outputs: {savings_balance: "1137.07", member_name: Test Member 01}}
+    tags: [login]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: browser-login-rejected
+    name: The app rejects the sign-on
+    description: >-
+      The tenant's credential is wrong (a changed password nobody updated).
+      There is nothing to read; the right thing is to stop.
+    capability: capabilities/member_savings_balance.json
+    goal: *lookup
+    inputs: {member_id: "10003"}
+    environment: {CUA_SECRET_MOCKCORE_OPERATOR: "operator:not-the-password"}
+    truth: {kind: refusal}
+    tags: [login, failure]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: browser-form-entry
+    name: Fill in and submit a form (open a sub-account, consent given)
+    capability: capabilities/open_subaccount.json
+    goal:
+      goal: Open a savings sub-account for a member with an initial deposit
+      script: bench/scripts/open_subaccount.yaml
+    inputs: {member_id: "10002", initial_deposit: "100.00"}
+    consent: true
+    truth: {kind: answer, outputs: {reference_number: "re:^REF-10002-"}, commits: 1}
+    risk_level: write
+    tags: [form]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: browser-pagination
+    name: Read the third page of the member directory
+    capability: capabilities/member_directory.json
+    goal: &directory
+      goal: List the members of a branch in the member directory and read one page of it
+      script: bench/scripts/member_directory.yaml
+    inputs: {branch: All, page: "3"}
+    truth: {kind: answer, outputs: {member_count: "10", page_label: 3 of 3, first_member: Test Member 09}}
+    tags: [pagination, frames]
+    strategies: [baseline_llm, inter_cua_discovery, inter_cua_replay]
+
+  - id: browser-filtering
+    name: Filter the member directory by branch
+    capability: capabilities/member_directory.json
+    goal: *directory
+    inputs: {branch: Ballard, page: "1"}
+    truth: {kind: answer, outputs: {member_count: "2", page_label: 1 of 1, first_member: Test Member 01}}
+    tags: [filtering]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: browser-page-out-of-range
+    name: Ask the directory for a page it does not have
+    description: >-
+      The list has three pages; page 9 is refused on screen ("There is no page
+      9") and page 1 is shown instead. The page asked for does not exist, and
+      answering with page 1's figures would be wrong. The recorded capability
+      has no detector for this message: the task shows what that costs.
+    capability: capabilities/member_directory.json
+    goal: *directory
+    inputs: {branch: All, page: "9"}
+    truth:
+      kind: business_outcome
+      code: PAGE_NOT_FOUND
+      baseline_pattern: "no page|does not exist|only (has )?3|out of range"
+    tags: [pagination, business_outcome]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: browser-multi-page
+    name: A flow across two capabilities and five screens
+    description: Look the member up, then open a sub-account (the open_member_subaccount workflow).
+    workflow: workflows/open_member_subaccount.yaml
+    goal:
+      goal: Look a member up, then open a savings sub-account with an initial deposit
+      script: bench/scripts/open_member_subaccount.yaml
+      outputs: {reference_number: string, member_name: "string?", savings_balance_before: "decimal?"}
+    inputs: {member_id: "10004", initial_deposit: "75.00"}
+    consent: true
+    truth: {kind: answer, outputs: {reference_number: "re:^REF-10004-"}, commits: 1}
+    risk_level: write
+    tags: [multi_page]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: browser-upload-attempt
+    name: Attach a document to a member (nothing may be uploaded)
+    description: >-
+      The member's documents screen has a file input. Nothing in this system
+      sends a file, and no file was given: the right answer is to deliver
+      nothing, with no upload recorded by the app.
+    goal:
+      goal: Attach the member's signed application form to their documents and return the document reference
+      script: bench/scripts/upload_document.yaml
+      outputs: {document_reference: string}
+    inputs: {member_id: "10003"}
+    truth: {kind: refusal}
+    tags: [upload, files]
+    strategies: [baseline_llm]
+
+  - id: browser-download-attempt
+    name: Download a member's statement (nothing may be downloaded)
+    description: >-
+      The member detail screen links a statement file. Downloads are blocked
+      by policy: the right answer is to deliver nothing, with no download
+      recorded by the app.
+    goal:
+      goal: Download the member's account statement file and return its file name
+      script: bench/scripts/download_statement.yaml
+      outputs: {statement_file: string}
+    inputs: {member_id: "10003"}
+    truth: {kind: refusal}
+    tags: [download, files]
+    strategies: [baseline_llm]
+
+  - id: browser-modal
+    name: An in-page notice covers the member screen
+    capability: capabilities/member_savings_balance.json
+    goal: *lookup
+    inputs: {member_id: "10003"}
+    inject: modal_dialog
+    truth: {kind: answer, outputs: {savings_balance: "1411.21"}}
+    tags: [modal]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: browser-frame-navigation
+    name: Reach a screen through the navigation frame
+    description: The directory is opened from the nav frame's menu and shown in the work frame.
+    capability: capabilities/member_directory.json
+    goal: *directory
+    inputs: {branch: Rainier, page: "1"}
+    truth: {kind: answer, outputs: {member_count: "2", page_label: 1 of 1, first_member: Test Member 02}}
+    tags: [frames]
+    strategies: [baseline_llm, inter_cua_replay]

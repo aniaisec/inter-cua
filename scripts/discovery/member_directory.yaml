@@ -1,0 +1,44 @@
+# Scripted discovery for the member directory: a list screen with a branch
+# filter and pages, for `cua discover --llm scripted`.
+#
+#   cua discover --llm scripted --script scripts/discovery/member_directory.yaml \
+#     --goal "List the members of a branch in the member directory and read one page of it" \
+#     --name member_directory --entry /login \
+#     --param branch:string=All --param page:integer=2 \
+#     --output member_count:integer --output page_label:string --output first_member:string
+goal: List the members of a branch in the member directory and read one page of it
+steps:
+  - tool: type
+    target: [{strategy: near_text, text: User ID, role: textbox}]
+    text: ${credentials.app_login.username}
+    reason: The sign-on screen asks for a user id first.
+  - tool: type
+    target: [{strategy: near_text, text: Password, role: textbox}]
+    text: ${credentials.app_login.password}
+    reason: Then the password.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Sign On}]
+    reason: Submit the sign-on form.
+  - tool: click
+    target: [{strategy: role_name, role: link, name: Member Directory, within: {frame: nav}}]
+    reason: The directory is on the Functions menu.
+  - tool: select
+    target: [{strategy: near_text, text: Branch, role: combobox, within: {frame: main}}]
+    text: All
+    reason: Filter the list by branch.
+  - tool: type
+    target: [{strategy: near_text, text: Page, role: textbox, within: {frame: main}}]
+    text: "2"
+    reason: The list is paged; ask for the page wanted.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Show, within: {frame: main}}]
+    reason: Show that page of the filtered list.
+  - tool: done
+    outputs:
+      member_count:
+        - {strategy: near_text, text: Members found, role: cell, within: {frame: main}}
+      page_label:
+        - {strategy: near_text, text: Showing page, role: cell, within: {frame: main}}
+      first_member:
+        - {strategy: near_text, text: First on page, role: cell, within: {frame: main}}
+    reason: The summary under the filter says how many members match, which page this is, and who is first on it.

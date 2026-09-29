@@ -278,8 +278,97 @@ def test_every_inject_mode_is_reachable_from_a_fresh_session(
         Inject.NATIVE_CONFIRM,
         Inject.HIDDEN_CONTROL,
         Inject.HIDDEN_DUPLICATE,
+        Inject.CHANGED_LABEL,
+        Inject.MOVED_FIELD,
+        Inject.CHANGED_FRAME,
+        Inject.MOVED_OUTPUT,
     ):
         # Presentation-only modes: nothing "fires", the screen just differs.
         assert client.get("/_debug/session").json()["inject"] == mode.value
     else:
         assert mode.value in fired(client)
+
+
+# --------------------------------------------------------------------------
+# Drift modes: the screen changes, the facts on it do not
+# --------------------------------------------------------------------------
+
+
+def test_changed_label_renames_only_the_label(signed_in: httpx.Client) -> None:
+    arm(signed_in, Inject.CHANGED_LABEL)
+    markup = signed_in.get("/search").text
+    assert "Member Number" in markup and ">Member ID<" not in markup
+    assert 'name="F_MBRID"' in markup and 'value="Search"' in markup
+
+
+def test_moved_field_puts_the_field_on_its_own_row(signed_in: httpx.Client) -> None:
+    arm(signed_in, Inject.MOVED_FIELD)
+    markup = signed_in.get("/search").text
+    assert '<tr><td colspan="2">Member ID</td></tr>' in markup
+    assert search(signed_in, "10003").url.path == "/member/10003"
+
+
+def test_changed_frame_renames_the_work_frame_everywhere(signed_in: httpx.Client) -> None:
+    arm(signed_in, Inject.CHANGED_FRAME)
+    assert 'name="work"' in signed_in.get("/").text
+    nav = signed_in.get("/nav").text
+    assert "parent.work.location" in nav and "parent.main" not in nav
+
+
+def test_moved_output_turns_the_balances_table_but_keeps_the_numbers(
+    signed_in: httpx.Client,
+) -> None:
+    arm(signed_in, Inject.MOVED_OUTPUT)
+    markup = signed_in.get("/member/10003").text
+    assert "<th>Savings</th>" in markup and "<th>Balance</th>" not in markup
+    assert format_currency(MEMBERS["10003"].savings) in markup
+
+
+def test_server_error_once_fails_one_request_and_then_serves(signed_in: httpx.Client) -> None:
+    arm(signed_in, Inject.SERVER_ERROR_ONCE)
+    assert signed_in.get("/member/10003").status_code == 500
+    assert signed_in.get("/member/10003").status_code == 200
+
+
+# --------------------------------------------------------------------------
+# The member directory, documents, and the app's own counts
+# --------------------------------------------------------------------------
+
+
+def directory(client: httpx.Client, branch: str, page: str) -> str:
+    return client.get("/directory", params={"F_BRANCH": branch, "F_PAGE": page}).text
+
+
+def test_the_directory_filters_by_branch_and_pages_by_four(signed_in: httpx.Client) -> None:
+    every = directory(signed_in, "All", "3")
+    assert "<td>10</td>" in every and "3 of 3" in every
+    assert "First on page</td><td>Test Member 09" in every
+    assert "Previous" in every and "Next" not in every
+    ballard = directory(signed_in, "Ballard", "1")
+    assert "<td>2</td>" in ballard and "1 of 1" in ballard
+    assert all(m.name in ballard for m in MEMBERS.values() if m.branch == "Ballard")
+
+
+def test_a_page_the_directory_does_not_have_is_said_on_screen(signed_in: httpx.Client) -> None:
+    markup = directory(signed_in, "All", "9")
+    assert "There is no page 9; this list has 3." in markup
+    assert "1 of 3" in markup  # and page 1 shown instead: the trap for a reader
+
+
+def test_only_an_upload_with_content_counts(signed_in: httpx.Client) -> None:
+    before = signed_in.get("/_debug/stats").json()["uploads_total"]
+    url = "/member/10003/documents"
+    empty = signed_in.post(url, files={"F_DOC": ("", b"")})
+    assert "No file selected." in empty.text
+    assert signed_in.get("/_debug/stats").json()["uploads_total"] == before
+    sent = signed_in.post(url, files={"F_DOC": ("form.pdf", b"%PDF-1.4")})
+    assert "Document attached." in sent.text
+    assert signed_in.get("/_debug/stats").json()["uploads_total"] == before + 1
+
+
+def test_the_stats_count_downloads_and_the_attackers_inbox(signed_in: httpx.Client) -> None:
+    before = signed_in.get("/_debug/stats").json()
+    signed_in.get("/member/10003/statement.csv")
+    after = signed_in.get("/_debug/stats").json()
+    assert after["downloads_total"] == before["downloads_total"] + 1
+    assert after["attacker_total"] == before["attacker_total"]

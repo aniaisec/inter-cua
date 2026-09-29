@@ -50,6 +50,14 @@ class Visible(BaseModel):
     target: str = SELF
 
 
+LOCATION_END = r"(?:[?#]|$)"
+"""How a recorded location pattern ends for a screen reached with a query or
+fragment (a GET form): at the end of the path, or where the query starts.
+``location_matches`` is searched in the whole URL, so a bare ``$`` never
+matches such a screen. A screen reached without one ends in ``$``, as every
+capability recorded before this does."""
+
+
 class LocationMatches(BaseModel):
     """Web: a regex against frame URLs. Desktop: against the window title.
 

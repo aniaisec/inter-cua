@@ -142,6 +142,7 @@ def test_each_approved_capability_is_a_tool_and_no_browser_primitive_is(
     listed = rpc(server, "tools/list")["result"]["tools"]
     names = [t["name"] for t in listed]
     assert names == [
+        "member_directory",
         "member_savings_balance",
         "open_subaccount",
         "cua_run_status",
@@ -353,7 +354,8 @@ def test_cua_mcp_answers_on_stdout_and_says_everything_else_on_stderr(tmp_path: 
     assert out.returncode == 0, out.stderr
     answers = [json.loads(line) for line in out.stdout.splitlines()]
     assert [a["id"] for a in answers] == [1, 2]
-    assert [t["name"] for t in answers[1]["result"]["tools"]][:2] == [
+    assert [t["name"] for t in answers[1]["result"]["tools"]][:3] == [
+        "member_directory",
         "member_savings_balance",
         "open_subaccount",
     ]

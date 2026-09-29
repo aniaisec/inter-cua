@@ -1,0 +1,69 @@
+# Recovery tasks: the app misbehaves on the way, and the answer is still there
+# to be had (or, for an outage, is not). Every task looks member 10003 up.
+name: recovery
+description: Slow loads, expired sessions, transient and persistent errors, interstitials.
+
+tasks:
+  - id: recovery-slow-load
+    name: The member screen is slow to load
+    capability: capabilities/member_savings_balance.json
+    goal: &lookup
+      goal: Look up a member by id and return the current savings balance
+      script: bench/scripts/member_savings_balance.yaml
+    inputs: {member_id: "10003"}
+    inject: slow_load
+    truth: {kind: answer, outputs: {savings_balance: "1411.21"}}
+    tags: [slow_load]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: recovery-session-expired
+    name: The session expires mid-run
+    capability: capabilities/member_savings_balance.json
+    goal: *lookup
+    inputs: {member_id: "10003"}
+    inject: session_expired
+    truth: {kind: answer, outputs: {savings_balance: "1411.21"}}
+    tags: [session]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: recovery-transient-error
+    name: One server error, then the app works
+    description: The first member screen fails with a 500; the next request succeeds.
+    capability: capabilities/member_savings_balance.json
+    goal: *lookup
+    inputs: {member_id: "10003"}
+    inject: server_error_once
+    truth: {kind: answer, outputs: {savings_balance: "1411.21"}}
+    tags: [error, transient]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: recovery-persistent-error
+    name: The app fails on every member screen
+    description: An outage. There is no answer to give; the right thing is to stop.
+    capability: capabilities/member_savings_balance.json
+    goal: *lookup
+    inputs: {member_id: "10003"}
+    inject: server_error
+    truth: {kind: refusal}
+    tags: [error, failure]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: recovery-interstitial
+    name: A system notice after sign-on (once)
+    capability: capabilities/member_savings_balance.json
+    goal: *lookup
+    inputs: {member_id: "10003"}
+    inject: interstitial_dialog
+    truth: {kind: answer, outputs: {savings_balance: "1411.21"}}
+    tags: [interstitial]
+    strategies: [baseline_llm, inter_cua_replay]
+
+  - id: recovery-persistent-interstitial
+    name: A system notice that keeps coming back
+    capability: capabilities/member_savings_balance.json
+    goal: *lookup
+    inputs: {member_id: "10003"}
+    inject: interstitial_persistent
+    truth: {kind: answer, outputs: {savings_balance: "1411.21"}}
+    tags: [interstitial, failure]
+    strategies: [baseline_llm, inter_cua_replay]

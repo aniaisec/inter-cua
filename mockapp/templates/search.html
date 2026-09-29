@@ -7,11 +7,19 @@
 {% if error %}<p class="err">{{ error }}</p>{% endif %}
 <form method="post" action="/search">
 <table class="frm">
+{% if moved %}
+<tr><td colspan="2">{{ id_label }}</td></tr>
 <tr>
-  <td>Member ID</td>
   <td><input type="text" name="F_MBRID" size="8" maxlength="5" value="{{ member_id }}"></td>
   <td><input type="submit" value="{{ submit_label }}"{% if hidden %} aria-hidden="true"{% endif %}></td>
 </tr>
+{% else %}
+<tr>
+  <td>{{ id_label }}</td>
+  <td><input type="text" name="F_MBRID" size="8" maxlength="5" value="{{ member_id }}"></td>
+  <td><input type="submit" value="{{ submit_label }}"{% if hidden %} aria-hidden="true"{% endif %}></td>
+</tr>
+{% endif %}
 {% if duplicate %}<tr><td></td><td></td><td><input type="submit" value="{{ submit_label }}" aria-hidden="true"></td></tr>{% endif %}
 </table>
 </form>

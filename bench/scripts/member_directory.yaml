@@ -1,0 +1,39 @@
+# The operator's path for member_directory, as a scripted "model" for
+# `cua benchmark run --llm scripted`. {{branch}} and {{page}} are filled from
+# the task's inputs. It proves the harness runs; it is not a model.
+goal: List the members of a branch in the member directory and read one page of it
+steps:
+  - tool: type
+    target: [{strategy: near_text, text: User ID, role: textbox}]
+    text: ${credentials.app_login.username}
+    reason: The sign-on screen asks for a user id first.
+  - tool: type
+    target: [{strategy: near_text, text: Password, role: textbox}]
+    text: ${credentials.app_login.password}
+    reason: Then the password.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Sign On}]
+    reason: Submit the sign-on form.
+  - tool: click
+    target: [{strategy: role_name, role: link, name: Member Directory, within: {frame: nav}}]
+    reason: The directory is on the Functions menu.
+  - tool: select
+    target: [{strategy: near_text, text: Branch, role: combobox, within: {frame: main}}]
+    text: "{{branch}}"
+    reason: Filter the list by branch.
+  - tool: type
+    target: [{strategy: near_text, text: Page, role: textbox, within: {frame: main}}]
+    text: "{{page}}"
+    reason: Ask for the page wanted.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Show, within: {frame: main}}]
+    reason: Show that page of the filtered list.
+  - tool: done
+    outputs:
+      member_count:
+        - {strategy: near_text, text: Members found, role: cell, within: {frame: main}}
+      page_label:
+        - {strategy: near_text, text: Showing page, role: cell, within: {frame: main}}
+      first_member:
+        - {strategy: near_text, text: First on page, role: cell, within: {frame: main}}
+    reason: The summary says how many members match, which page this is, and who is first on it.

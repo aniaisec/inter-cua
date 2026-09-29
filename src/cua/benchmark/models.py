@@ -11,11 +11,27 @@ from __future__ import annotations
 import re
 from decimal import Decimal
 from pathlib import Path
-from typing import Literal
+from typing import Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from cua.artifact.schema import ValueType
+
 Strategy = Literal["baseline_llm", "inter_cua_discovery", "inter_cua_replay"]
+ApprovalKind = Literal["none", "valid", "wrong_inputs", "expired", "replayed"]
+"""The consent an invocation carries for its risky step.
+
+``none``          nobody consented;
+``valid``         a signed token for exactly this invocation (the baseline
+                  has its risky actions approved instead: the same consent in
+                  its own form);
+``wrong_inputs``  a token signed for other inputs (another deposit);
+``expired``       a token for these inputs whose lifetime is over;
+``replayed``      a token already spent on an earlier commit.
+
+The last three test the token itself, which only replay carries: a baseline
+agent has no token to get wrong."""
+TOKEN_ONLY: frozenset[str] = frozenset({"wrong_inputs", "expired", "replayed"})
 STRATEGIES: tuple[Strategy, ...] = ("baseline_llm", "inter_cua_discovery", "inter_cua_replay")
 
 Match = Literal["exact", "safe_stop", "wrong"]
@@ -68,11 +84,25 @@ class Truth(_Model):
 
 class GoalSpec(_Model):
     """The task as the baseline agent receives it. Inputs come from the task
-    and the declared outputs from the capability, so the agent is asked for
-    exactly what replay returns."""
+    and the declared outputs from the capability (or the workflow), so the
+    agent is asked for exactly what replay returns."""
 
     goal: str
     entry: str = "/login"
+    outputs: dict[str, str] | None = None
+    """Output name → type (``string``, ``decimal``, ...; ``?`` after it for an
+    optional one). Required for a task with no capability or workflow to take
+    them from (something no capability does, asked of the model alone). For
+    a workflow, it can ask the baseline for less than replay returns: a
+    value read before a commit is not on the screen the agent ends on."""
+
+    @model_validator(mode="after")
+    def _typed(self) -> GoalSpec:
+        for name, kind in (self.outputs or {}).items():
+            if kind.removesuffix("?") not in get_args(ValueType):
+                raise ValueError(f"output {name}: {kind!r} is not one of {get_args(ValueType)}")
+        return self
+
     script: str | None = None
     """For ``--llm scripted``: a tool-call script (path relative to the
     repository root), with ``{{input}}`` placeholders filled from the task's inputs. Lets
@@ -84,16 +114,32 @@ class BenchmarkTask(_Model):
     id: str
     name: str
     description: str = ""
-    capability: str
+    category: str | None = None
+    """The directory the task was loaded from (``bench/tasks/<category>/``):
+    browser, recovery, drift, side_effects, security or composition."""
+    capability: str | None = None
     """Path of the approved capability ``inter_cua_replay`` runs."""
+    workflow: str | None = None
+    """Path of a workflow ``inter_cua_replay`` runs (``cua workflow run``)
+    instead of one capability. The baseline gets the whole goal at once."""
     goal: GoalSpec
     inputs: dict[str, str]
     inject: str | None = None
     """A mock-app failure mode, armed the same way for every strategy."""
+    inject_step: str | None = None
+    """For a workflow: the step whose session the mode is armed in (each
+    step signs on in a browser of its own); default its first step."""
     consent: bool = False
     """Consent is given for the risky step: replay gets a signed approval
     token, the baseline gets its risky actions approved. Same consent, in
-    each strategy's own form."""
+    each strategy's own form. Shorthand for ``approval: valid``."""
+    approval: ApprovalKind | None = None
+    """What consent the invocation carries (see ``ApprovalKind``); default
+    ``valid`` with ``consent``, else ``none``."""
+    environment: dict[str, str] = Field(default_factory=dict)
+    """Environment for this task's runs, over the session's: how a task
+    gives the deployment a wrong credential (a sign-on the app rejects).
+    Test values for the mock app only."""
     shared_idempotency_key: bool = False
     """Every repetition is the same request retried (a caller that lost the
     answer): replay sends one idempotency key and one token for all of them."""
@@ -107,6 +153,27 @@ class BenchmarkTask(_Model):
     automated: bool = True
     """False: needs a person (handoff, resume). Listed, never run unattended."""
     strategies: list[Strategy] = Field(default_factory=lambda: list(STRATEGIES))
+
+    @model_validator(mode="after")
+    def _runnable(self) -> BenchmarkTask:
+        if self.capability and self.workflow:
+            raise ValueError(f"{self.id}: a task runs a capability or a workflow, not both")
+        if self.workflow and "inter_cua_discovery" in self.strategies:
+            raise ValueError(f"{self.id}: a workflow is composed, not discovered")
+        if not self.capability and not self.workflow:
+            if self.goal.outputs is None:
+                raise ValueError(f"{self.id}: with no capability or workflow, goal.outputs")
+            if set(self.strategies) != {"baseline_llm"}:
+                raise ValueError(f"{self.id}: with nothing to replay, only baseline_llm runs")
+        if self.consent and self.approval not in (None, "valid"):
+            raise ValueError(f"{self.id}: consent is approval: valid, not {self.approval}")
+        if self.approval in TOKEN_ONLY and set(self.strategies) != {"inter_cua_replay"}:
+            raise ValueError(f"{self.id}: approval {self.approval} tests a token; replay only")
+        return self
+
+    @property
+    def consent_kind(self) -> ApprovalKind:
+        return self.approval or ("valid" if self.consent else "none")
 
 
 class Suite(_Model):
@@ -129,6 +196,7 @@ class RunMetrics(_Model):
 
     session_id: str
     task_id: str
+    category: str | None = None
     strategy: Strategy
     repetition: int
     run_id: str | None = None
@@ -178,6 +246,10 @@ class RunMetrics(_Model):
     """Commits the app itself recorded during the run."""
     duplicate_side_effects: int = 0
     unexpected_side_effects: int = 0
+    forbidden_effects: dict[str, int] = Field(default_factory=dict)
+    """What the app recorded during the run that is never right for
+    automation to cause: ``downloads``, ``uploads``, ``attacker`` (requests
+    that reached the attacker's origin). Any of them scores the run wrong."""
     cached: bool = False
     error_code: str | None = None
     outputs: dict[str, str] = Field(default_factory=dict)

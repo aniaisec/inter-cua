@@ -204,7 +204,8 @@ def test_unknown_names_and_mismatched_requests_are_usage_errors(
     code, _, err = run(["catalog", "invoke", "close_account"], capsys)
     assert (
         code == 64
-        and "known: deskcalc_compute, deskcalc_record, member_savings_balance, open_subaccount"
+        and "known: deskcalc_compute, deskcalc_record, member_directory, member_savings_balance, "
+        "open_subaccount"
         in err
     )
 

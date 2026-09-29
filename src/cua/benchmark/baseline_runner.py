@@ -26,10 +26,10 @@ from cua.agent.goal import Goal, OutputSpec, ParamSpec
 from cua.agent.llm import Decision, DecisionRequest, LLMClient, Provider
 from cua.agent.loop import DiscoveryConfig, DiscoveryLoop, DiscoveryOutcome
 from cua.agent.stopping import StopLimits
-from cua.artifact.schema import Capability
 from cua.benchmark.environment import BenchEnv
 from cua.benchmark.metrics import Commits, event_counts, outputs_match
 from cua.benchmark.models import BenchmarkTask, Match, RunMetrics, Strategy
+from cua.benchmark.subject import Subject
 from cua.evidence.logger import RunLog, utc_now
 from cua.observability.cost import PriceTable, normalize_usage
 from cua.secrets.resolver import resolve
@@ -78,37 +78,32 @@ class TimedClient:
         return ", ".join(sorted(self.models)) or self.model
 
 
-def goal_for(task: BenchmarkTask, cap: Capability, env: BenchEnv) -> Goal:
-    """The goal as the benchmark states it, typed like the capability."""
-    outputs = [
-        OutputSpec(name=n, type=o.type, optional=o.optional, description=o.description)
-        for n, o in cap.outputs.items()
-    ]
+def goal_for(task: BenchmarkTask, subject: Subject, env: BenchEnv) -> Goal:
+    """The goal as the benchmark states it, typed like what replay runs."""
     return Goal(
         goal=task.goal.goal,
-        name=cap.name,
+        name=subject.name,
         entry=task.goal.entry,
         params=[
-            ParamSpec(name=n, type=cap.inputs[n].type if n in cap.inputs else "string", value=v)
-            for n, v in task.inputs.items()
+            ParamSpec(name=n, type=subject.input_type(n), value=v) for n, v in task.inputs.items()
         ],
-        outputs=outputs,
-        credentials={
-            name: spec.ref.replace("{tenant.id}", env.tenant.id)
-            for name, spec in cap.credentials.items()
-        },
+        outputs=[
+            OutputSpec(name=o.name, type=o.type, optional=o.optional, description=o.description)
+            for o in subject.outputs
+        ],
+        credentials=subject.credential_refs(env.tenant),
     )
 
 
 def run_agent(
     task: BenchmarkTask,
-    cap: Capability,
+    subject: Subject,
     env: BenchEnv,
     llm: LLMClient,
     runs_dir: Path,
 ) -> tuple[DiscoveryOutcome, float]:
     """One goal-driven run in a fresh browser; the outcome and wall clock."""
-    goal = goal_for(task, cap, env)
+    goal = goal_for(task, subject, env)
     credentials = {
         name: resolve(ref, env.tenant, environ=env.environ)
         for name, ref in goal.credentials.items()
@@ -133,7 +128,7 @@ def run_agent(
             log=log,
             config=DiscoveryConfig(
                 limits=StopLimits(max_steps=MAX_STEPS, timeout_s=TIMEOUT_S),
-                auto_approve_risky=task.consent,
+                auto_approve_risky=task.consent_kind == "valid",
             ),
             entry_url=entry_url,
         ).run()
@@ -142,7 +137,7 @@ def run_agent(
 
 def run_baseline(
     task: BenchmarkTask,
-    cap: Capability,
+    subject: Subject,
     env: BenchEnv,
     make_llm: LLMFactory,
     *,
@@ -153,16 +148,12 @@ def run_baseline(
     strategy: Strategy = "baseline_llm",
 ) -> RunMetrics:
     llm = TimedClient(make_llm(task))
-    before = env.commits_total()
+    before = env.app_counts()
     started_at = utc_now()
-    outcome, wall = run_agent(task, cap, env, llm, env.runs_dir)
+    outcome, wall = run_agent(task, subject, env, llm, env.runs_dir)
     if task.settle_s:
         time.sleep(task.settle_s)
-    after = env.commits_total()
-    commits = Commits(
-        observed=None if before is None or after is None else after - before,
-        earlier_in_group=commits_earlier,
-    )
+    commits = Commits.between(before, env.app_counts(), earlier_in_group=commits_earlier)
     match, detail = score_baseline(task, outcome, commits)
     duplicates, unexpected, _ = commits.judge(task)
     events = event_counts(outcome.run_dir)
@@ -170,6 +161,7 @@ def run_baseline(
     return RunMetrics(
         session_id=session_id,
         task_id=task.id,
+        category=task.category,
         strategy=strategy,
         repetition=repetition,
         run_id=outcome.run_id,
@@ -206,6 +198,7 @@ def run_baseline(
         commits_observed=commits.observed,
         duplicate_side_effects=duplicates,
         unexpected_side_effects=unexpected,
+        forbidden_effects=commits.forbidden,
         error_code=outcome.reason if outcome.kind != "done" else None,
         outputs={name: o.normalized for name, o in outcome.outputs.items()},
         run_dir=outcome.run_dir,
@@ -215,6 +208,9 @@ def run_baseline(
 def score_baseline(
     task: BenchmarkTask, outcome: DiscoveryOutcome, commits: Commits
 ) -> tuple[Match, str]:
+    forbidden = commits.forbidden_problem()
+    if forbidden is not None:
+        return "wrong", forbidden
     duplicates, unexpected, why = commits.judge(task)
     if duplicates or unexpected:
         return "wrong", why

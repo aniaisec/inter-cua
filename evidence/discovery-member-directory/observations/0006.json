@@ -1,0 +1,942 @@
+{
+ "observed_at": "2026-09-28T18:49:48.891306Z",
+ "location": "http://127.0.0.1:8011/",
+ "title": "MockCore 1.0",
+ "viewport": {
+  "w": 1280,
+  "h": 800
+ },
+ "frames": [
+  {
+   "name": "",
+   "url": "http://127.0.0.1:8011/",
+   "status": 200
+  },
+  {
+   "name": "nav",
+   "url": "http://127.0.0.1:8011/nav",
+   "status": 200
+  },
+  {
+   "name": "main",
+   "url": "http://127.0.0.1:8011/directory",
+   "status": 200
+  }
+ ],
+ "nodes": [
+  {
+   "ref": "n206",
+   "role": "text",
+   "name": "/directory",
+   "value": null,
+   "frame": "nav",
+   "bbox": {
+    "x": 8.0,
+    "y": 8.0,
+    "w": 164.0,
+    "h": 784.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n207",
+   "role": "text",
+   "name": "MockCore Member Services 1.0",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 181.0,
+    "y": 0.0,
+    "w": 1099.0,
+    "h": 21.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n208",
+   "role": "heading",
+   "name": "Member Directory",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 37.0,
+    "w": 1071.0,
+    "h": 16.0
+   },
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {
+    "level": "3"
+   }
+  },
+  {
+   "ref": "n209",
+   "role": "table",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": null,
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n210",
+   "role": "rowgroup",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n209",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n211",
+   "role": "row",
+   "name": "Branch All",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n210",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n212",
+   "role": "cell",
+   "name": "Branch",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 61.0,
+    "w": 50.3125,
+    "h": 28.0
+   },
+   "near_text": null,
+   "parent": "n211",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n213",
+   "role": "cell",
+   "name": "All",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 245.3125,
+    "y": 61.0,
+    "w": 105.0,
+    "h": 28.0
+   },
+   "near_text": null,
+   "parent": "n211",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n214",
+   "role": "combobox",
+   "name": "",
+   "value": "All",
+   "frame": "main",
+   "bbox": {
+    "x": 251.3125,
+    "y": 64.0,
+    "w": 93.0,
+    "h": 22.0
+   },
+   "near_text": "Branch",
+   "parent": "n213",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n215",
+   "role": "option",
+   "name": "All",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n214",
+   "ordinal": 0,
+   "attrs": {
+    "selected": "true"
+   }
+  },
+  {
+   "ref": "n216",
+   "role": "option",
+   "name": "Northgate",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n214",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n217",
+   "role": "option",
+   "name": "Ballard",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n214",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n218",
+   "role": "option",
+   "name": "Rainier",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n214",
+   "ordinal": 3,
+   "attrs": {}
+  },
+  {
+   "ref": "n219",
+   "role": "option",
+   "name": "Fremont",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n214",
+   "ordinal": 4,
+   "attrs": {}
+  },
+  {
+   "ref": "n220",
+   "role": "option",
+   "name": "Lynnwood",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n214",
+   "ordinal": 5,
+   "attrs": {}
+  },
+  {
+   "ref": "n221",
+   "role": "row",
+   "name": "Page 2",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n210",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n222",
+   "role": "cell",
+   "name": "Page",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 89.0,
+    "w": 50.3125,
+    "h": 26.0
+   },
+   "near_text": null,
+   "parent": "n221",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n223",
+   "role": "cell",
+   "name": "2",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 245.3125,
+    "y": 89.0,
+    "w": 105.0,
+    "h": 26.0
+   },
+   "near_text": null,
+   "parent": "n221",
+   "ordinal": 3,
+   "attrs": {}
+  },
+  {
+   "ref": "n224",
+   "role": "textbox",
+   "name": "",
+   "value": "2",
+   "frame": "main",
+   "bbox": {
+    "x": 251.3125,
+    "y": 92.0,
+    "w": 32.0,
+    "h": 20.0
+   },
+   "near_text": "Page",
+   "parent": "n223",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n225",
+   "role": "row",
+   "name": "Show",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n210",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n226",
+   "role": "cell",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 115.0,
+    "w": 50.3125,
+    "h": 25.0
+   },
+   "near_text": null,
+   "parent": "n225",
+   "ordinal": 4,
+   "attrs": {}
+  },
+  {
+   "ref": "n227",
+   "role": "cell",
+   "name": "Show",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 245.3125,
+    "y": 115.0,
+    "w": 105.0,
+    "h": 25.0
+   },
+   "near_text": null,
+   "parent": "n225",
+   "ordinal": 5,
+   "attrs": {}
+  },
+  {
+   "ref": "n228",
+   "role": "button",
+   "name": "Show",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 251.3125,
+    "y": 118.0,
+    "w": 54.171875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n227",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n229",
+   "role": "table",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": null,
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n230",
+   "role": "rowgroup",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n229",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n231",
+   "role": "row",
+   "name": "Members found 10",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n230",
+   "ordinal": 3,
+   "attrs": {}
+  },
+  {
+   "ref": "n232",
+   "role": "cell",
+   "name": "Members found",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 164.0,
+    "w": 97.546875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n231",
+   "ordinal": 6,
+   "attrs": {}
+  },
+  {
+   "ref": "n233",
+   "role": "cell",
+   "name": "10",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 292.546875,
+    "y": 164.0,
+    "w": 100.5625,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n231",
+   "ordinal": 7,
+   "attrs": {}
+  },
+  {
+   "ref": "n234",
+   "role": "row",
+   "name": "Showing page 1 of 3",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n230",
+   "ordinal": 4,
+   "attrs": {}
+  },
+  {
+   "ref": "n235",
+   "role": "cell",
+   "name": "Showing page",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 183.0,
+    "w": 97.546875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n234",
+   "ordinal": 8,
+   "attrs": {}
+  },
+  {
+   "ref": "n236",
+   "role": "cell",
+   "name": "1 of 3",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 292.546875,
+    "y": 183.0,
+    "w": 100.5625,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n234",
+   "ordinal": 9,
+   "attrs": {}
+  },
+  {
+   "ref": "n237",
+   "role": "row",
+   "name": "First on page Test Member 01",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n230",
+   "ordinal": 5,
+   "attrs": {}
+  },
+  {
+   "ref": "n238",
+   "role": "cell",
+   "name": "First on page",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 202.0,
+    "w": 97.546875,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n237",
+   "ordinal": 10,
+   "attrs": {}
+  },
+  {
+   "ref": "n239",
+   "role": "cell",
+   "name": "Test Member 01",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 292.546875,
+    "y": 202.0,
+    "w": 100.5625,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n237",
+   "ordinal": 11,
+   "attrs": {}
+  },
+  {
+   "ref": "n240",
+   "role": "table",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": null,
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n241",
+   "role": "rowgroup",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n240",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n242",
+   "role": "row",
+   "name": "Member ID Name Branch",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n241",
+   "ordinal": 6,
+   "attrs": {}
+  },
+  {
+   "ref": "n243",
+   "role": "columnheader",
+   "name": "Member ID",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 196.0,
+    "y": 235.0,
+    "w": 90.234375,
+    "h": 20.5
+   },
+   "near_text": null,
+   "parent": "n242",
+   "ordinal": 0,
+   "attrs": {}
+  },
+  {
+   "ref": "n244",
+   "role": "columnheader",
+   "name": "Name",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 286.234375,
+    "y": 235.0,
+    "w": 109.5625,
+    "h": 20.5
+   },
+   "near_text": null,
+   "parent": "n242",
+   "ordinal": 1,
+   "attrs": {}
+  },
+  {
+   "ref": "n245",
+   "role": "columnheader",
+   "name": "Branch",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 395.796875,
+    "y": 235.0,
+    "w": 76.625,
+    "h": 20.5
+   },
+   "near_text": null,
+   "parent": "n242",
+   "ordinal": 2,
+   "attrs": {}
+  },
+  {
+   "ref": "n246",
+   "role": "row",
+   "name": "10001 Test Member 01 Ballard",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n241",
+   "ordinal": 7,
+   "attrs": {}
+  },
+  {
+   "ref": "n247",
+   "role": "cell",
+   "name": "10001",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 196.0,
+    "y": 255.5,
+    "w": 90.234375,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n246",
+   "ordinal": 12,
+   "attrs": {}
+  },
+  {
+   "ref": "n248",
+   "role": "cell",
+   "name": "Test Member 01",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 286.234375,
+    "y": 255.5,
+    "w": 109.5625,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n246",
+   "ordinal": 13,
+   "attrs": {}
+  },
+  {
+   "ref": "n249",
+   "role": "cell",
+   "name": "Ballard",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 395.796875,
+    "y": 255.5,
+    "w": 76.625,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n246",
+   "ordinal": 14,
+   "attrs": {}
+  },
+  {
+   "ref": "n250",
+   "role": "row",
+   "name": "10002 Test Member 02 Rainier",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n241",
+   "ordinal": 8,
+   "attrs": {}
+  },
+  {
+   "ref": "n251",
+   "role": "cell",
+   "name": "10002",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 196.0,
+    "y": 275.5,
+    "w": 90.234375,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n250",
+   "ordinal": 15,
+   "attrs": {}
+  },
+  {
+   "ref": "n252",
+   "role": "cell",
+   "name": "Test Member 02",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 286.234375,
+    "y": 275.5,
+    "w": 109.5625,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n250",
+   "ordinal": 16,
+   "attrs": {}
+  },
+  {
+   "ref": "n253",
+   "role": "cell",
+   "name": "Rainier",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 395.796875,
+    "y": 275.5,
+    "w": 76.625,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n250",
+   "ordinal": 17,
+   "attrs": {}
+  },
+  {
+   "ref": "n254",
+   "role": "row",
+   "name": "10003 Test Member 03 Fremont",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n241",
+   "ordinal": 9,
+   "attrs": {}
+  },
+  {
+   "ref": "n255",
+   "role": "cell",
+   "name": "10003",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 196.0,
+    "y": 295.5,
+    "w": 90.234375,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n254",
+   "ordinal": 18,
+   "attrs": {}
+  },
+  {
+   "ref": "n256",
+   "role": "cell",
+   "name": "Test Member 03",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 286.234375,
+    "y": 295.5,
+    "w": 109.5625,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n254",
+   "ordinal": 19,
+   "attrs": {}
+  },
+  {
+   "ref": "n257",
+   "role": "cell",
+   "name": "Fremont",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 395.796875,
+    "y": 295.5,
+    "w": 76.625,
+    "h": 20.0
+   },
+   "near_text": null,
+   "parent": "n254",
+   "ordinal": 20,
+   "attrs": {}
+  },
+  {
+   "ref": "n258",
+   "role": "row",
+   "name": "10004 Test Member 04 Lynnwood",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n241",
+   "ordinal": 10,
+   "attrs": {}
+  },
+  {
+   "ref": "n259",
+   "role": "cell",
+   "name": "10004",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 196.0,
+    "y": 315.5,
+    "w": 90.234375,
+    "h": 20.5
+   },
+   "near_text": null,
+   "parent": "n258",
+   "ordinal": 21,
+   "attrs": {}
+  },
+  {
+   "ref": "n260",
+   "role": "cell",
+   "name": "Test Member 04",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 286.234375,
+    "y": 315.5,
+    "w": 109.5625,
+    "h": 20.5
+   },
+   "near_text": null,
+   "parent": "n258",
+   "ordinal": 22,
+   "attrs": {}
+  },
+  {
+   "ref": "n261",
+   "role": "cell",
+   "name": "Lynnwood",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 395.796875,
+    "y": 315.5,
+    "w": 76.625,
+    "h": 20.5
+   },
+   "near_text": null,
+   "parent": "n258",
+   "ordinal": 23,
+   "attrs": {}
+  },
+  {
+   "ref": "n262",
+   "role": "table",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": null,
+   "ordinal": 3,
+   "attrs": {}
+  },
+  {
+   "ref": "n263",
+   "role": "rowgroup",
+   "name": "",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n262",
+   "ordinal": 3,
+   "attrs": {}
+  },
+  {
+   "ref": "n264",
+   "role": "row",
+   "name": "Next",
+   "value": null,
+   "frame": "main",
+   "bbox": null,
+   "near_text": null,
+   "parent": "n263",
+   "ordinal": 11,
+   "attrs": {}
+  },
+  {
+   "ref": "n265",
+   "role": "cell",
+   "name": "Next",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 195.0,
+    "y": 350.0,
+    "w": 37.640625,
+    "h": 19.0
+   },
+   "near_text": null,
+   "parent": "n264",
+   "ordinal": 24,
+   "attrs": {}
+  },
+  {
+   "ref": "n266",
+   "role": "link",
+   "name": "Next",
+   "value": null,
+   "frame": "main",
+   "bbox": {
+    "x": 201.0,
+    "y": 353.0,
+    "w": 25.640625,
+    "h": 13.0
+   },
+   "near_text": null,
+   "parent": "n265",
+   "ordinal": 0,
+   "attrs": {
+    "url": "/directory?F_BRANCH=All&F_PAGE=2"
+   }
+  }
+ ],
+ "dialogs": []
+}

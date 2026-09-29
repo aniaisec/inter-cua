@@ -27,6 +27,7 @@ from cua.artifact.schema import (
 )
 from cua.artifact.schema import Step as ArtifactStep
 from cua.surface.conditions import (
+    LOCATION_END,
     AllOf,
     AnyOf,
     Condition,
@@ -356,7 +357,8 @@ def _placeholders(text: str) -> str:
 
 
 def _location(pattern: str) -> str:
-    shown = pattern.removesuffix("$").replace("[0-9]+", "<number>").replace("[^/]+", "<value>")
+    shown = pattern.removesuffix(LOCATION_END).removesuffix("$")
+    shown = shown.replace("[0-9]+", "<number>").replace("[^/]+", "<value>")
     return shown.replace("\\", "")
 
 
