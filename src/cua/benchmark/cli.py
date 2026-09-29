@@ -1,4 +1,4 @@
-"""``cua benchmark list | run | report``."""
+"""``cua benchmark list | run | report | break-even``."""
 
 from __future__ import annotations
 
@@ -78,6 +78,20 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
     rep.add_argument("--reports-dir", type=Path, default=REPORTS_DIR)
     rep.add_argument("--out", type=Path, help="Where to write (default: --reports-dir)")
 
+    be = bsub.add_parser(
+        "break-even",
+        help="Invocations after which discover-then-replay costs less than the baseline",
+        description="Price recorded runs (model, browser time, stored evidence) and solve "
+        "discovery / (baseline per run - replay per run) per capability; writes "
+        "break_even.json and break_even.md.",
+    )
+    be.add_argument("--session", action="append", default=[], help="Only this session")
+    be.add_argument("--latest", action="store_true", help="Only the most recent session")
+    be.add_argument("--suite", default="core", help="Where each task's capability is read from")
+    be.add_argument("--pricing", type=Path, default=Path("bench/pricing.yaml"))
+    be.add_argument("--reports-dir", type=Path, default=REPORTS_DIR)
+    be.add_argument("--out", type=Path, help="Where to write (default: --reports-dir)")
+
 
 def main(args: argparse.Namespace) -> int:
     from cua.benchmark.registry import SuiteError, load_suite, select
@@ -98,7 +112,7 @@ def main(args: argparse.Namespace) -> int:
             print(f"{t.id:32} {t.truth.kind:17} {' '.join(flags):40} {t.name}")
         return 0
 
-    if args.benchmark_command == "report":
+    if args.benchmark_command in ("report", "break-even"):
         return _report(args, suite)
 
     from cua.benchmark.runner import Plan, run_session
@@ -175,8 +189,15 @@ def _report(args: argparse.Namespace, suite: Suite) -> int:
     if not rows:
         print("cua benchmark: no recorded runs match", file=sys.stderr)
         return EX_USAGE
-    summary = report.build(rows, sessions, suite)
-    js, md = report.write(summary, args.out or args.reports_dir)
+    if args.benchmark_command == "break-even":
+        from cua.benchmark import economics
+        from cua.observability.cost import load_prices
+
+        result = economics.analyse(rows, suite, load_prices(args.pricing))
+        js, md = economics.write(result, args.out or args.reports_dir)
+    else:
+        summary = report.build(rows, sessions, suite)
+        js, md = report.write(summary, args.out or args.reports_dir)
     print(f"cua benchmark: wrote {js.as_posix()} and {md.as_posix()}", file=sys.stderr)
     print(md.read_text(encoding="utf-8"))
     return 0

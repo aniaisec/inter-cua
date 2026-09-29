@@ -952,3 +952,70 @@ Status: COMPLETE (pending verification)
 
 ### Next
 - Phase 15: cost break-even analysis.
+
+## Phase 15 — Cost break-even
+
+Status: COMPLETE (pending verification)
+
+### Changes
+- `src/cua/benchmark/economics.py` solves N* = discovery / (baseline per run − replay per run) per capability. It also gives both totals at 10, 100, 1,000 and 10,000 invocations.
+- Each invocation is priced in three parts:
+  - model: the row's own estimate;
+  - browser: wall clock × the price of a browser-hour;
+  - storage: evidence bytes × the price per GiB-month × retention.
+- Replay pays for its browser time and evidence like the other strategies. A total counts only the parts priced for every strategy it is compared with, and names them.
+- `bench/pricing.yaml` has a new `infrastructure` section (`InfrastructurePrice`). Without it, browser time and storage are unpriced and the report says the totals are model spend only.
+- Each benchmark row records `evidence_bytes`, the size of its run directory. A cached answer from the idempotency store records 0: its directory is the original run's. Older rows are measured from `bench/runs/` if the directory is still there. A run whose directory is gone is left out of the storage mean, and the report gives the coverage.
+- `cua benchmark break-even` writes `break_even.json` and `break_even.md` (default `bench/reports/`). It takes the same session filters as `report`, and sets aside runs lost to the provider the same way.
+- The summary's model-only break-even now points to it. `bench/README.md` has a "Cost break-even" section.
+
+### Decisions
+- **Per capability, not pooled.** Discovery ran on 2 tasks and the baseline on 6. A pooled figure would set one capability's discovery against another's runs. Each capability's discovery is set against the tasks it serves, on the tasks both strategies ran.
+- **The per-run cost is the task mix's mean, failures included.** A capability that meets a failing app is priced with those runs.
+- **Discovery costs every attempt, divided by the attempts that produced a capability.** A failed discovery is money spent getting one.
+- **Uncertainty.** The range beside N* comes from the bootstrap interval of the per-run saving (2,000 resamples, seed 14). Discovery ran once per capability, so its own spread is not in the range. The report says so.
+- **Infrastructure prices are configured assumptions.** They are AWS list prices, us-east-1, not checked against a bill:
+  - an on-demand c7i.large host at $0.08925/h, running one browser at a time as the benchmark does;
+  - S3 Standard at $0.023/GB-month;
+  - 12 months' retention.
+
+### Tests
+- `tests/unit/test_benchmark_economics.py` (17):
+  - the formula and its rounding;
+  - the volume totals;
+  - replay pays for its browser and its evidence;
+  - no break-even when replay costs as much as the baseline;
+  - a failed discovery attempt counts;
+  - no figure without a successful discovery, a live model or a priced model;
+  - paired tasks only;
+  - one figure per capability;
+  - tasks with no capability are named;
+  - runs lost to the provider are set aside;
+  - evidence measured from the run directory, with a cached answer counted as 0 and a missing directory as unmeasured;
+  - storage coverage;
+  - the model-only report;
+  - the committed price table;
+  - the CLI writes both files.
+- Gate: ruff, `ruff format --check` and `mypy` are clean. In the full run, two tests outside this phase failed under load: the desktop calculator and the Ctrl+C-in-a-live-wait discovery test (a 60 s timeout). Both passed when rerun alone. All the benchmark tests pass.
+- `cua.benchmark.economics` joined the check that replay-side modules never import a model client.
+
+### Results
+- `bench/reports/break_even.md`, from the Phase 14 live sessions (`bench_01M3NQEZG8M9HR54RZ849KKQ3Z`, `bench_01M3PNNZW5ABDXK197AV98CM94`), every part priced, evidence measured for every run:
+
+  | Capability | Discovery | Baseline/run | Replay/run | N* | 1,000 invocations |
+  |---|---:|---:|---:|---:|---:|
+  | `member_savings_balance` | $0.0305 | $0.0445 | $0.00027 | 1 | $44.45 vs $0.30 |
+  | `open_subaccount` | $0.0754 | $0.0754 | $0.00022 | 2 | $75.38 vs $0.29 |
+
+- Discovery costs about as much as one baseline run, so it pays for itself on the first or second invocation. By 1,000 invocations replay costs under 1% of the baseline.
+- Replay is not free: it costs about $0.0002–0.0003 per run in browser time and storage. For the lookup it stores more evidence than the baseline (319 against 153 KiB per run). A failed replay keeps its Playwright trace: about 530 KiB on the drift task and 470 KiB on the server error, against about 160 KiB for a clean run.
+
+### Known issues
+- A person's review of a discovered capability, re-discovery after drift, and the person who picks up a safe stop are not priced. The report lists all three. Human time is Phase 16.
+- The infrastructure prices are list prices, not measured spend.
+
+### Commit
+- `feat: add cost break-even analysis`.
+
+### Next
+- Phase 16: human intervention economics.

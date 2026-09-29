@@ -259,6 +259,9 @@ class RunMetrics(_Model):
     error_code: str | None = None
     outputs: dict[str, str] = Field(default_factory=dict)
     run_dir: str | None = None
+    evidence_bytes: int | None = None
+    """Bytes the run left in its run directory (log, observations,
+    screenshots, trace). None: not recorded (a row from before it was)."""
 
     @property
     def total_tokens(self) -> int:

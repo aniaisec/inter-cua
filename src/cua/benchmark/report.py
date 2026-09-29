@@ -172,7 +172,9 @@ def markdown(summary: dict[str, Any]) -> str:
                 if n is not None
                 else "Replay is not cheaper per run here, so there is no break-even."
             ),
-            "Model spend only, from the configured price table; an estimate, not billing.",
+            "Model spend only, from the configured price table; an estimate, not billing. "
+            "`cua benchmark break-even` prices browser time and stored evidence too, per "
+            "capability.",
             "",
         ]
     if summary.get("categories"):

@@ -25,6 +25,7 @@ from cua.agent.script import Script
 from cua.artifact.recorder import RecordError, record
 from cua.artifact.store import save
 from cua.benchmark.baseline_runner import run_baseline
+from cua.benchmark.economics import evidence_bytes
 from cua.benchmark.environment import BenchEnv, app_version, bench_env, mockapp
 from cua.benchmark.models import BenchmarkTask, RunMetrics, Strategy
 from cua.benchmark.replay_runner import run_replay, run_workflow_replay, token_for
@@ -220,6 +221,7 @@ def _runs(
             )
             if strategy == "inter_cua_discovery":
                 row = _record_capability(row, env)
+        row = row.model_copy(update={"evidence_bytes": evidence_bytes(row)})
         group_commits += row.commits_observed or 0
         out.append(row)
     return out

@@ -39,11 +39,31 @@ class ModelPrice(BaseModel):
     as_of: str = ""
 
 
+class InfrastructurePrice(BaseModel):
+    """What an invocation costs besides the model: the browser host it holds
+    for its wall clock, and the evidence it leaves behind. Configured, not
+    measured; the durations and bytes they multiply are measured."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    browser_hour: Decimal
+    """US dollars for one browser held for an hour: the host's hourly price
+    divided by the browsers it runs at once."""
+    storage_gb_month: Decimal
+    """US dollars per GiB of stored evidence per month."""
+    retention_months: Decimal
+    """How long a run's evidence is kept."""
+    source: str = ""
+    as_of: str = ""
+
+
 class PriceTable(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     currency: str = "USD"
     providers: dict[str, dict[str, ModelPrice]] = Field(default_factory=dict)
+    infrastructure: InfrastructurePrice | None = None
+    """None: browser time and storage are left unpriced, never taken as free."""
 
     def price(self, provider: str | None, model: str | None) -> ModelPrice | None:
         if not provider or not model:

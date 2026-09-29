@@ -1,0 +1,267 @@
+{
+  "sessions": [
+    "bench_01M3NQEZG8M9HR54RZ849KKQ3Z",
+    "bench_01M3PNNZW5ABDXK197AV98CM94"
+  ],
+  "models": [
+    "gemini-3.8-flash"
+  ],
+  "infrastructure": {
+    "browser_hour": "0.08925",
+    "storage_gb_month": "0.023",
+    "retention_months": "12",
+    "source": "AWS list prices, us-east-1 on-demand c7i.large (2 vCPU, 4 GiB) Linux host and S3 Standard; not re-checked against a bill",
+    "as_of": "2026-09-29"
+  },
+  "volumes": [
+    10,
+    100,
+    1000,
+    10000
+  ],
+  "capabilities": [
+    {
+      "capability": "member_savings_balance",
+      "tasks": [
+        "lookup-renamed-button",
+        "lookup-server-error",
+        "lookup-success",
+        "lookup-unknown-member"
+      ],
+      "left_out_tasks": [],
+      "priced_parts": [
+        "model",
+        "browser",
+        "storage"
+      ],
+      "scripted": false,
+      "baseline": {
+        "runs": 120,
+        "tasks": [
+          "lookup-renamed-button",
+          "lookup-server-error",
+          "lookup-success",
+          "lookup-unknown-member"
+        ],
+        "duration_mean_s": 21.595,
+        "evidence_bytes_mean": 156785,
+        "evidence_measured_runs": 120,
+        "per_run_usd": {
+          "model": "0.043876",
+          "browser": "0.000535",
+          "storage": "0.000040"
+        }
+      },
+      "replay": {
+        "runs": 120,
+        "tasks": [
+          "lookup-renamed-button",
+          "lookup-server-error",
+          "lookup-success",
+          "lookup-unknown-member"
+        ],
+        "duration_mean_s": 7.667,
+        "evidence_bytes_mean": 326887,
+        "evidence_measured_runs": 120,
+        "per_run_usd": {
+          "model": "0.000000",
+          "browser": "0.000190",
+          "storage": "0.000084"
+        }
+      },
+      "discovery": {
+        "runs": 1,
+        "tasks": [
+          "lookup-success"
+        ],
+        "duration_mean_s": 15.001,
+        "evidence_bytes_mean": 150669,
+        "evidence_measured_runs": 1,
+        "per_run_usd": {
+          "model": "0.030085",
+          "browser": "0.000372",
+          "storage": "0.000039"
+        },
+        "obtained": 1
+      },
+      "discovery_usd": "0.030496",
+      "baseline_per_run_usd": "0.044452",
+      "replay_per_run_usd": "0.000274",
+      "break_even": {
+        "saving_per_run_usd": "0.044178",
+        "saving_ci95": [
+          0.041236,
+          0.047061
+        ],
+        "invocations": 1,
+        "exact": 0.69,
+        "invocations_ci95": [
+          1,
+          1
+        ]
+      },
+      "model_only": {
+        "saving_per_run_usd": "0.043876",
+        "saving_ci95": [
+          0.04098,
+          0.046722
+        ],
+        "invocations": 1,
+        "exact": 0.686,
+        "invocations_ci95": [
+          1,
+          1
+        ]
+      },
+      "at_volume": [
+        {
+          "invocations": 10,
+          "traditional_usd": "0.444516",
+          "inter_cua_usd": "0.033237",
+          "saved_usd": "0.411279",
+          "inter_cua_share": 0.0748
+        },
+        {
+          "invocations": 100,
+          "traditional_usd": "4.445161",
+          "inter_cua_usd": "0.057905",
+          "saved_usd": "4.387255",
+          "inter_cua_share": 0.013
+        },
+        {
+          "invocations": 1000,
+          "traditional_usd": "44.451605",
+          "inter_cua_usd": "0.304594",
+          "saved_usd": "44.147012",
+          "inter_cua_share": 0.0069
+        },
+        {
+          "invocations": 10000,
+          "traditional_usd": "444.516052",
+          "inter_cua_usd": "2.771476",
+          "saved_usd": "441.744577",
+          "inter_cua_share": 0.0062
+        }
+      ]
+    },
+    {
+      "capability": "open_subaccount",
+      "tasks": [
+        "open-retried-request",
+        "open-with-consent"
+      ],
+      "left_out_tasks": [],
+      "priced_parts": [
+        "model",
+        "browser",
+        "storage"
+      ],
+      "scripted": false,
+      "baseline": {
+        "runs": 60,
+        "tasks": [
+          "open-retried-request",
+          "open-with-consent"
+        ],
+        "duration_mean_s": 38.706,
+        "evidence_bytes_mean": 284770,
+        "evidence_measured_runs": 60,
+        "per_run_usd": {
+          "model": "0.074347",
+          "browser": "0.000960",
+          "storage": "0.000073"
+        }
+      },
+      "replay": {
+        "runs": 60,
+        "tasks": [
+          "open-retried-request",
+          "open-with-consent"
+        ],
+        "duration_mean_s": 7.122,
+        "evidence_bytes_mean": 150224,
+        "evidence_measured_runs": 60,
+        "per_run_usd": {
+          "model": "0.000000",
+          "browser": "0.000177",
+          "storage": "0.000039"
+        }
+      },
+      "discovery": {
+        "runs": 1,
+        "tasks": [
+          "open-with-consent"
+        ],
+        "duration_mean_s": 39.841,
+        "evidence_bytes_mean": 284799,
+        "evidence_measured_runs": 1,
+        "per_run_usd": {
+          "model": "0.074384",
+          "browser": "0.000988",
+          "storage": "0.000073"
+        },
+        "obtained": 1
+      },
+      "discovery_usd": "0.075445",
+      "baseline_per_run_usd": "0.075380",
+      "replay_per_run_usd": "0.000215",
+      "break_even": {
+        "saving_per_run_usd": "0.075165",
+        "saving_ci95": [
+          0.07475,
+          0.075522
+        ],
+        "invocations": 2,
+        "exact": 1.004,
+        "invocations_ci95": [
+          1,
+          2
+        ]
+      },
+      "model_only": {
+        "saving_per_run_usd": "0.074347",
+        "saving_ci95": [
+          0.073961,
+          0.074679
+        ],
+        "invocations": 2,
+        "exact": 1.0,
+        "invocations_ci95": [
+          1,
+          2
+        ]
+      },
+      "at_volume": [
+        {
+          "invocations": 10,
+          "traditional_usd": "0.753800",
+          "inter_cua_usd": "0.077597",
+          "saved_usd": "0.676203",
+          "inter_cua_share": 0.1029
+        },
+        {
+          "invocations": 100,
+          "traditional_usd": "7.537999",
+          "inter_cua_usd": "0.096962",
+          "saved_usd": "7.441037",
+          "inter_cua_share": 0.0129
+        },
+        {
+          "invocations": 1000,
+          "traditional_usd": "75.379992",
+          "inter_cua_usd": "0.290615",
+          "saved_usd": "75.089377",
+          "inter_cua_share": 0.0039
+        },
+        {
+          "invocations": 10000,
+          "traditional_usd": "753.799915",
+          "inter_cua_usd": "2.227142",
+          "saved_usd": "751.572773",
+          "inter_cua_share": 0.003
+        }
+      ]
+    }
+  ],
+  "notes": []
+}
