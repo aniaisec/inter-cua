@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from cua.benchmark.models import STRATEGIES, RunMetrics, Strategy, Suite
+from cua.benchmark.models import PROTOCOL_MIN, STRATEGIES, RunMetrics, Strategy, Suite
 from cua.benchmark.storage import REPORTS_DIR
 
 EX_USAGE = 64
@@ -42,6 +42,18 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
         help="Only this strategy (repeatable; default: all)",
     )
     run.add_argument("--repetitions", type=int, help="Override every task's repetition count")
+    run.add_argument(
+        "--baseline-repetitions",
+        type=int,
+        help="Baseline runs per task, over --repetitions (the statistical protocol asks "
+        f"for {PROTOCOL_MIN['baseline_llm']}+: a model is not deterministic)",
+    )
+    run.add_argument(
+        "--replay-repetitions",
+        type=int,
+        help="Replay runs per task, over --repetitions (the protocol asks for "
+        f"{PROTOCOL_MIN['inter_cua_replay']}+)",
+    )
     run.add_argument(
         "--discovery-repetitions",
         type=int,
@@ -117,6 +129,14 @@ def main(args: argparse.Namespace) -> int:
         llm=args.llm,
         model=args.model,
         repetitions=args.repetitions,
+        repetitions_by_strategy={
+            s: n
+            for s, n in (
+                ("baseline_llm", args.baseline_repetitions),
+                ("inter_cua_replay", args.replay_repetitions),
+            )
+            if n
+        },
         discovery_repetitions=args.discovery_repetitions,
         prices=load_prices(args.pricing),
         reports_dir=args.reports_dir,

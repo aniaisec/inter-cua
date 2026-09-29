@@ -18,6 +18,9 @@ credential placeholder is substituted only in a sign-on field
 
 from __future__ import annotations
 
+import hashlib
+from pathlib import Path
+
 from cua.agent.goal import Goal
 from cua.policy.allowlist import Policy
 from cua.surface.protocol import Observation
@@ -123,3 +126,16 @@ def after_action(result: str, observation: Observation | None, remaining: int) -
         lines += ["", "The screen has not changed; its refs are still valid."]
     lines += ["", f"({remaining} actions left.)"]
     return "\n".join(lines)
+
+
+def prompt_version() -> str:
+    """A fingerprint of everything the agent is told that does not depend on
+    the task: this module (the preamble, rules and turn templates) and the
+    tool definitions. Any edit to either is a new prompt version, comments
+    included; a benchmark records it so that two sessions can be seen to have
+    asked the same thing."""
+    here = Path(__file__).parent
+    digest = hashlib.sha256()
+    for name in ("prompts.py", "tools.py"):
+        digest.update((here / name).read_bytes().replace(b"\r\n", b"\n"))
+    return "sha256:" + digest.hexdigest()[:12]

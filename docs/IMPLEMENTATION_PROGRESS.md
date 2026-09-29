@@ -856,3 +856,99 @@ Status: COMPLETE
 
 ### Next
 - Phase 14: statistical evaluation.
+
+## Phase 14 — Statistical evaluation
+
+Status: COMPLETE (pending verification)
+
+### Changes
+- Each session records its exact configuration in `sessions.jsonl`. Every new field has a default, so older session records still load.
+  - `model` is the model asked for. An alias or a default is resolved to the model the client uses.
+  - `models_answered` lists every version that actually answered.
+  - `llm_settings` is everything the client sends besides the conversation (`cua.agent.llm.generation_settings`). No client sets a temperature, so the field says "provider default".
+  - `prompt_version` fingerprints `cua/agent/prompts.py` and `tools.py`.
+  - `task_versions` fingerprints each task.
+  - `capability_versions` gives each capability's number and content hash. A workflow gets its file hash and each of its steps.
+  - `app_version` fingerprints the mock app's code and templates.
+  - `repetitions_by_strategy` and `machine` are also recorded.
+- `cua benchmark run --baseline-repetitions N --replay-repetitions N` set per-strategy counts over `--repetitions` (`Plan.count_for`).
+- `PROTOCOL_MIN` sets the protocol: baseline 30+ runs per task, replay 10+.
+- `src/cua/benchmark/inference.py` builds the comparison between the baseline and replay, on the tasks both ran. It answers the seven questions: LLM calls, cost, latency, repeatability, drift, humans and safety.
+  - Each question has one primary measure. The comparison gives it for both strategies, the difference (replay minus baseline) and 95% intervals.
+  - Rates use Wilson intervals, and a difference of two rates uses Newcombe's (method 10). It reproduces Newcombe's published example: 0.0524 to 0.3339.
+  - Means and medians use a percentile bootstrap with 2,000 resamples and seed 14, so the report is reproducible.
+  - A finding is stated only when the interval of the difference excludes zero.
+  - Each finding has a strength: *supported* (a live model at protocol size), *indicative* (a live model with fewer runs than the protocol) or *not measured* (a scripted baseline).
+  - Repeatability is the share of runs that ended as their task usually ends. Accuracy is reported beside it.
+- The report has a new section, "What the measurements support". The setup section lists each session's configuration, and flags a task whose capability or definition changed between the sessions a report combines.
+- Runs lost to the provider are set aside. These are `LLM_ERROR` runs with zero model calls: a quota, a spending cap or a refused key.
+  - They are left out of every number and listed at the top of the report.
+  - An `LLM_ERROR` after the model had answered at least once stays in: that is the baseline's own reliability.
+- `models_answered` counts only rows with model calls.
+- Docs: `bench/README.md` has a "Statistical protocol" section.
+
+### Decisions
+- **Live session on a core subset.** The user chose 6 of the 15 core tasks, with the baseline and replay 30 times each:
+  - `lookup-success`
+  - `lookup-unknown-member`
+  - `lookup-server-error`
+  - `lookup-renamed-button`
+  - `open-with-consent`
+  - `open-retried-request`
+
+  Together they cover a clean read, a business outcome, a persistent failure, drift, a consented commit and idempotency. The full core suite would have cost about $24.
+- **Paired tasks only.** The comparison uses only the tasks both strategies ran, so the task mix cannot move a difference.
+- **Temperature is not set.** The clients have always used the provider's default sampling. The benchmark measures the agent as it ships, and records that choice rather than pinning a number.
+- **Prompt version is a source hash.** Any edit to the prompt or tool module, comments included, counts as a new version. This errs on the side of calling two sessions different.
+
+### Tests
+- `tests/unit/test_benchmark_inference.py` (22):
+  - Newcombe against the published example;
+  - bootstrap reproducibility and separation;
+  - modal outcomes and consistency;
+  - protocol adequacy;
+  - the supported, indicative and not-measured strengths;
+  - paired tasks only;
+  - unpriced cost;
+  - drift read from the category or the tag;
+  - duplicate commits as unsafe runs;
+  - the report section, and the cross-session version warning;
+  - old session records still load;
+  - version fingerprints move with their inputs;
+  - capability and workflow versions;
+  - settings;
+  - per-strategy counts;
+  - runs lost to the provider are set aside.
+- `tests/integration/test_benchmark.py`: the scripted session records every configuration field, and every one of its findings is "not measured".
+
+### Results
+- Two live sessions, Gemini `gemini-flash-latest`, which resolved to `gemini-3.8-flash` on every call.
+  - `bench_01M3NQEZG8M9HR54RZ849KKQ3Z`: 6 tasks, with the baseline and replay 30 times each and discovery once.
+  - `bench_01M3PNNZW5ABDXK197AV98CM94`: the rerun of `open-retried-request` baseline x30.
+  - The first session hit the Gemini project's monthly spending cap at 06:13 UTC. All 30 `open-retried-request` baseline runs got `429 RESOURCE_EXHAUSTED` before any model call. The user raised the cap, and the rerun replaced them. The capped rows stay in `runs.jsonl`, and the report sets them aside.
+  - Spend: about $7.60 and $2.23, so about $9.83.
+- Report: `bench/reports/statistical/summary.md`. Every finding is *supported*, with 30 runs per task per strategy (180 each).
+  1. LLM calls: the baseline makes 7.97 per invocation (95% CI 7.72–8.21) and replay 0.
+  2. Cost: the baseline costs $0.0540 per invocation ($0.0511–0.0567) and replay $0.
+  3. Latency, median: the baseline takes 24.35 s (22.62–25.96) and replay 7.62 s (7.27–8.12). The difference is −16.73 s (−18.35 to −14.97). P95 is 54.2 s against 13.9 s.
+     - 29 of `open-retried-request`'s 30 replays are answered from the idempotency store in about 3 ms.
+     - The other five tasks give the same result: replay's per-task medians are 5.7–13.8 s, against 14.9–29.1 s for the baseline.
+  4. Repeatability:
+     - Both strategies ended every task the same way in every repetition (100% modal, CI 97.9–100), so there is no detectable difference.
+     - Latency varies less for replay: the median coefficient of variation is 0.10, against 0.29 for the baseline.
+     - Accuracy is 83.9% for the baseline and 83.3% for replay.
+  5. Drift (a renamed button, n=30): neither strategy gave a wrong answer. The baseline read through the rename all 30 times. Replay stopped safely all 30 times with `LOCATOR_UNRESOLVED`.
+  6. Humans: 33.3% for both. The baseline calls `stuck` on the unknown member and the server error, and replay reports `NOT_FOUND` or `APP_ERROR`.
+  7. Safety: 16.1% of baseline runs (11.5–22.2) had a duplicate, unconsented or forbidden side effect, against 0% for replay (0–2.1). The baseline committed a second time on 29 of 30 retries.
+- Gate: ruff, `ruff format --check` and `mypy --strict` are clean. 875 tests pass (853 before this phase). The desktop suite passed this time.
+
+### Known issues
+- Replay's median latency is flattered by answers cached by idempotency key. The per-task medians show the latency finding holds without them.
+- `sessions.jsonl` for `bench_01M3NQEZG8M9HR54RZ849KKQ3Z` lists `gemini-flash-latest` among `models_answered`. That came from the capped rows, before the fix. The report takes the answering model from the measured rows instead, which show `gemini-3.8-flash` only.
+- The live comparison covers 6 of the 15 core tasks and none of the expanded category suites.
+
+### Commit
+- `feat: add statistical benchmark evaluation`.
+
+### Next
+- Phase 15: cost break-even analysis.

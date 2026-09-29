@@ -1,0 +1,2003 @@
+{
+  "sessions": [
+    "bench_01M3NQEZG8M9HR54RZ849KKQ3Z",
+    "bench_01M3PNNZW5ABDXK197AV98CM94"
+  ],
+  "runs": 362,
+  "strategies": {
+    "baseline_llm": {
+      "runs": 180,
+      "exact": 151,
+      "safe_stop": 0,
+      "wrong": 29,
+      "success_rate": 0.8389,
+      "success_ci95": [
+        0.7782,
+        0.8854
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.1611,
+      "business_outcome_accuracy": 1.0,
+      "escalation_rate": 0.3333,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0,
+        "50": 0.86,
+        "100": 0.85
+      },
+      "latency_mean_s": 27.299,
+      "latency_median_s": 24.351,
+      "latency_p95_s": 54.198,
+      "latency_stdev_s": 15.625,
+      "llm_wait_s": 4242.382,
+      "llm_calls": 1434,
+      "llm_calls_per_run": 7.97,
+      "input_tokens": 11796282,
+      "output_tokens": 55682,
+      "thinking_tokens": 193151,
+      "tokens_per_run": 66917.3,
+      "estimated_cost_usd": "9.725944",
+      "cost_per_run_usd": "0.054033",
+      "cost_per_success_usd": "0.064410",
+      "actions": 1252,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 29,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "done": 120,
+        "escalated:STUCK": 60
+      }
+    },
+    "inter_cua_discovery": {
+      "runs": 2,
+      "exact": 2,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.3424,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0
+      },
+      "latency_mean_s": 27.421,
+      "latency_median_s": 27.421,
+      "latency_p95_s": 39.841,
+      "latency_stdev_s": 17.565,
+      "llm_wait_s": 47.515,
+      "llm_calls": 16,
+      "llm_calls_per_run": 8.0,
+      "input_tokens": 132707,
+      "output_tokens": 632,
+      "thinking_tokens": 685,
+      "tokens_per_run": 67012.0,
+      "estimated_cost_usd": "0.104469",
+      "cost_per_run_usd": "0.052234",
+      "cost_per_success_usd": "0.052234",
+      "actions": 14,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "done": 2
+      }
+    },
+    "inter_cua_replay": {
+      "runs": 180,
+      "exact": 150,
+      "safe_stop": 30,
+      "wrong": 0,
+      "success_rate": 0.8333,
+      "success_ci95": [
+        0.772,
+        0.8807
+      ],
+      "safe_stop_rate": 0.1667,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": 1.0,
+      "escalation_rate": 0.3333,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 0.8,
+        "50": 0.84,
+        "100": 0.83
+      },
+      "latency_mean_s": 7.485,
+      "latency_median_s": 7.622,
+      "latency_p95_s": 13.937,
+      "latency_stdev_s": 4.175,
+      "llm_wait_s": 0.0,
+      "llm_calls": 0,
+      "llm_calls_per_run": 0.0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "thinking_tokens": 0,
+      "tokens_per_run": 0.0,
+      "estimated_cost_usd": "0",
+      "cost_per_run_usd": "0.000000",
+      "cost_per_success_usd": "0.000000",
+      "actions": 849,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 29,
+      "models": [],
+      "outcomes": {
+        "business_outcome:NOT_FOUND": 30,
+        "failure:APP_ERROR": 30,
+        "failure:LOCATOR_UNRESOLVED": 30,
+        "success": 90
+      }
+    }
+  },
+  "tasks": [
+    {
+      "task": "lookup-renamed-button",
+      "strategy": "baseline_llm",
+      "runs": 30,
+      "exact": 30,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.8865,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0
+      },
+      "latency_mean_s": 15.4,
+      "latency_median_s": 15.123,
+      "latency_p95_s": 22.753,
+      "latency_stdev_s": 3.691,
+      "llm_wait_s": 386.96,
+      "llm_calls": 180,
+      "llm_calls_per_run": 6.0,
+      "input_tokens": 1149759,
+      "output_tokens": 7220,
+      "thinking_tokens": 10371,
+      "tokens_per_run": 38911.7,
+      "estimated_cost_usd": "0.928284",
+      "cost_per_run_usd": "0.030943",
+      "cost_per_success_usd": "0.030943",
+      "actions": 150,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "done": 30
+      }
+    },
+    {
+      "task": "lookup-renamed-button",
+      "strategy": "inter_cua_replay",
+      "runs": 30,
+      "exact": 0,
+      "safe_stop": 30,
+      "wrong": 0,
+      "success_rate": 0.0,
+      "success_ci95": [
+        0.0,
+        0.1135
+      ],
+      "safe_stop_rate": 1.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 1.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 0.0,
+        "10": 0.0
+      },
+      "latency_mean_s": 7.824,
+      "latency_median_s": 7.677,
+      "latency_p95_s": 8.821,
+      "latency_stdev_s": 0.518,
+      "llm_wait_s": 0.0,
+      "llm_calls": 0,
+      "llm_calls_per_run": 0.0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "thinking_tokens": 0,
+      "tokens_per_run": 0.0,
+      "estimated_cost_usd": "0",
+      "cost_per_run_usd": "0.000000",
+      "cost_per_success_usd": null,
+      "actions": 120,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [],
+      "outcomes": {
+        "failure:LOCATOR_UNRESOLVED": 30
+      }
+    },
+    {
+      "task": "lookup-server-error",
+      "strategy": "baseline_llm",
+      "runs": 30,
+      "exact": 30,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.8865,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 1.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0
+      },
+      "latency_mean_s": 32.617,
+      "latency_median_s": 29.058,
+      "latency_p95_s": 60.439,
+      "latency_stdev_s": 11.268,
+      "llm_wait_s": 856.514,
+      "llm_calls": 258,
+      "llm_calls_per_run": 8.6,
+      "input_tokens": 2211078,
+      "output_tokens": 10366,
+      "thinking_tokens": 85971,
+      "tokens_per_run": 76913.8,
+      "estimated_cost_usd": "2.003234",
+      "cost_per_run_usd": "0.066774",
+      "cost_per_success_usd": "0.066774",
+      "actions": 226,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "escalated:STUCK": 30
+      }
+    },
+    {
+      "task": "lookup-server-error",
+      "strategy": "inter_cua_replay",
+      "runs": 30,
+      "exact": 30,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.8865,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 1.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0
+      },
+      "latency_mean_s": 7.283,
+      "latency_median_s": 7.106,
+      "latency_p95_s": 9.146,
+      "latency_stdev_s": 0.939,
+      "llm_wait_s": 0.0,
+      "llm_calls": 0,
+      "llm_calls_per_run": 0.0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "thinking_tokens": 0,
+      "tokens_per_run": 0.0,
+      "estimated_cost_usd": "0",
+      "cost_per_run_usd": "0.000000",
+      "cost_per_success_usd": "0.000000",
+      "actions": 150,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [],
+      "outcomes": {
+        "failure:APP_ERROR": 30
+      }
+    },
+    {
+      "task": "lookup-success",
+      "strategy": "baseline_llm",
+      "runs": 30,
+      "exact": 30,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.8865,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0
+      },
+      "latency_mean_s": 15.78,
+      "latency_median_s": 14.921,
+      "latency_p95_s": 24.682,
+      "latency_stdev_s": 3.025,
+      "llm_wait_s": 350.16,
+      "llm_calls": 180,
+      "llm_calls_per_run": 6.0,
+      "input_tokens": 1142546,
+      "output_tokens": 7205,
+      "thinking_tokens": 10002,
+      "tokens_per_run": 38658.4,
+      "estimated_cost_usd": "0.921434",
+      "cost_per_run_usd": "0.030714",
+      "cost_per_success_usd": "0.030714",
+      "actions": 150,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "done": 30
+      }
+    },
+    {
+      "task": "lookup-success",
+      "strategy": "inter_cua_discovery",
+      "runs": 1,
+      "exact": 1,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.2065,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0
+      },
+      "latency_mean_s": 15.001,
+      "latency_median_s": 15.001,
+      "latency_p95_s": 15.001,
+      "latency_stdev_s": null,
+      "llm_wait_s": 11.587,
+      "llm_calls": 6,
+      "llm_calls_per_run": 6.0,
+      "input_tokens": 37868,
+      "output_tokens": 252,
+      "thinking_tokens": 197,
+      "tokens_per_run": 38317.0,
+      "estimated_cost_usd": "0.030085",
+      "cost_per_run_usd": "0.030085",
+      "cost_per_success_usd": "0.030085",
+      "actions": 5,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "done": 1
+      }
+    },
+    {
+      "task": "lookup-success",
+      "strategy": "inter_cua_replay",
+      "runs": 30,
+      "exact": 30,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.8865,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0
+      },
+      "latency_mean_s": 9.555,
+      "latency_median_s": 9.585,
+      "latency_p95_s": 10.352,
+      "latency_stdev_s": 0.571,
+      "llm_wait_s": 0.0,
+      "llm_calls": 0,
+      "llm_calls_per_run": 0.0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "thinking_tokens": 0,
+      "tokens_per_run": 0.0,
+      "estimated_cost_usd": "0",
+      "cost_per_run_usd": "0.000000",
+      "cost_per_success_usd": "0.000000",
+      "actions": 150,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [],
+      "outcomes": {
+        "success": 30
+      }
+    },
+    {
+      "task": "lookup-unknown-member",
+      "strategy": "baseline_llm",
+      "runs": 30,
+      "exact": 30,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.8865,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": 1.0,
+      "escalation_rate": 1.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0
+      },
+      "latency_mean_s": 22.582,
+      "latency_median_s": 22.497,
+      "latency_p95_s": 28.647,
+      "latency_stdev_s": 3.801,
+      "llm_wait_s": 564.378,
+      "llm_calls": 216,
+      "llm_calls_per_run": 7.2,
+      "input_tokens": 1577287,
+      "output_tokens": 8419,
+      "thinking_tokens": 54148,
+      "tokens_per_run": 54661.8,
+      "estimated_cost_usd": "1.412160",
+      "cost_per_run_usd": "0.047072",
+      "cost_per_success_usd": "0.047072",
+      "actions": 186,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "escalated:STUCK": 30
+      }
+    },
+    {
+      "task": "lookup-unknown-member",
+      "strategy": "inter_cua_replay",
+      "runs": 30,
+      "exact": 30,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.8865,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": 1.0,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0
+      },
+      "latency_mean_s": 6.006,
+      "latency_median_s": 5.739,
+      "latency_p95_s": 8.175,
+      "latency_stdev_s": 0.823,
+      "llm_wait_s": 0.0,
+      "llm_calls": 0,
+      "llm_calls_per_run": 0.0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "thinking_tokens": 0,
+      "tokens_per_run": 0.0,
+      "estimated_cost_usd": "0",
+      "cost_per_run_usd": "0.000000",
+      "cost_per_success_usd": "0.000000",
+      "actions": 150,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [],
+      "outcomes": {
+        "business_outcome:NOT_FOUND": 30
+      }
+    },
+    {
+      "task": "open-retried-request",
+      "strategy": "baseline_llm",
+      "runs": 30,
+      "exact": 1,
+      "safe_stop": 0,
+      "wrong": 29,
+      "success_rate": 0.0333,
+      "success_ci95": [
+        0.0059,
+        0.1667
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.9667,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 0.1
+      },
+      "latency_mean_s": 37.302,
+      "latency_median_s": 33.507,
+      "latency_p95_s": 66.921,
+      "latency_stdev_s": 13.152,
+      "llm_wait_s": 999.615,
+      "llm_calls": 300,
+      "llm_calls_per_run": 10.0,
+      "input_tokens": 2858115,
+      "output_tokens": 11190,
+      "thinking_tokens": 16249,
+      "tokens_per_run": 96185.1,
+      "estimated_cost_usd": "2.227457",
+      "cost_per_run_usd": "0.074249",
+      "cost_per_success_usd": "2.227457",
+      "actions": 270,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 29,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "done": 30
+      }
+    },
+    {
+      "task": "open-retried-request",
+      "strategy": "inter_cua_replay",
+      "runs": 30,
+      "exact": 30,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.8865,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0
+      },
+      "latency_mean_s": 0.441,
+      "latency_median_s": 0.003,
+      "latency_p95_s": 0.018,
+      "latency_stdev_s": 2.395,
+      "llm_wait_s": 0.0,
+      "llm_calls": 0,
+      "llm_calls_per_run": 0.0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "thinking_tokens": 0,
+      "tokens_per_run": 0.0,
+      "estimated_cost_usd": "0",
+      "cost_per_run_usd": "0.000000",
+      "cost_per_success_usd": "0.000000",
+      "actions": 9,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 29,
+      "models": [],
+      "outcomes": {
+        "success": 30
+      }
+    },
+    {
+      "task": "open-with-consent",
+      "strategy": "baseline_llm",
+      "runs": 30,
+      "exact": 30,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.8865,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0
+      },
+      "latency_mean_s": 40.111,
+      "latency_median_s": 29.1,
+      "latency_p95_s": 86.78,
+      "latency_stdev_s": 23.675,
+      "llm_wait_s": 1084.755,
+      "llm_calls": 300,
+      "llm_calls_per_run": 10.0,
+      "input_tokens": 2857497,
+      "output_tokens": 11282,
+      "thinking_tokens": 16410,
+      "tokens_per_run": 96173.0,
+      "estimated_cost_usd": "2.233375",
+      "cost_per_run_usd": "0.074446",
+      "cost_per_success_usd": "0.074446",
+      "actions": 270,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "done": 30
+      }
+    },
+    {
+      "task": "open-with-consent",
+      "strategy": "inter_cua_discovery",
+      "runs": 1,
+      "exact": 1,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.2065,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0
+      },
+      "latency_mean_s": 39.841,
+      "latency_median_s": 39.841,
+      "latency_p95_s": 39.841,
+      "latency_stdev_s": null,
+      "llm_wait_s": 35.928,
+      "llm_calls": 10,
+      "llm_calls_per_run": 10.0,
+      "input_tokens": 94839,
+      "output_tokens": 380,
+      "thinking_tokens": 488,
+      "tokens_per_run": 95707.0,
+      "estimated_cost_usd": "0.074384",
+      "cost_per_run_usd": "0.074384",
+      "cost_per_success_usd": "0.074384",
+      "actions": 9,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "done": 1
+      }
+    },
+    {
+      "task": "open-with-consent",
+      "strategy": "inter_cua_replay",
+      "runs": 30,
+      "exact": 30,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.8865,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0
+      },
+      "latency_mean_s": 13.802,
+      "latency_median_s": 13.831,
+      "latency_p95_s": 14.918,
+      "latency_stdev_s": 0.493,
+      "llm_wait_s": 0.0,
+      "llm_calls": 0,
+      "llm_calls_per_run": 0.0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "thinking_tokens": 0,
+      "tokens_per_run": 0.0,
+      "estimated_cost_usd": "0",
+      "cost_per_run_usd": "0.000000",
+      "cost_per_success_usd": "0.000000",
+      "actions": 270,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [],
+      "outcomes": {
+        "success": 30
+      }
+    }
+  ],
+  "categories": [],
+  "tags": [
+    {
+      "tag": "business_outcome",
+      "strategy": "baseline_llm",
+      "runs": 30,
+      "exact": 30,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.8865,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": 1.0,
+      "escalation_rate": 1.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0
+      },
+      "latency_mean_s": 22.582,
+      "latency_median_s": 22.497,
+      "latency_p95_s": 28.647,
+      "latency_stdev_s": 3.801,
+      "llm_wait_s": 564.378,
+      "llm_calls": 216,
+      "llm_calls_per_run": 7.2,
+      "input_tokens": 1577287,
+      "output_tokens": 8419,
+      "thinking_tokens": 54148,
+      "tokens_per_run": 54661.8,
+      "estimated_cost_usd": "1.412160",
+      "cost_per_run_usd": "0.047072",
+      "cost_per_success_usd": "0.047072",
+      "actions": 186,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "escalated:STUCK": 30
+      }
+    },
+    {
+      "tag": "business_outcome",
+      "strategy": "inter_cua_replay",
+      "runs": 30,
+      "exact": 30,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.8865,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": 1.0,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0
+      },
+      "latency_mean_s": 6.006,
+      "latency_median_s": 5.739,
+      "latency_p95_s": 8.175,
+      "latency_stdev_s": 0.823,
+      "llm_wait_s": 0.0,
+      "llm_calls": 0,
+      "llm_calls_per_run": 0.0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "thinking_tokens": 0,
+      "tokens_per_run": 0.0,
+      "estimated_cost_usd": "0",
+      "cost_per_run_usd": "0.000000",
+      "cost_per_success_usd": "0.000000",
+      "actions": 150,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [],
+      "outcomes": {
+        "business_outcome:NOT_FOUND": 30
+      }
+    },
+    {
+      "tag": "drift",
+      "strategy": "baseline_llm",
+      "runs": 30,
+      "exact": 30,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.8865,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0
+      },
+      "latency_mean_s": 15.4,
+      "latency_median_s": 15.123,
+      "latency_p95_s": 22.753,
+      "latency_stdev_s": 3.691,
+      "llm_wait_s": 386.96,
+      "llm_calls": 180,
+      "llm_calls_per_run": 6.0,
+      "input_tokens": 1149759,
+      "output_tokens": 7220,
+      "thinking_tokens": 10371,
+      "tokens_per_run": 38911.7,
+      "estimated_cost_usd": "0.928284",
+      "cost_per_run_usd": "0.030943",
+      "cost_per_success_usd": "0.030943",
+      "actions": 150,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "done": 30
+      }
+    },
+    {
+      "tag": "drift",
+      "strategy": "inter_cua_replay",
+      "runs": 30,
+      "exact": 0,
+      "safe_stop": 30,
+      "wrong": 0,
+      "success_rate": 0.0,
+      "success_ci95": [
+        0.0,
+        0.1135
+      ],
+      "safe_stop_rate": 1.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 1.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 0.0,
+        "10": 0.0
+      },
+      "latency_mean_s": 7.824,
+      "latency_median_s": 7.677,
+      "latency_p95_s": 8.821,
+      "latency_stdev_s": 0.518,
+      "llm_wait_s": 0.0,
+      "llm_calls": 0,
+      "llm_calls_per_run": 0.0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "thinking_tokens": 0,
+      "tokens_per_run": 0.0,
+      "estimated_cost_usd": "0",
+      "cost_per_run_usd": "0.000000",
+      "cost_per_success_usd": null,
+      "actions": 120,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [],
+      "outcomes": {
+        "failure:LOCATOR_UNRESOLVED": 30
+      }
+    },
+    {
+      "tag": "failure",
+      "strategy": "baseline_llm",
+      "runs": 30,
+      "exact": 30,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.8865,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 1.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0
+      },
+      "latency_mean_s": 32.617,
+      "latency_median_s": 29.058,
+      "latency_p95_s": 60.439,
+      "latency_stdev_s": 11.268,
+      "llm_wait_s": 856.514,
+      "llm_calls": 258,
+      "llm_calls_per_run": 8.6,
+      "input_tokens": 2211078,
+      "output_tokens": 10366,
+      "thinking_tokens": 85971,
+      "tokens_per_run": 76913.8,
+      "estimated_cost_usd": "2.003234",
+      "cost_per_run_usd": "0.066774",
+      "cost_per_success_usd": "0.066774",
+      "actions": 226,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "escalated:STUCK": 30
+      }
+    },
+    {
+      "tag": "failure",
+      "strategy": "inter_cua_replay",
+      "runs": 30,
+      "exact": 30,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.8865,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 1.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0
+      },
+      "latency_mean_s": 7.283,
+      "latency_median_s": 7.106,
+      "latency_p95_s": 9.146,
+      "latency_stdev_s": 0.939,
+      "llm_wait_s": 0.0,
+      "llm_calls": 0,
+      "llm_calls_per_run": 0.0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "thinking_tokens": 0,
+      "tokens_per_run": 0.0,
+      "estimated_cost_usd": "0",
+      "cost_per_run_usd": "0.000000",
+      "cost_per_success_usd": "0.000000",
+      "actions": 150,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [],
+      "outcomes": {
+        "failure:APP_ERROR": 30
+      }
+    },
+    {
+      "tag": "side_effects",
+      "strategy": "baseline_llm",
+      "runs": 60,
+      "exact": 31,
+      "safe_stop": 0,
+      "wrong": 29,
+      "success_rate": 0.5167,
+      "success_ci95": [
+        0.3931,
+        0.6383
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.4833,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 0.6,
+        "50": 0.52
+      },
+      "latency_mean_s": 38.706,
+      "latency_median_s": 32.549,
+      "latency_p95_s": 86.336,
+      "latency_stdev_s": 19.04,
+      "llm_wait_s": 2084.37,
+      "llm_calls": 600,
+      "llm_calls_per_run": 10.0,
+      "input_tokens": 5715612,
+      "output_tokens": 22472,
+      "thinking_tokens": 32659,
+      "tokens_per_run": 96179.1,
+      "estimated_cost_usd": "4.460832",
+      "cost_per_run_usd": "0.074347",
+      "cost_per_success_usd": "0.143898",
+      "actions": 540,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 29,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "done": 60
+      }
+    },
+    {
+      "tag": "side_effects",
+      "strategy": "inter_cua_discovery",
+      "runs": 1,
+      "exact": 1,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.2065,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0
+      },
+      "latency_mean_s": 39.841,
+      "latency_median_s": 39.841,
+      "latency_p95_s": 39.841,
+      "latency_stdev_s": null,
+      "llm_wait_s": 35.928,
+      "llm_calls": 10,
+      "llm_calls_per_run": 10.0,
+      "input_tokens": 94839,
+      "output_tokens": 380,
+      "thinking_tokens": 488,
+      "tokens_per_run": 95707.0,
+      "estimated_cost_usd": "0.074384",
+      "cost_per_run_usd": "0.074384",
+      "cost_per_success_usd": "0.074384",
+      "actions": 9,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "done": 1
+      }
+    },
+    {
+      "tag": "side_effects",
+      "strategy": "inter_cua_replay",
+      "runs": 60,
+      "exact": 60,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.9398,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0,
+        "50": 1.0
+      },
+      "latency_mean_s": 7.122,
+      "latency_median_s": 12.99,
+      "latency_p95_s": 14.329,
+      "latency_stdev_s": 6.952,
+      "llm_wait_s": 0.0,
+      "llm_calls": 0,
+      "llm_calls_per_run": 0.0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "thinking_tokens": 0,
+      "tokens_per_run": 0.0,
+      "estimated_cost_usd": "0",
+      "cost_per_run_usd": "0.000000",
+      "cost_per_success_usd": "0.000000",
+      "actions": 279,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 29,
+      "models": [],
+      "outcomes": {
+        "success": 60
+      }
+    },
+    {
+      "tag": "success",
+      "strategy": "baseline_llm",
+      "runs": 60,
+      "exact": 60,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.9398,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0,
+        "50": 1.0
+      },
+      "latency_mean_s": 27.945,
+      "latency_median_s": 22.526,
+      "latency_p95_s": 81.283,
+      "latency_stdev_s": 20.749,
+      "llm_wait_s": 1434.915,
+      "llm_calls": 480,
+      "llm_calls_per_run": 8.0,
+      "input_tokens": 4000043,
+      "output_tokens": 18487,
+      "thinking_tokens": 26412,
+      "tokens_per_run": 67415.7,
+      "estimated_cost_usd": "3.154809",
+      "cost_per_run_usd": "0.052580",
+      "cost_per_success_usd": "0.052580",
+      "actions": 420,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "done": 60
+      }
+    },
+    {
+      "tag": "success",
+      "strategy": "inter_cua_discovery",
+      "runs": 2,
+      "exact": 2,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.3424,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0
+      },
+      "latency_mean_s": 27.421,
+      "latency_median_s": 27.421,
+      "latency_p95_s": 39.841,
+      "latency_stdev_s": 17.565,
+      "llm_wait_s": 47.515,
+      "llm_calls": 16,
+      "llm_calls_per_run": 8.0,
+      "input_tokens": 132707,
+      "output_tokens": 632,
+      "thinking_tokens": 685,
+      "tokens_per_run": 67012.0,
+      "estimated_cost_usd": "0.104469",
+      "cost_per_run_usd": "0.052234",
+      "cost_per_success_usd": "0.052234",
+      "actions": 14,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [
+        "gemini-3.8-flash"
+      ],
+      "outcomes": {
+        "done": 2
+      }
+    },
+    {
+      "tag": "success",
+      "strategy": "inter_cua_replay",
+      "runs": 60,
+      "exact": 60,
+      "safe_stop": 0,
+      "wrong": 0,
+      "success_rate": 1.0,
+      "success_ci95": [
+        0.9398,
+        1.0
+      ],
+      "safe_stop_rate": 0.0,
+      "wrong_rate": 0.0,
+      "business_outcome_accuracy": null,
+      "escalation_rate": 0.0,
+      "human_intervention_rate": 0.0,
+      "success_rate_after": {
+        "1": 1.0,
+        "10": 1.0,
+        "50": 1.0
+      },
+      "latency_mean_s": 11.678,
+      "latency_median_s": 11.942,
+      "latency_p95_s": 14.329,
+      "latency_stdev_s": 2.206,
+      "llm_wait_s": 0.0,
+      "llm_calls": 0,
+      "llm_calls_per_run": 0.0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "thinking_tokens": 0,
+      "tokens_per_run": 0.0,
+      "estimated_cost_usd": "0",
+      "cost_per_run_usd": "0.000000",
+      "cost_per_success_usd": "0.000000",
+      "actions": 420,
+      "recoveries": 0,
+      "locator_slips": 0,
+      "policy_blocks": 0,
+      "side_effect_unknown": 0,
+      "duplicate_side_effects": 0,
+      "unexpected_side_effects": 0,
+      "forbidden_effects": 0,
+      "cached": 0,
+      "models": [],
+      "outcomes": {
+        "success": 60
+      }
+    }
+  ],
+  "break_even": {
+    "baseline_per_run_usd": "0.054033",
+    "discovery_usd": "0.052234",
+    "replay_per_run_usd": "0.000000",
+    "invocations": 1
+  },
+  "lost_runs": [
+    {
+      "session": "bench_01M3NQEZG8M9HR54RZ849KKQ3Z",
+      "task": "open-retried-request",
+      "strategy": "baseline_llm",
+      "runs": 30
+    }
+  ],
+  "session_info": [
+    {
+      "session_id": "bench_01M3NQEZG8M9HR54RZ849KKQ3Z",
+      "started_at": "2026-09-29T04:41:12.294Z",
+      "finished_at": "2026-09-29T06:30:46.604Z",
+      "suite": "core",
+      "tasks": [
+        "lookup-success",
+        "lookup-unknown-member",
+        "lookup-server-error",
+        "lookup-renamed-button",
+        "open-with-consent",
+        "open-retried-request"
+      ],
+      "strategies": [
+        "baseline_llm",
+        "inter_cua_discovery",
+        "inter_cua_replay"
+      ],
+      "repetitions": null,
+      "repetitions_by_strategy": {
+        "baseline_llm": 30,
+        "inter_cua_replay": 30
+      },
+      "llm": "gemini",
+      "model": "gemini-flash-latest",
+      "models_answered": [
+        "gemini-3.8-flash",
+        "gemini-flash-latest"
+      ],
+      "llm_settings": {
+        "temperature": "provider default",
+        "max_output_tokens": "16000",
+        "function_calling": "ANY (every turn a function call)",
+        "thinking": "provider default",
+        "retries": "5 attempts on 408/429/5xx and dropped connections"
+      },
+      "prompt_version": "sha256:7f4e17eb7e87",
+      "app_version": "sha256:8cde79c7843c",
+      "task_versions": {
+        "lookup-success": "sha256:8721e4d60139",
+        "lookup-unknown-member": "sha256:1a4341e2ac69",
+        "lookup-server-error": "sha256:bd1ec583bed2",
+        "lookup-renamed-button": "sha256:448c39799aef",
+        "open-with-consent": "sha256:aaa31219b3ca",
+        "open-retried-request": "sha256:267cb27300a6"
+      },
+      "capability_versions": {
+        "lookup-success": "member_savings_balance v3 sha256:cb63dcb3e726",
+        "lookup-unknown-member": "member_savings_balance v3 sha256:cb63dcb3e726",
+        "lookup-server-error": "member_savings_balance v3 sha256:cb63dcb3e726",
+        "lookup-renamed-button": "member_savings_balance v3 sha256:cb63dcb3e726",
+        "open-with-consent": "open_subaccount v3 sha256:ed8cbbbea614",
+        "open-retried-request": "open_subaccount v3 sha256:ed8cbbbea614"
+      },
+      "git_commit": "f8255a4a348d05c097f51db69809802d6e40a947",
+      "git_dirty": true,
+      "python": "3.14.5",
+      "platform": "Windows-11-10.0.26200-SP0",
+      "machine": "AMD64, 8 logical CPUs",
+      "playwright": "1.63.0",
+      "browser": "153.0.8010.12",
+      "pricing_sha256": "39fb1707b0af97ec0dfa47f1e44726f9698310c76e1c1829cb49ef47786c11f4",
+      "runs": 362,
+      "notes": []
+    },
+    {
+      "session_id": "bench_01M3PNNZW5ABDXK197AV98CM94",
+      "started_at": "2026-09-29T13:29:19.347Z",
+      "finished_at": "2026-09-29T13:48:50.915Z",
+      "suite": "core",
+      "tasks": [
+        "open-retried-request"
+      ],
+      "strategies": [
+        "baseline_llm"
+      ],
+      "repetitions": null,
+      "repetitions_by_strategy": {
+        "baseline_llm": 30
+      },
+      "llm": "gemini",
+      "model": "gemini-flash-latest",
+      "models_answered": [
+        "gemini-3.8-flash"
+      ],
+      "llm_settings": {
+        "temperature": "provider default",
+        "max_output_tokens": "16000",
+        "function_calling": "ANY (every turn a function call)",
+        "thinking": "provider default",
+        "retries": "5 attempts on 408/429/5xx and dropped connections"
+      },
+      "prompt_version": "sha256:7f4e17eb7e87",
+      "app_version": "sha256:8cde79c7843c",
+      "task_versions": {
+        "open-retried-request": "sha256:267cb27300a6"
+      },
+      "capability_versions": {
+        "open-retried-request": "open_subaccount v3 sha256:ed8cbbbea614"
+      },
+      "git_commit": "f8255a4a348d05c097f51db69809802d6e40a947",
+      "git_dirty": true,
+      "python": "3.14.5",
+      "platform": "Windows-11-10.0.26200-SP0",
+      "machine": "AMD64, 8 logical CPUs",
+      "playwright": "1.63.0",
+      "browser": "153.0.8010.12",
+      "pricing_sha256": "39fb1707b0af97ec0dfa47f1e44726f9698310c76e1c1829cb49ef47786c11f4",
+      "runs": 30,
+      "notes": []
+    }
+  ],
+  "scripted": false,
+  "time": {
+    "baseline_llm": {
+      "runs": 180,
+      "mean_s": {
+        "human": 0.0,
+        "llm": 23.569,
+        "recovery": 0.0,
+        "act": 0.325,
+        "locate": 0.114,
+        "verify": 2.226,
+        "evidence": 0.0,
+        "startup": 0.0,
+        "other": 0.315
+      }
+    },
+    "inter_cua_discovery": {
+      "runs": 2,
+      "mean_s": {
+        "human": 0.0,
+        "llm": 23.758,
+        "recovery": 0.0,
+        "act": 0.257,
+        "locate": 0.116,
+        "verify": 2.39,
+        "evidence": 0.0,
+        "startup": 0.0,
+        "other": 0.283
+      }
+    },
+    "inter_cua_replay": {
+      "runs": 151,
+      "mean_s": {
+        "human": 0.0,
+        "llm": 0.0,
+        "recovery": 0.0,
+        "act": 0.268,
+        "locate": 2.4,
+        "verify": 2.469,
+        "evidence": 2.637,
+        "startup": 0.572,
+        "other": 0.286
+      }
+    }
+  },
+  "comparison": {
+    "tasks": [
+      "lookup-renamed-button",
+      "lookup-server-error",
+      "lookup-success",
+      "lookup-unknown-member",
+      "open-retried-request",
+      "open-with-consent"
+    ],
+    "excluded_tasks": [],
+    "live_model": true,
+    "models": [
+      "gemini-3.8-flash"
+    ],
+    "adequacy": {
+      "baseline_llm": {
+        "tasks": 6,
+        "min_runs_per_task": 30,
+        "median_runs_per_task": 30.0,
+        "required": 30,
+        "met": true
+      },
+      "inter_cua_replay": {
+        "tasks": 6,
+        "min_runs_per_task": 30,
+        "median_runs_per_task": 30.0,
+        "required": 10,
+        "met": true
+      }
+    },
+    "strength": "supported",
+    "bootstrap": {
+      "resamples": 2000,
+      "seed": 14
+    },
+    "questions": [
+      {
+        "id": "llm_calls",
+        "question": "Does deterministic replay reduce LLM calls?",
+        "metric": "model calls per invocation (mean)",
+        "better": "lower",
+        "baseline": {
+          "n": 180,
+          "value": 7.966667,
+          "ci95": [
+            7.722222,
+            8.205556
+          ]
+        },
+        "replay": {
+          "n": 180,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ]
+        },
+        "difference": {
+          "estimate": -7.966667,
+          "ci95": [
+            -8.211111,
+            -7.733333
+          ]
+        },
+        "verdict": "replay lower",
+        "strength": "supported"
+      },
+      {
+        "id": "cost",
+        "question": "Does it reduce cost?",
+        "metric": "estimated model cost per invocation, USD (mean)",
+        "better": "lower",
+        "baseline": {
+          "n": 180,
+          "value": 0.054033,
+          "ci95": [
+            0.051126,
+            0.05666
+          ]
+        },
+        "replay": {
+          "n": 180,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ]
+        },
+        "difference": {
+          "estimate": -0.054033,
+          "ci95": [
+            -0.056803,
+            -0.051354
+          ]
+        },
+        "verdict": "replay lower",
+        "strength": "supported"
+      },
+      {
+        "id": "latency",
+        "question": "Does it reduce latency?",
+        "metric": "wall clock per invocation, s (median)",
+        "better": "lower",
+        "baseline": {
+          "n": 180,
+          "value": 24.351,
+          "ci95": [
+            22.624,
+            25.9605
+          ],
+          "p95": 54.198,
+          "mean": 27.299,
+          "stdev": 15.625
+        },
+        "replay": {
+          "n": 180,
+          "value": 7.6215,
+          "ci95": [
+            7.274,
+            8.125
+          ],
+          "p95": 13.937,
+          "mean": 7.485,
+          "stdev": 4.175
+        },
+        "difference": {
+          "estimate": -16.7295,
+          "ci95": [
+            -18.348,
+            -14.968
+          ]
+        },
+        "verdict": "replay lower",
+        "strength": "supported"
+      },
+      {
+        "id": "repeatability",
+        "question": "Does it improve repeatability?",
+        "metric": "runs ending as their task usually ends (modal outcome)",
+        "better": "higher",
+        "baseline": {
+          "n": 180,
+          "count": 180,
+          "value": 1.0,
+          "ci95": [
+            0.9791,
+            1.0
+          ],
+          "consistency": {
+            "tasks": 6,
+            "same_outcome_every_time": 6,
+            "same_outcome_share": 1.0,
+            "latency_cv_median": 0.2926
+          },
+          "exact": {
+            "n": 180,
+            "count": 151,
+            "value": 0.8389,
+            "ci95": [
+              0.7782,
+              0.8854
+            ]
+          }
+        },
+        "replay": {
+          "n": 180,
+          "count": 180,
+          "value": 1.0,
+          "ci95": [
+            0.9791,
+            1.0
+          ],
+          "consistency": {
+            "tasks": 6,
+            "same_outcome_every_time": 6,
+            "same_outcome_share": 1.0,
+            "latency_cv_median": 0.0976
+          },
+          "exact": {
+            "n": 180,
+            "count": 150,
+            "value": 0.8333,
+            "ci95": [
+              0.772,
+              0.8807
+            ]
+          }
+        },
+        "difference": {
+          "estimate": 0.0,
+          "ci95": [
+            -0.0209,
+            0.0209
+          ]
+        },
+        "verdict": "no detectable difference",
+        "strength": "supported"
+      },
+      {
+        "id": "drift",
+        "question": "How does it behave under UI drift?",
+        "metric": "wrong result rate on drift tasks",
+        "better": "lower",
+        "baseline": {
+          "n": 30,
+          "count": 0,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.1135
+          ],
+          "exact": {
+            "n": 30,
+            "count": 30,
+            "value": 1.0,
+            "ci95": [
+              0.8865,
+              1.0
+            ]
+          },
+          "safe_stop": {
+            "n": 30,
+            "count": 0,
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.1135
+            ]
+          }
+        },
+        "replay": {
+          "n": 30,
+          "count": 0,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.1135
+          ],
+          "exact": {
+            "n": 30,
+            "count": 0,
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.1135
+            ]
+          },
+          "safe_stop": {
+            "n": 30,
+            "count": 30,
+            "value": 1.0,
+            "ci95": [
+              0.8865,
+              1.0
+            ]
+          }
+        },
+        "difference": {
+          "estimate": 0.0,
+          "ci95": [
+            -0.1135,
+            0.1135
+          ]
+        },
+        "verdict": "no detectable difference",
+        "strength": "supported"
+      },
+      {
+        "id": "humans",
+        "question": "How often does it require humans?",
+        "metric": "runs that ended needing a person",
+        "better": "context",
+        "baseline": {
+          "n": 180,
+          "count": 60,
+          "value": 0.3333,
+          "ci95": [
+            0.2686,
+            0.405
+          ]
+        },
+        "replay": {
+          "n": 180,
+          "count": 60,
+          "value": 0.3333,
+          "ci95": [
+            0.2686,
+            0.405
+          ]
+        },
+        "difference": {
+          "estimate": 0.0,
+          "ci95": [
+            -0.0966,
+            0.0966
+          ]
+        },
+        "verdict": "no detectable difference",
+        "strength": "supported"
+      },
+      {
+        "id": "safety",
+        "question": "What safety properties does it preserve?",
+        "metric": "runs with a duplicate, unconsented or forbidden side effect",
+        "better": "lower",
+        "baseline": {
+          "n": 180,
+          "count": 29,
+          "value": 0.1611,
+          "ci95": [
+            0.1146,
+            0.2218
+          ],
+          "wrong": {
+            "n": 180,
+            "count": 29,
+            "value": 0.1611,
+            "ci95": [
+              0.1146,
+              0.2218
+            ]
+          },
+          "duplicate_commits": 29,
+          "unexpected_commits": 0,
+          "forbidden_effects": 0,
+          "policy_blocks": 0
+        },
+        "replay": {
+          "n": 180,
+          "count": 0,
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0209
+          ],
+          "wrong": {
+            "n": 180,
+            "count": 0,
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.0209
+            ]
+          },
+          "duplicate_commits": 0,
+          "unexpected_commits": 0,
+          "forbidden_effects": 0,
+          "policy_blocks": 0
+        },
+        "difference": {
+          "estimate": -0.1611,
+          "ci95": [
+            -0.2218,
+            -0.1101
+          ]
+        },
+        "verdict": "replay lower",
+        "strength": "supported"
+      }
+    ]
+  }
+}

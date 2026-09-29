@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from cua.benchmark.aggregation import aggregate
+from cua.benchmark.inference import compare
 from cua.benchmark.models import RunMetrics, Suite
 from cua.benchmark.storage import SessionInfo
 from cua.observability.metrics import BUCKETS, run_metrics
@@ -27,14 +28,38 @@ def build(
     rows: list[RunMetrics], sessions: list[SessionInfo], suite: Suite | None
 ) -> dict[str, Any]:
     tags = {t.id: t.tags for t in suite.tasks} if suite else {}
+    lost = [r for r in rows if lost_to_provider(r)]
+    rows = [r for r in rows if not lost_to_provider(r)]
     summary = aggregate(rows, tags)
+    summary["lost_runs"] = _lost(lost)
     wanted = set(summary["sessions"])
     summary["session_info"] = [
         s.model_dump(mode="json") for s in sessions if s.session_id in wanted
     ]
     summary["scripted"] = any(s.llm == "scripted" for s in sessions if s.session_id in wanted)
     summary["time"] = time_breakdown(rows)
+    summary["comparison"] = compare(rows, tags)
     return summary
+
+
+def lost_to_provider(row: RunMetrics) -> bool:
+    """The model call failed before the model answered once: a quota, a
+    spending cap, a key the provider refused. Nothing about either strategy
+    was measured, so the run is set aside and counted, not scored. A model
+    error after the model has taken part stays in: that is the baseline's
+    own reliability."""
+    return row.error_code == "LLM_ERROR" and row.llm_calls == 0
+
+
+def _lost(rows: list[RunMetrics]) -> list[dict[str, Any]]:
+    groups: dict[tuple[str, str, str], int] = {}
+    for r in rows:
+        key = (r.session_id, r.task_id, r.strategy)
+        groups[key] = groups.get(key, 0) + 1
+    return [
+        {"session": s, "task": t, "strategy": st, "runs": n}
+        for (s, t, st), n in sorted(groups.items())
+    ]
 
 
 def time_breakdown(rows: list[RunMetrics]) -> dict[str, Any]:
@@ -100,6 +125,21 @@ def markdown(summary: dict[str, Any]) -> str:
             "session.",
             "",
         ]
+    if summary.get("lost_runs"):
+        lines += [
+            "> **Runs lost to the provider, left out of every number below.** The model "
+            "call failed before the model answered once (a quota, a spending cap, a "
+            "refused key), so nothing was measured: "
+            + "; ".join(
+                f"{g['task']} / {STRATEGY_LABEL.get(g['strategy'], g['strategy'])} x{g['runs']} "
+                f"(`{g['session']}`)"
+                for g in summary["lost_runs"]
+            )
+            + ".",
+            "",
+        ]
+    if summary.get("comparison"):
+        lines += _comparison(summary["comparison"])
     lines += ["## By strategy", ""]
     lines += [
         "| Strategy | Runs | Success (95% CI) | Safe stop | Wrong | Escalation | "
@@ -235,9 +275,198 @@ def _setup(summary: dict[str, Any]) -> list[str]:
             + (" (dirty)" if s.get("git_dirty") else "")
             + f"; Python {s['python']}, Playwright {s.get('playwright') or '?'}, "
             f"Chromium {s.get('browser') or '?'}; {s['platform']}"
+            + (f" ({s['machine']})" if s.get("machine") else "")
         )
+        lines += _configuration(s)
+    versions: dict[str, set[str]] = {}
+    tasks: dict[str, set[str]] = {}
+    for s in summary["session_info"]:
+        for task, v in s.get("capability_versions", {}).items():
+            versions.setdefault(task, set()).add(v)
+        for task, v in s.get("task_versions", {}).items():
+            tasks.setdefault(task, set()).add(v)
+    if versions:
+        caps = sorted({v for vs in versions.values() for v in vs})
+        lines.append(f"- Replayed: {'; '.join(f'`{c}`' for c in caps)}")
+    for what, seen in (("capability", versions), ("task definition", tasks)):
+        changed = sorted(t for t, vs in seen.items() if len(vs) > 1)
+        if changed:
+            lines.append(
+                f"- **Not comparable across sessions**: the {what} changed between "
+                f"sessions for {', '.join(changed)}"
+            )
     models = sorted({m for t in summary["tasks"] for m in t["models"]})
     if models:
         lines.append(f"- Models that answered: {', '.join(models)}")
     lines.append("")
     return lines
+
+
+QUESTION_FORMAT = {
+    "llm_calls": "calls",
+    "cost": "usd",
+    "latency": "s",
+    "repeatability": "rate",
+    "drift": "rate",
+    "humans": "rate",
+    "safety": "rate",
+}
+
+
+def _fmt(kind: str, value: float | None, signed: bool = False) -> str:
+    if value is None:
+        return "-"
+    sign = "+" if signed and value > 0 else ""
+    if kind == "rate":
+        return f"{sign}{value * 100:.1f}%"
+    if kind == "usd":
+        return f"{sign}${value:.4f}" if value >= 0 else f"-${-value:.4f}"
+    if kind == "s":
+        return f"{sign}{value:.2f} s"
+    return f"{sign}{value:.2f}"
+
+
+def _interval(kind: str, ci: list[float] | tuple[float, float] | None) -> str:
+    if not ci:
+        return ""
+    lo, hi = ci
+    if kind == "rate":
+        return f" ({lo * 100:.1f} to {hi * 100:.1f})"
+    return f" ({_fmt(kind, lo)} to {_fmt(kind, hi)})"
+
+
+def _side(kind: str, side: dict[str, Any]) -> str:
+    if not side.get("n"):
+        return "-"
+    return f"{_fmt(kind, side['value'])}{_interval(kind, side.get('ci95'))}, n={side['n']}"
+
+
+def _comparison(c: dict[str, Any]) -> list[str]:
+    lines = ["## What the measurements support", ""]
+    fit = c.get("adequacy", {})
+    runs = "; ".join(
+        f"{STRATEGY_LABEL.get(s, s)}: {_runs_per_task(a)} per task (protocol {a['required']}+)"
+        for s, a in fit.items()
+    )
+    model = ", ".join(f"`{m}`" for m in c.get("models", [])) or "none"
+    lines += [
+        f"Baseline vs replay on the {len(c['tasks'])} task(s) both ran"
+        + (
+            f" (left out, run by one strategy only: {', '.join(c['excluded_tasks'])})"
+            if c["excluded_tasks"]
+            else ""
+        )
+        + f". Baseline model: {model}. {runs}.",
+        "",
+        f"**Strength of every finding below: {c['strength']}.**",
+        "",
+        "| # | Question | Measure | Repeated LLM (95% CI) | inter-cua replay (95% CI) | "
+        "Replay - LLM (95% CI) | Finding |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for i, q in enumerate(c["questions"], 1):
+        kind = QUESTION_FORMAT.get(q["id"], "calls")
+        diff = q["difference"]
+        lines.append(
+            f"| {i} | {q['question']} | {q['metric']} | {_side(kind, q['baseline'])} | "
+            f"{_side(kind, q['replay'])} | {_fmt(kind, diff['estimate'], signed=True)}"
+            f"{_interval(kind, diff['ci95'])} | {q['verdict']} |"
+        )
+    lines += ["", *_details(c["questions"]), ""]
+    lines += [
+        "A finding is stated only where the 95% interval of the difference excludes zero; "
+        '"no detectable difference" means these runs cannot tell, not that there is none. '
+        "Rates: Wilson intervals, and Newcombe's for a difference of two. Means and medians: "
+        f"percentile bootstrap, {c['bootstrap']['resamples']} resamples, seed "
+        f"{c['bootstrap']['seed']}. A synthetic suite on one mock app: these numbers say "
+        "nothing about other applications.",
+        "",
+    ]
+    return lines
+
+
+def _runs_per_task(a: dict[str, Any]) -> str:
+    low, mid = a["min_runs_per_task"], a["median_runs_per_task"]
+    return f"{low} runs" if low == mid else f"at least {low} runs (median {mid})"
+
+
+def _details(questions: list[dict[str, Any]]) -> list[str]:
+    by_id = {q["id"]: q for q in questions}
+    out: list[str] = []
+    lat = by_id.get("latency")
+    if lat:
+        out.append(
+            "- Latency: "
+            + "; ".join(
+                f"{side} mean {_num(lat[side].get('mean'))} s, stdev "
+                f"{_num(lat[side].get('stdev'))} s, p95 {_num(lat[side].get('p95'))} s"
+                for side in ("baseline", "replay")
+                if lat[side].get("n")
+            )
+            + "."
+        )
+    rep = by_id.get("repeatability")
+    if rep:
+        parts = []
+        for side in ("baseline", "replay"):
+            cons = rep[side].get("consistency") or {}
+            if cons.get("tasks"):
+                parts.append(
+                    f"{side}: {_pct(rep[side]['exact']['value'])} exact; the same outcome on "
+                    "every repetition in "
+                    f"{cons['same_outcome_every_time']} of {cons['tasks']} tasks, median "
+                    f"latency CV {_num(cons.get('latency_cv_median'))}"
+                )
+        if parts:
+            out.append("- Repeatability: " + "; ".join(parts) + ".")
+    drift = by_id.get("drift")
+    if drift:
+        parts = [
+            f"{side} {_pct(drift[side]['exact']['value'])} exact, "
+            f"{_pct(drift[side]['safe_stop']['value'])} safe stop, "
+            f"{_pct(drift[side]['value'])} wrong (n={drift[side]['n']})"
+            for side in ("baseline", "replay")
+            if drift[side].get("n")
+        ]
+        if parts:
+            out.append("- Under drift: " + "; ".join(parts) + ".")
+    safety = by_id.get("safety")
+    if safety:
+        parts = [
+            f"{side} {safety[side]['wrong']['count']} wrong, "
+            f"{safety[side]['duplicate_commits']} duplicate and "
+            f"{safety[side]['unexpected_commits']} unconsented commit(s), "
+            f"{safety[side]['forbidden_effects']} forbidden effect(s), "
+            f"{safety[side]['policy_blocks']} policy block(s)"
+            for side in ("baseline", "replay")
+            if safety[side].get("n")
+        ]
+        if parts:
+            out.append("- Safety: " + "; ".join(parts) + ".")
+    return out
+
+
+def _configuration(s: dict[str, Any]) -> list[str]:
+    """What else a session recorded about how it ran: enough to rerun it, or
+    to see that two sessions did not run the same thing."""
+    out: list[str] = []
+    if s.get("llm_settings"):
+        out.append(
+            "  - model settings: " + "; ".join(f"{k} {v}" for k, v in s["llm_settings"].items())
+        )
+    marks = [
+        f"{name} `{s[key]}`"
+        for name, key in (("prompt", "prompt_version"), ("app", "app_version"))
+        if s.get(key)
+    ]
+    if s.get("task_versions"):
+        marks.append(f"{len(s['task_versions'])} task fingerprints")
+    if marks:
+        out.append("  - versions: " + ", ".join(marks))
+    reps = dict(s.get("repetitions_by_strategy") or {})
+    if reps or s.get("repetitions"):
+        spelled = [f"{STRATEGY_LABEL.get(k, k)} x{v}" for k, v in reps.items()]
+        if s.get("repetitions"):
+            spelled.append(f"otherwise x{s['repetitions']}")
+        out.append("  - repetitions: " + ", ".join(spelled))
+    return out

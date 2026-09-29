@@ -33,6 +33,11 @@ The last three test the token itself, which only replay carries: a baseline
 agent has no token to get wrong."""
 TOKEN_ONLY: frozenset[str] = frozenset({"wrong_inputs", "expired", "replayed"})
 STRATEGIES: tuple[Strategy, ...] = ("baseline_llm", "inter_cua_discovery", "inter_cua_replay")
+PROTOCOL_MIN: dict[str, int] = {"baseline_llm": 30, "inter_cua_replay": 10}
+"""Runs per task below which a comparison is reported as indicative only.
+Replay is deterministic, so ten runs show whether it repeats itself; a model
+samples, so its rates need thirty before an interval is narrow enough to
+compare. Discovery runs once per capability by design and has no minimum."""
 
 Match = Literal["exact", "safe_stop", "wrong"]
 """How one invocation's result compares with the task's ground truth.

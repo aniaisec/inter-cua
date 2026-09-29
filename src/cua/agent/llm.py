@@ -43,6 +43,32 @@ GEMINI_ATTEMPTS = 5
 Provider = Literal["anthropic", "gemini", "scripted"]
 
 
+def generation_settings(provider: str, max_tokens: int = MAX_TOKENS) -> dict[str, str]:
+    """How each client asks its model, as a benchmark records it: everything
+    the clients below send besides the conversation. Sampling is left at the
+    provider's defaults — no client sets a temperature — and that is recorded
+    as such rather than as a number the provider may change."""
+    if provider == "anthropic":
+        return {
+            "temperature": "provider default",
+            "max_tokens": str(max_tokens),
+            "tool_choice": "auto, one tool call per turn",
+            "thinking": "off",
+            "prompt_cache": "ephemeral, whole transcript",
+        }
+    if provider == "gemini":
+        return {
+            "temperature": "provider default",
+            "max_output_tokens": str(max_tokens),
+            "function_calling": "ANY (every turn a function call)",
+            "thinking": "provider default",
+            "retries": f"{GEMINI_ATTEMPTS} attempts on 408/429/5xx and dropped connections",
+        }
+    if provider == "scripted":
+        return {"sampling": "none: a recorded tool-call script played back"}
+    return {}
+
+
 # --------------------------------------------------------------------------
 # The neutral transcript
 # --------------------------------------------------------------------------

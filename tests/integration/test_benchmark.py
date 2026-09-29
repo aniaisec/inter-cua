@@ -12,6 +12,9 @@ from pathlib import Path
 
 import pytest
 
+from cua.agent.llm import generation_settings
+from cua.agent.prompts import prompt_version
+from cua.benchmark.environment import app_version
 from cua.benchmark.registry import load_suite, select
 from cua.benchmark.report import build, write
 from cua.benchmark.runner import Plan, run_session
@@ -70,9 +73,19 @@ def test_a_scripted_session_scores_both_strategies_and_catches_a_duplicate_commi
 
     (session,) = read_sessions(reports)
     assert session.finished_at is not None and session.llm == "scripted"
+    # What it ran on, exactly enough to tell whether another session compares.
+    assert session.models_answered == ["scripted"]
+    assert session.llm_settings == generation_settings("scripted")
+    assert session.prompt_version == prompt_version()
+    assert session.app_version == app_version() and session.app_version is not None
+    assert set(session.task_versions) == {t.id for t in tasks}
+    assert session.capability_versions["lookup-success"].startswith("member_savings_balance v")
+    assert session.machine is not None
     summary = build(rows, read_sessions(reports), suite)
     _, md = write(summary, reports)
     text = md.read_text(encoding="utf-8")
     assert "Scripted model." in text
+    assert "not measured: the baseline was a script" in text
+    assert {q["verdict"] for q in summary["comparison"]["questions"]} == {"not measured"}
     assert summary["strategies"]["inter_cua_replay"]["llm_calls"] == 0
     assert summary["strategies"]["baseline_llm"]["duplicate_side_effects"] == 1

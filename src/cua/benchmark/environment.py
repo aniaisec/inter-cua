@@ -8,6 +8,7 @@ did (or a developer's own ``cua mockapp`` on :8000) leaks into the numbers.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import secrets
 import socket
@@ -33,6 +34,23 @@ SIGNING_VAR = "CUA_BENCH_SIGNING_KEY"
 FORBIDDEN = ("downloads", "uploads", "attacker")
 """Effects the app counts that are never right for automation to cause, in
 any task: a file fetched, a file sent, a request to the attacker's origin."""
+
+
+MOCKAPP_DIR = Path("mockapp")
+
+
+def app_version(root: Path = MOCKAPP_DIR) -> str | None:
+    """A fingerprint of the application under test: the mock app's code and
+    templates. It has no release number, and a changed screen is a changed
+    app whatever the commit says. None where there is no mock app to read."""
+    files = sorted(f for f in root.rglob("*") if f.is_file() and f.suffix in (".py", ".html"))
+    if not files:
+        return None
+    digest = hashlib.sha256()
+    for f in files:
+        digest.update(f.relative_to(root).as_posix().encode("utf-8") + b"\0")
+        digest.update(f.read_bytes().replace(b"\r\n", b"\n"))
+    return "sha256:" + digest.hexdigest()[:12]
 
 
 class BenchSetupError(RuntimeError):

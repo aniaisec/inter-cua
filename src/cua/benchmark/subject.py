@@ -11,6 +11,8 @@ Nothing here knows about models: the replay strategy imports this module.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import cast
@@ -57,8 +59,31 @@ class Subject:
         (key,) = tenant.app_secrets
         return {DEFAULT_CREDENTIAL: f"secret://{tenant.id}/{key}"}
 
+    def version(self) -> str | None:
+        """Exactly what replay ran: each capability's number and content hash
+        (a workflow's steps in order, after the workflow file's own hash).
+        None for a task with nothing to replay."""
+        if self.capability is not None:
+            return _cap_version(self.capability)
+        if self.plan is not None and self.path is not None:
+            digest = hashlib.sha256(self.path.read_bytes().replace(b"\r\n", b"\n"))
+            steps = "; ".join(_cap_version(s.capability) for s in self.plan.steps)
+            return f"{self.name} sha256:{digest.hexdigest()[:12]} [{steps}]"
+        return None
+
     def input_type(self, name: str) -> ValueType:
         return (self.input_types or {}).get(name, "string")
+
+
+def _cap_version(cap: Capability) -> str:
+    return f"{cap.name} v{cap.version} sha256:{cap.content_hash()[:12]}"
+
+
+def task_version(task: BenchmarkTask) -> str:
+    """A fingerprint of the task as run: goal, inputs, conditions and truth.
+    Editing any of them is a new task, even under the same id."""
+    canonical = json.dumps(task.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12]
 
 
 def subject_for(task: BenchmarkTask, capabilities_dir: Path = CAPABILITIES_DIR) -> Subject:

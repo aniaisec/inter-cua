@@ -9,6 +9,7 @@ what it measured.
 from __future__ import annotations
 
 import hashlib
+import os
 import platform
 import subprocess
 import sys
@@ -18,12 +19,13 @@ from pathlib import Path
 
 import yaml
 
-from cua.agent.llm import LLMClient, ScriptedClient, select_client
+from cua.agent.llm import LLMClient, ScriptedClient, generation_settings, select_client
+from cua.agent.prompts import prompt_version
 from cua.agent.script import Script
 from cua.artifact.recorder import RecordError, record
 from cua.artifact.store import save
 from cua.benchmark.baseline_runner import run_baseline
-from cua.benchmark.environment import BenchEnv, bench_env, mockapp
+from cua.benchmark.environment import BenchEnv, app_version, bench_env, mockapp
 from cua.benchmark.models import BenchmarkTask, RunMetrics, Strategy
 from cua.benchmark.replay_runner import run_replay, run_workflow_replay, token_for
 from cua.benchmark.storage import (
@@ -32,7 +34,7 @@ from cua.benchmark.storage import (
     append_run,
     append_session,
 )
-from cua.benchmark.subject import Subject, subject_for
+from cua.benchmark.subject import Subject, subject_for, task_version
 from cua.evidence.logger import new_run_id, utc_now
 from cua.observability.cost import PRICING_PATH, PriceTable
 
@@ -54,10 +56,22 @@ class Plan:
     model: str | None = None
     repetitions: int | None = None
     """Overrides every task's own count."""
+    repetitions_by_strategy: dict[str, int] = field(default_factory=dict)
+    """Overrides ``repetitions`` for one strategy: a stochastic baseline needs
+    more runs than a deterministic replay to say the same thing."""
     discovery_repetitions: int = 1
     prices: PriceTable = field(default_factory=PriceTable)
     reports_dir: Path = REPORTS_DIR
     runs_root: Path = BENCH_RUNS
+
+    def count_for(self, task: BenchmarkTask, strategy: Strategy) -> int:
+        """Runs of ``task`` under ``strategy``: the strategy's own override,
+        else the session's, else the task's; discovery at most
+        ``discovery_repetitions`` whatever the rest say."""
+        count = self.repetitions_by_strategy.get(strategy) or self.repetitions or task.repetitions
+        if strategy == "inter_cua_discovery":
+            count = min(count, self.discovery_repetitions)
+        return count
 
 
 def llm_factory(llm: str, model: str | None) -> Callable[[BenchmarkTask], LLMClient]:
@@ -81,6 +95,9 @@ def run_session(plan: Plan, progress: Progress | None = None) -> SessionInfo:
     session_id = "bench_" + new_run_id().removeprefix("run_")
     runs_dir = plan.runs_root / session_id
     make_llm = llm_factory(plan.llm, plan.model)
+    subjects = {t.id: subject_for(t) for t in plan.tasks}
+    asks_model = any(s != "inter_cua_replay" for s in plan.strategies)
+    provider, model = _provider(plan) if asks_model else (None, plan.model)
     info = SessionInfo(
         session_id=session_id,
         started_at=utc_now(),
@@ -88,23 +105,31 @@ def run_session(plan: Plan, progress: Progress | None = None) -> SessionInfo:
         tasks=[t.id for t in plan.tasks],
         strategies=list(plan.strategies),
         repetitions=plan.repetitions,
+        repetitions_by_strategy=dict(plan.repetitions_by_strategy),
         llm=plan.llm,
-        model=plan.model,
+        model=model,
+        llm_settings=generation_settings(provider) if provider else {},
+        prompt_version=prompt_version() if asks_model else None,
+        app_version=app_version(),
+        task_versions={t.id: task_version(t) for t in plan.tasks},
+        capability_versions={i: v for i, s in subjects.items() if (v := s.version()) is not None},
         git_commit=_git("rev-parse", "HEAD"),
         git_dirty=(_git("status", "--porcelain") or "") != "",
         python=sys.version.split()[0],
         platform=platform.platform(),
+        machine=f"{platform.machine()}, {os.cpu_count()} logical CPUs",
         playwright=_version("playwright"),
         browser=_browser_version(),
         pricing_sha256=_sha256(PRICING_PATH),
     )
     append_session(info, plan.reports_dir)
     rows = 0
+    answered: set[str] = set()
     notes: list[str] = []
     with mockapp() as base_url:
         env = bench_env(base_url, runs_dir)
         for task in plan.tasks:
-            subject = subject_for(task)
+            subject = subjects[task.id]
             # A task's own environment (a credential the app will reject) is
             # for its runs only.
             task_env = (
@@ -119,11 +144,22 @@ def run_session(plan: Plan, progress: Progress | None = None) -> SessionInfo:
                     for row in _runs(plan, task, subject, task_env, strategy, make_llm, session_id):
                         append_run(row, plan.reports_dir)
                         rows += 1
+                        # A run the provider refused outright names the model
+                        # it asked for, not one that answered.
+                        if row.strategy != "inter_cua_replay" and row.model and row.llm_calls:
+                            answered.update(row.model.split(", "))
                         if progress is not None:
                             progress(row)
                 except SkipStrategy as exc:
                     notes.append(f"skipped {strategy} for {task.id}: {exc}")
-    done = info.model_copy(update={"finished_at": utc_now(), "runs": rows, "notes": notes})
+    done = info.model_copy(
+        update={
+            "finished_at": utc_now(),
+            "runs": rows,
+            "notes": notes,
+            "models_answered": sorted(answered),
+        }
+    )
     append_session(done, plan.reports_dir)
     return done
 
@@ -137,9 +173,7 @@ def _runs(
     make_llm: Callable[[BenchmarkTask], LLMClient],
     session_id: str,
 ) -> list[RunMetrics]:
-    count = plan.repetitions or task.repetitions
-    if strategy == "inter_cua_discovery":
-        count = min(count, plan.discovery_repetitions)
+    count = plan.count_for(task, strategy)
     out: list[RunMetrics] = []
     group_commits = 0
     cap = subject.capability
@@ -189,6 +223,16 @@ def _runs(
         group_commits += row.commits_observed or 0
         out.append(row)
     return out
+
+
+def _provider(plan: Plan) -> tuple[str, str | None]:
+    """The provider and model the baseline and discovery will ask: an
+    ``auto`` choice and a default model resolved, so the session records
+    what was asked rather than how it was spelled."""
+    if plan.llm == "scripted":
+        return "scripted", None
+    client = select_client(plan.llm, plan.model)
+    return client.provider, client.model
 
 
 def _record_capability(row: RunMetrics, env: BenchEnv) -> RunMetrics:
