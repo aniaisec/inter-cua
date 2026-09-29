@@ -241,6 +241,15 @@ class RunMetrics(_Model):
     """The run ended needing a person (escalated, or a failure the capability
     would have handed to one)."""
     human_intervention: bool = False
+    human_interventions: int = 0
+    """Requests the run made to a person (``cua.observability.metrics``)."""
+    human_wait_s: float = 0.0
+    """The run's time on a person: queued plus in control."""
+    human_action_count: int = 0
+    """What a person did in the browser."""
+    human_kinds: dict[str, int] = Field(default_factory=dict)
+    """How the requests ended: ``approval``, ``recovery``,
+    ``manual_completion``, ``abort``, ``expired``, ``unanswered``, ..."""
     locator_slips: int = 0
     policy_blocks: int = 0
 

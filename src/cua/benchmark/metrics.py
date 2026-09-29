@@ -18,6 +18,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from typing import Any
 
 from cua.benchmark.models import BenchmarkTask, Match
 from cua.replay.result import BusinessOutcome, Failure, ReplayResult
@@ -38,6 +39,24 @@ def event_counts(run_dir: str | Path | None) -> Counter[str]:
         if line.strip():
             counts[str(json.loads(line).get("event"))] += 1
     return counts
+
+
+def human_fields(run_dir: str | Path | None, *, cached: bool = False) -> dict[str, Any]:
+    """The requests the run made to a person and what they took, read from
+    its control transitions and handoff events (``cua.observability``). An
+    answer from the idempotency store asked nobody this time."""
+    from cua.observability.metrics import run_metrics
+    from cua.observability.recorder import is_run_dir, read_run
+
+    if cached or run_dir is None or not is_run_dir(Path(run_dir)):
+        return {}
+    human = run_metrics(read_run(Path(run_dir))).human
+    return {
+        "human_interventions": len(human.interventions),
+        "human_wait_s": human.wait_s,
+        "human_action_count": human.browser_actions,
+        "human_kinds": dict(Counter(i.kind for i in human.interventions)),
+    }
 
 
 # --------------------------------------------------------------------------

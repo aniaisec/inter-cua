@@ -1019,3 +1019,66 @@ Status: COMPLETE (pending verification)
 
 ### Next
 - Phase 16: human intervention economics.
+
+## Phase 16 — Human intervention economics
+
+Status: COMPLETE (pending verification)
+
+### Changes
+- Every request to a person is now an `Intervention` (`cua.observability.metrics`), classified by how it ended:
+  - `approval`, `recovery` (the automation carried on), `manual_completion` (only the outputs were left), `abort`;
+  - `expired` (nobody answered in time), `unanswered` (suspended for `cua resume`);
+  - `returned` (handed back to a screen no checkpoint held on, so the run asked again);
+  - `not_asked` (no channel to a person), `open`.
+- Each intervention records its reason, who decided, the queued time (PAUSED, until someone took it), the in-control time (HUMAN_IN_CONTROL), the person's browser actions (console decisions left out) and where the automation carried on.
+- Time is attributed to a request by the `request_id` on each control transition. Older logs without one fall back to the latest request.
+- The canonical vocabulary gains two events:
+  - `human.pending`, from `escalation.pending`;
+  - `human.carried_on`, from `handoff.resumed`, with the step or `done`.
+- The discovery loop's `reason_code` is read as the handoff's reason.
+- `cua metrics humans [--out DIR]` (`cua.observability.humans`) reports:
+  - the runs needing a person against the runs where one acted, and interventions, human wait seconds and browser actions, by run kind;
+  - for each kind: count, mean, median and p95 of the time on the person, mean queued and in-control time, and who decided;
+  - a table by decider.
+  `cua metrics report` includes the same section, and `cua metrics run` lists each request.
+- `bench/pricing.yaml` has a new `human.operator_hour` (`HumanPrice`, an assumed $40/h). With it, the report gives a mean cost per intervention.
+- Benchmark rows record `human_interventions`, `human_wait_s`, `human_action_count` and `human_kinds`. The aggregation adds `runs_requiring_human` and the totals.
+- Docs: the README has a table of the kinds, and `bench/README.md` lists the new row fields.
+
+### Decisions
+- **Kinds come from the canonical events, not the result file.** A request that went unanswered and was answered later through `cua resume` is classified by its answer.
+- **Discovery handbacks are recoveries.** The loop always carries on with its next turn, and logs no resume point.
+- **"Requiring a person" and "a person acted" are both reported.** The gap between them is the work left for someone after the run.
+- **Who decided is shown, not guessed.** `evidence-bot` is a scripted operator, and its sub-second answers show the mechanism working, not a person's time. The report says so.
+- **The operator's hourly cost is an assumption.** It is in the price table, where anyone can set their own.
+
+### Tests
+- `tests/unit/test_human_economics.py` (16):
+  - from the committed evidence: an approval, a recovery with its click and in-control time, a manual completion after an unanswered request, and a person's 26 s approval during discovery;
+  - from built runs: an abort against an expiry, an unanswered request, a returned handback followed by a recovery (two requests timed apart), a discovery with no channel, a discovery abort that names no request, and an open request;
+  - the summary keeps each kind apart and prices it;
+  - seconds only without a price;
+  - the committed price table;
+  - the CLI writes both files;
+  - a benchmark row records its human fields, and a cached answer records none;
+  - benchmark stats count the runs requiring a person.
+- Gate: ruff, `ruff format --check` and `mypy` are clean. In the full run, two desktop replay tests failed under load: the modal fault case, and consent committing once, where a number was typed into the wrong field. All 8 passed when rerun alone. Everything else passed.
+
+### Results
+- `bench/reports/humans.md`, from the 175 runs under `evidence/`. 18 are committed; the other 164 are local runs from earlier demo and API sessions (`evidence/runs/` is gitignored).
+  - 28 runs (16.0%) needed a person, and a person acted in 24 (13.7%). They made 32 requests.
+  - approval: 6, mean 18.9 s, p95 40.9 s, almost all of it queued (reading and deciding).
+  - recovery: 8, mean 6.9 s. Manual completion: 5, mean 45.1 s, p95 118.2 s, with 12.4 s in control and 10 browser actions.
+  - abort: 6, mean 5.7 s. Expired: 1, after 5,407 s. Returned: 2. Not asked: 4.
+  - The 10 requests `anil` decided averaged 29.8 s (p95 118.2 s). At the assumed $40/h, an answered request costs about $0.20, and a manual completion about $0.50.
+
+### Known issues
+- The sample is small and mostly demo sessions, so read it as observations, not a rate for production. The benchmark suites run unattended, so their rows record no intervention.
+- The time is the run's time on the person. It does not include anything they did outside the console or the browser.
+- A capability's review and approval (`cua approve`) is not timed. It happens offline, with no run.
+
+### Commit
+- `feat: add human intervention economics`.
+
+### Next
+- Phase 17: README redesign.

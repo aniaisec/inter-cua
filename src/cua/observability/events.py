@@ -49,6 +49,8 @@ EventType = Literal[
     "human.action",
     "human.resumed",
     "human.aborted",
+    "human.pending",
+    "human.carried_on",
     "side_effect.detected",
     "side_effect.committed",
     "side_effect.unknown",

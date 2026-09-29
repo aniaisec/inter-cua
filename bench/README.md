@@ -133,6 +133,10 @@ Each row in `runs.jsonl` records:
 - **Cost:** the estimated cost.
 - **Run behaviour:** actions, recoveries, locator slips, policy blocks,
   escalation, and human intervention.
+- **People:** the requests the run made to a person (`human_interventions`),
+  its time on them (`human_wait_s`), their browser actions
+  (`human_action_count`), and how each request ended (`human_kinds`: approval,
+  recovery, manual completion, abort, ...). See `cua metrics humans`.
 - **Side effects:** the side effect as reported, commits the app observed,
   duplicate or unexpected side effects, and forbidden effects (downloads,
   uploads, attacker contacts).

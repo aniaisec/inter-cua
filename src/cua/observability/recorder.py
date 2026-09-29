@@ -82,6 +82,12 @@ _SIMPLE: dict[str, tuple[EventType, tuple[str, ...]]] = {
     "escalation.requested": ("human.handoff", ("reason", "code", "request", "attempt")),
     "handoff.handed_back": ("human.resumed", ("by", "decision", "human_actions", "request")),
     "handoff.aborted": ("human.aborted", ("by", "why", "human_actions", "request")),
+    # Nobody took the request while the process waited: the run is suspended
+    # for ``cua resume``, not ended by a person.
+    "escalation.pending": ("human.pending", ("request", "why")),
+    # Where the automation carried on after a handback: a step, or ``done``
+    # when the person had left only the outputs to read.
+    "handoff.resumed": ("human.carried_on", ("request", "at", "after")),
     "irreversible.act": ("side_effect.detected", ()),
     "irreversible.committed": ("side_effect.committed", ("seen", "performed_by")),
 }
@@ -113,6 +119,8 @@ _HUMAN_STATES = ("PAUSED", "HUMAN_IN_CONTROL")
 class Transition:
     ts: str
     to: str
+    request_id: str | None = None
+    """The request the state belongs to (None: the run's own, or an old log)."""
 
 
 @dataclass
@@ -149,7 +157,11 @@ def read_run(run_dir: Path, prices: PriceTable | None = None) -> RunRecord:
     calls = list(_jsonl(run_dir / MODEL_CALLS, warnings))
     humans = list(_jsonl(run_dir / HUMAN_ACTIONS, warnings))
     transitions = [
-        Transition(ts=str(t["ts"]), to=str(t.get("to")))
+        Transition(
+            ts=str(t["ts"]),
+            to=str(t.get("to")),
+            request_id=str(t["request_id"]) if t.get("request_id") else None,
+        )
         for t in _jsonl(run_dir / TRANSITIONS, warnings)
         if "ts" in t
     ]
@@ -363,6 +375,9 @@ def _from_log(make: _Maker, line: dict[str, Any]) -> list[Event]:
         return []
     type_, keep = simple
     attrs = {k: line.get(k) for k in keep}
+    if name == "escalation.requested" and attrs.get("reason") is None:
+        # The discovery loop names the reason ``reason_code``.
+        attrs["reason"] = line.get("reason_code")
     attrs.update(_EXTRA_ATTRS.get(name, {}))
     return [ev(type_, attrs)]
 

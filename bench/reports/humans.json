@@ -1,0 +1,965 @@
+{
+  "roots": [
+    "evidence"
+  ],
+  "runs": 175,
+  "operator_hour_usd": "40",
+  "groups": {
+    "all": {
+      "runs": 175,
+      "runs_requiring_human": 28,
+      "runs_with_intervention": 24,
+      "human_intervention_rate": 0.1371,
+      "requiring_human_rate": 0.16,
+      "human_interventions": 32,
+      "human_wait_seconds": 5889.009,
+      "human_action_count": 11,
+      "decided": {
+        "count": 27,
+        "mean_human_s": 17.85,
+        "median_human_s": 11.011,
+        "p95_human_s": 41.041,
+        "mean_queued_s": 14.607,
+        "mean_in_control_s": 3.242,
+        "browser_actions": 11,
+        "mean_cost_usd": "0.1983"
+      },
+      "by_kind": {
+        "approval": {
+          "count": 6,
+          "mean_human_s": 18.88,
+          "median_human_s": 17.529,
+          "p95_human_s": 40.849,
+          "mean_queued_s": 18.87,
+          "mean_in_control_s": 0.01,
+          "browser_actions": 0,
+          "mean_cost_usd": "0.2098",
+          "decided_by": {
+            "anil": 3,
+            "evidence-bot": 1,
+            "reviewer": 1,
+            "demo-presenter": 1
+          }
+        },
+        "recovery": {
+          "count": 8,
+          "mean_human_s": 6.847,
+          "median_human_s": 4.374,
+          "p95_human_s": 17.696,
+          "mean_queued_s": 6.444,
+          "mean_in_control_s": 0.403,
+          "browser_actions": 1,
+          "mean_cost_usd": "0.0761",
+          "decided_by": {
+            "cua-resume": 4,
+            "api:local-agent": 2,
+            "evidence-bot": 1,
+            "anil": 1
+          }
+        },
+        "manual_completion": {
+          "count": 5,
+          "mean_human_s": 45.134,
+          "median_human_s": 34.364,
+          "p95_human_s": 118.191,
+          "mean_queued_s": 32.745,
+          "mean_in_control_s": 12.389,
+          "browser_actions": 10,
+          "mean_cost_usd": "0.5015",
+          "decided_by": {
+            "anil": 2,
+            "evidence-bot": 1,
+            "reviewer": 1,
+            "demo-presenter": 1
+          }
+        },
+        "abort": {
+          "count": 6,
+          "mean_human_s": 5.706,
+          "median_human_s": 4.53,
+          "p95_human_s": 18.256,
+          "mean_queued_s": 5.706,
+          "mean_in_control_s": 0.0,
+          "browser_actions": 0,
+          "mean_cost_usd": "0.0634",
+          "decided_by": {
+            "api:local-agent": 4,
+            "anil": 2
+          }
+        },
+        "expired": {
+          "count": 1,
+          "mean_human_s": 5407.068,
+          "median_human_s": 5407.068,
+          "p95_human_s": 5407.068,
+          "mean_queued_s": 5407.068,
+          "mean_in_control_s": 0.0,
+          "browser_actions": 0,
+          "mean_cost_usd": "60.0785",
+          "decided_by": {
+            "timeout": 1
+          }
+        },
+        "returned": {
+          "count": 2,
+          "mean_human_s": 26.988,
+          "median_human_s": 26.988,
+          "p95_human_s": 41.041,
+          "mean_queued_s": 15.829,
+          "mean_in_control_s": 11.159,
+          "browser_actions": 0,
+          "mean_cost_usd": "0.2999",
+          "decided_by": {
+            "anil": 2
+          }
+        },
+        "not_asked": {
+          "count": 4,
+          "mean_human_s": 0.0,
+          "median_human_s": 0.0,
+          "p95_human_s": 0.0,
+          "mean_queued_s": 0.0,
+          "mean_in_control_s": 0.0,
+          "browser_actions": 0,
+          "mean_cost_usd": "0.0000",
+          "decided_by": {
+            "-": 4
+          }
+        }
+      },
+      "by_decider": {
+        "anil": {
+          "count": 10,
+          "mean_human_s": 29.812,
+          "median_human_s": 20.687,
+          "p95_human_s": 118.191,
+          "mean_queued_s": 24.877,
+          "mean_in_control_s": 4.935,
+          "browser_actions": 3,
+          "mean_cost_usd": "0.3312",
+          "kinds": {
+            "approval": 3,
+            "manual_completion": 2,
+            "abort": 2,
+            "returned": 2,
+            "recovery": 1
+          }
+        },
+        "api:local-agent": {
+          "count": 6,
+          "mean_human_s": 2.341,
+          "median_human_s": 1.21,
+          "p95_human_s": 6.281,
+          "mean_queued_s": 2.337,
+          "mean_in_control_s": 0.004,
+          "browser_actions": 0,
+          "mean_cost_usd": "0.0260",
+          "kinds": {
+            "abort": 4,
+            "recovery": 2
+          }
+        },
+        "cua-resume": {
+          "count": 4,
+          "mean_human_s": 9.987,
+          "median_human_s": 10.646,
+          "p95_human_s": 17.696,
+          "mean_queued_s": 9.98,
+          "mean_in_control_s": 0.007,
+          "browser_actions": 0,
+          "mean_cost_usd": "0.1110",
+          "kinds": {
+            "recovery": 4
+          }
+        },
+        "demo-presenter": {
+          "count": 2,
+          "mean_human_s": 39.911,
+          "median_human_s": 39.911,
+          "p95_human_s": 40.849,
+          "mean_queued_s": 30.946,
+          "mean_in_control_s": 8.966,
+          "browser_actions": 2,
+          "mean_cost_usd": "0.4435",
+          "kinds": {
+            "manual_completion": 1,
+            "approval": 1
+          }
+        },
+        "evidence-bot": {
+          "count": 3,
+          "mean_human_s": 1.235,
+          "median_human_s": 1.562,
+          "p95_human_s": 2.086,
+          "mean_queued_s": 0.16,
+          "mean_in_control_s": 1.075,
+          "browser_actions": 3,
+          "mean_cost_usd": "0.0137",
+          "kinds": {
+            "recovery": 1,
+            "approval": 1,
+            "manual_completion": 1
+          }
+        },
+        "reviewer": {
+          "count": 2,
+          "mean_human_s": 23.152,
+          "median_human_s": 23.152,
+          "p95_human_s": 34.364,
+          "mean_queued_s": 14.656,
+          "mean_in_control_s": 8.496,
+          "browser_actions": 3,
+          "mean_cost_usd": "0.2572",
+          "kinds": {
+            "approval": 1,
+            "manual_completion": 1
+          }
+        }
+      }
+    },
+    "replay": {
+      "runs": 132,
+      "runs_requiring_human": 22,
+      "runs_with_intervention": 22,
+      "human_intervention_rate": 0.1667,
+      "requiring_human_rate": 0.1667,
+      "human_interventions": 26,
+      "human_wait_seconds": 5839.587,
+      "human_action_count": 11,
+      "decided": {
+        "count": 25,
+        "mean_human_s": 17.301,
+        "median_human_s": 10.847,
+        "p95_human_s": 41.041,
+        "mean_queued_s": 13.8,
+        "mean_in_control_s": 3.501,
+        "browser_actions": 11,
+        "mean_cost_usd": "0.1922"
+      },
+      "by_kind": {
+        "approval": {
+          "count": 4,
+          "mean_human_s": 15.964,
+          "median_human_s": 11.476,
+          "p95_human_s": 40.849,
+          "mean_queued_s": 15.955,
+          "mean_in_control_s": 0.01,
+          "browser_actions": 0,
+          "mean_cost_usd": "0.1774",
+          "decided_by": {
+            "evidence-bot": 1,
+            "reviewer": 1,
+            "anil": 1,
+            "demo-presenter": 1
+          }
+        },
+        "recovery": {
+          "count": 8,
+          "mean_human_s": 6.847,
+          "median_human_s": 4.374,
+          "p95_human_s": 17.696,
+          "mean_queued_s": 6.444,
+          "mean_in_control_s": 0.403,
+          "browser_actions": 1,
+          "mean_cost_usd": "0.0761",
+          "decided_by": {
+            "cua-resume": 4,
+            "api:local-agent": 2,
+            "evidence-bot": 1,
+            "anil": 1
+          }
+        },
+        "manual_completion": {
+          "count": 5,
+          "mean_human_s": 45.134,
+          "median_human_s": 34.364,
+          "p95_human_s": 118.191,
+          "mean_queued_s": 32.745,
+          "mean_in_control_s": 12.389,
+          "browser_actions": 10,
+          "mean_cost_usd": "0.5015",
+          "decided_by": {
+            "anil": 2,
+            "evidence-bot": 1,
+            "reviewer": 1,
+            "demo-presenter": 1
+          }
+        },
+        "abort": {
+          "count": 6,
+          "mean_human_s": 5.706,
+          "median_human_s": 4.53,
+          "p95_human_s": 18.256,
+          "mean_queued_s": 5.706,
+          "mean_in_control_s": 0.0,
+          "browser_actions": 0,
+          "mean_cost_usd": "0.0634",
+          "decided_by": {
+            "api:local-agent": 4,
+            "anil": 2
+          }
+        },
+        "expired": {
+          "count": 1,
+          "mean_human_s": 5407.068,
+          "median_human_s": 5407.068,
+          "p95_human_s": 5407.068,
+          "mean_queued_s": 5407.068,
+          "mean_in_control_s": 0.0,
+          "browser_actions": 0,
+          "mean_cost_usd": "60.0785",
+          "decided_by": {
+            "timeout": 1
+          }
+        },
+        "returned": {
+          "count": 2,
+          "mean_human_s": 26.988,
+          "median_human_s": 26.988,
+          "p95_human_s": 41.041,
+          "mean_queued_s": 15.829,
+          "mean_in_control_s": 11.159,
+          "browser_actions": 0,
+          "mean_cost_usd": "0.2999",
+          "decided_by": {
+            "anil": 2
+          }
+        }
+      },
+      "by_decider": {
+        "anil": {
+          "count": 8,
+          "mean_human_s": 31.087,
+          "median_human_s": 15.596,
+          "p95_human_s": 118.191,
+          "mean_queued_s": 24.921,
+          "mean_in_control_s": 6.166,
+          "browser_actions": 3,
+          "mean_cost_usd": "0.3454",
+          "kinds": {
+            "manual_completion": 2,
+            "abort": 2,
+            "returned": 2,
+            "recovery": 1,
+            "approval": 1
+          }
+        },
+        "api:local-agent": {
+          "count": 6,
+          "mean_human_s": 2.341,
+          "median_human_s": 1.21,
+          "p95_human_s": 6.281,
+          "mean_queued_s": 2.337,
+          "mean_in_control_s": 0.004,
+          "browser_actions": 0,
+          "mean_cost_usd": "0.0260",
+          "kinds": {
+            "abort": 4,
+            "recovery": 2
+          }
+        },
+        "cua-resume": {
+          "count": 4,
+          "mean_human_s": 9.987,
+          "median_human_s": 10.646,
+          "p95_human_s": 17.696,
+          "mean_queued_s": 9.98,
+          "mean_in_control_s": 0.007,
+          "browser_actions": 0,
+          "mean_cost_usd": "0.1110",
+          "kinds": {
+            "recovery": 4
+          }
+        },
+        "demo-presenter": {
+          "count": 2,
+          "mean_human_s": 39.911,
+          "median_human_s": 39.911,
+          "p95_human_s": 40.849,
+          "mean_queued_s": 30.946,
+          "mean_in_control_s": 8.966,
+          "browser_actions": 2,
+          "mean_cost_usd": "0.4435",
+          "kinds": {
+            "manual_completion": 1,
+            "approval": 1
+          }
+        },
+        "evidence-bot": {
+          "count": 3,
+          "mean_human_s": 1.235,
+          "median_human_s": 1.562,
+          "p95_human_s": 2.086,
+          "mean_queued_s": 0.16,
+          "mean_in_control_s": 1.075,
+          "browser_actions": 3,
+          "mean_cost_usd": "0.0137",
+          "kinds": {
+            "recovery": 1,
+            "approval": 1,
+            "manual_completion": 1
+          }
+        },
+        "reviewer": {
+          "count": 2,
+          "mean_human_s": 23.152,
+          "median_human_s": 23.152,
+          "p95_human_s": 34.364,
+          "mean_queued_s": 14.656,
+          "mean_in_control_s": 8.496,
+          "browser_actions": 3,
+          "mean_cost_usd": "0.2572",
+          "kinds": {
+            "approval": 1,
+            "manual_completion": 1
+          }
+        }
+      }
+    },
+    "discovery": {
+      "runs": 43,
+      "runs_requiring_human": 6,
+      "runs_with_intervention": 2,
+      "human_intervention_rate": 0.0465,
+      "requiring_human_rate": 0.1395,
+      "human_interventions": 6,
+      "human_wait_seconds": 49.422,
+      "human_action_count": 0,
+      "decided": {
+        "count": 2,
+        "mean_human_s": 24.711,
+        "median_human_s": 24.711,
+        "p95_human_s": 26.305,
+        "mean_queued_s": 24.702,
+        "mean_in_control_s": 0.009,
+        "browser_actions": 0,
+        "mean_cost_usd": "0.2746"
+      },
+      "by_kind": {
+        "approval": {
+          "count": 2,
+          "mean_human_s": 24.711,
+          "median_human_s": 24.711,
+          "p95_human_s": 26.305,
+          "mean_queued_s": 24.702,
+          "mean_in_control_s": 0.009,
+          "browser_actions": 0,
+          "mean_cost_usd": "0.2746",
+          "decided_by": {
+            "anil": 2
+          }
+        },
+        "not_asked": {
+          "count": 4,
+          "mean_human_s": 0.0,
+          "median_human_s": 0.0,
+          "p95_human_s": 0.0,
+          "mean_queued_s": 0.0,
+          "mean_in_control_s": 0.0,
+          "browser_actions": 0,
+          "mean_cost_usd": "0.0000",
+          "decided_by": {
+            "-": 4
+          }
+        }
+      },
+      "by_decider": {
+        "anil": {
+          "count": 2,
+          "mean_human_s": 24.711,
+          "median_human_s": 24.711,
+          "p95_human_s": 26.305,
+          "mean_queued_s": 24.702,
+          "mean_in_control_s": 0.009,
+          "browser_actions": 0,
+          "mean_cost_usd": "0.2746",
+          "kinds": {
+            "approval": 2
+          }
+        }
+      }
+    }
+  },
+  "interventions": [
+    {
+      "run_id": "run_01M2W0YDEA4RJ7S6QZH6WSSKCT",
+      "kind_of_run": "discovery",
+      "capability": "open_subaccount",
+      "request_id": "req_01M2W0Z2KHE3352BBN0TGVMG19",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "approval",
+      "decided_by": "anil",
+      "requested_at": "2026-09-19T05:07:01.373Z",
+      "queued_s": 26.294,
+      "in_control_s": 0.011,
+      "browser_actions": 0,
+      "resumed_at": null,
+      "human_s": 26.305
+    },
+    {
+      "run_id": "run_01M2XZD3CJ54KWZ8TVEX3W5CQ8",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M2XZDQ4WBDY7TD0J0GC87P1Z",
+      "reason": "STUCK",
+      "kind": "recovery",
+      "decided_by": "evidence-bot",
+      "requested_at": "2026-09-19T23:18:32.869Z",
+      "queued_s": 0.032,
+      "in_control_s": 1.53,
+      "browser_actions": 1,
+      "resumed_at": "member.open_sub_account",
+      "human_s": 1.562
+    },
+    {
+      "run_id": "run_01M2XZCFM3D3GG7GGPN3R41FHW",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M2XZCXWCJ1F2SA0MW5HGE68Y",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "approval",
+      "decided_by": "evidence-bot",
+      "requested_at": "2026-09-19T23:18:06.997Z",
+      "queued_s": 0.049,
+      "in_control_s": 0.009,
+      "browser_actions": 0,
+      "resumed_at": "review.submit",
+      "human_s": 0.058
+    },
+    {
+      "run_id": "run_01M2XZE4QDSTF5YR4Q0A2F6C6Y",
+      "kind_of_run": "replay",
+      "capability": "member_savings_balance",
+      "request_id": "req_01M2XZEDTH98B8MP5PY76HVTMR",
+      "reason": "STUCK",
+      "kind": "manual_completion",
+      "decided_by": "evidence-bot",
+      "requested_at": "2026-09-19T23:18:56.092Z",
+      "queued_s": 0.399,
+      "in_control_s": 1.687,
+      "browser_actions": 2,
+      "resumed_at": "done",
+      "human_s": 2.086
+    },
+    {
+      "run_id": "run_01M2SFRXSV0JBW364QEG72DSCM",
+      "kind_of_run": "discovery",
+      "capability": "member_savings_balance",
+      "request_id": null,
+      "reason": "STUCK",
+      "kind": "not_asked",
+      "decided_by": null,
+      "requested_at": "2026-09-18T05:28:06.680Z",
+      "queued_s": 0.0,
+      "in_control_s": 0.0,
+      "browser_actions": 0,
+      "resumed_at": null,
+      "human_s": 0.0
+    },
+    {
+      "run_id": "run_01M2V0C5G509VTYQD53C1E84CV",
+      "kind_of_run": "discovery",
+      "capability": "member_savings_balance",
+      "request_id": null,
+      "reason": "STUCK",
+      "kind": "not_asked",
+      "decided_by": null,
+      "requested_at": "2026-09-18T19:37:28.356Z",
+      "queued_s": 0.0,
+      "in_control_s": 0.0,
+      "browser_actions": 0,
+      "resumed_at": null,
+      "human_s": 0.0
+    },
+    {
+      "run_id": "run_01M2V0CMN0N7E361YRM2K9NEEF",
+      "kind_of_run": "discovery",
+      "capability": "member_savings_balance",
+      "request_id": null,
+      "reason": "STUCK",
+      "kind": "not_asked",
+      "decided_by": null,
+      "requested_at": "2026-09-18T19:37:43.839Z",
+      "queued_s": 0.0,
+      "in_control_s": 0.0,
+      "browser_actions": 0,
+      "resumed_at": null,
+      "human_s": 0.0
+    },
+    {
+      "run_id": "run_01M2VQ8KGA2904GT7FNPAAAHD1",
+      "kind_of_run": "replay",
+      "capability": "member_savings_balance",
+      "request_id": "req_01M2VQ8WSHFQ6FSWRR2E5HM19E",
+      "reason": "STUCK",
+      "kind": "manual_completion",
+      "decided_by": "anil",
+      "requested_at": "2026-09-19T02:17:37.339Z",
+      "queued_s": 114.983,
+      "in_control_s": 3.208,
+      "browser_actions": 0,
+      "resumed_at": "done",
+      "human_s": 118.191
+    },
+    {
+      "run_id": "run_01M2VQE5AV3R2WZG52EBAVBRS8",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M2VQEG5EY1TEYSJRBQMXXKHX",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "recovery",
+      "decided_by": "anil",
+      "requested_at": "2026-09-19T02:20:41.013Z",
+      "queued_s": 9.203,
+      "in_control_s": 1.644,
+      "browser_actions": 0,
+      "resumed_at": "review.submit",
+      "human_s": 10.847
+    },
+    {
+      "run_id": "run_01M2VQE5AV3R2WZG52EBAVBRS8",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M2VQEWTDKVS1AHRZ8C468SD3",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "abort",
+      "decided_by": "anil",
+      "requested_at": "2026-09-19T02:20:53.976Z",
+      "queued_s": 18.256,
+      "in_control_s": 0.0,
+      "browser_actions": 0,
+      "resumed_at": null,
+      "human_s": 18.256
+    },
+    {
+      "run_id": "run_01M2VQG2EQHBCX01HBK7NS0Y8H",
+      "kind_of_run": "replay",
+      "capability": "member_savings_balance",
+      "request_id": "req_01M2VQG7S3Y34B2T2K4BK0P248",
+      "reason": "UNRECOVERABLE",
+      "kind": "returned",
+      "decided_by": "anil",
+      "requested_at": "2026-09-19T02:21:37.961Z",
+      "queued_s": 18.73,
+      "in_control_s": 22.311,
+      "browser_actions": 0,
+      "resumed_at": null,
+      "human_s": 41.041
+    },
+    {
+      "run_id": "run_01M2VQG2EQHBCX01HBK7NS0Y8H",
+      "kind_of_run": "replay",
+      "capability": "member_savings_balance",
+      "request_id": "req_01M2VQHKR3MMJ02NJ5RP960X2Q",
+      "reason": "UNRECOVERABLE",
+      "kind": "returned",
+      "decided_by": "anil",
+      "requested_at": "2026-09-19T02:22:22.986Z",
+      "queued_s": 12.929,
+      "in_control_s": 0.007,
+      "browser_actions": 0,
+      "resumed_at": null,
+      "human_s": 12.936
+    },
+    {
+      "run_id": "run_01M2VQG2EQHBCX01HBK7NS0Y8H",
+      "kind_of_run": "replay",
+      "capability": "member_savings_balance",
+      "request_id": "req_01M2VQJ44DVE3ZTGPR3H9J76FC",
+      "reason": "UNRECOVERABLE",
+      "kind": "abort",
+      "decided_by": "anil",
+      "requested_at": "2026-09-19T02:22:39.768Z",
+      "queued_s": 4.355,
+      "in_control_s": 0.0,
+      "browser_actions": 0,
+      "resumed_at": null,
+      "human_s": 4.355
+    },
+    {
+      "run_id": "run_01M2VQK5TP8QCZ7R74HSK3WRV4",
+      "kind_of_run": "replay",
+      "capability": "member_savings_balance",
+      "request_id": "req_01M2VQKEX45FP79K59KNWAQ74D",
+      "reason": "STUCK",
+      "kind": "recovery",
+      "decided_by": "cua-resume",
+      "requested_at": "2026-09-19T02:23:23.566Z",
+      "queued_s": 17.688,
+      "in_control_s": 0.008,
+      "browser_actions": 0,
+      "resumed_at": "search.member_id",
+      "human_s": 17.696
+    },
+    {
+      "run_id": "run_01M2VQK5TP8QCZ7R74HSK3WRV4",
+      "kind_of_run": "replay",
+      "capability": "member_savings_balance",
+      "request_id": "req_01M2VQM5NDV8XXMPK8RJTZ0STW",
+      "reason": "STUCK",
+      "kind": "expired",
+      "decided_by": "timeout",
+      "requested_at": "2026-09-19T02:23:46.868Z",
+      "queued_s": 5407.068,
+      "in_control_s": 0.0,
+      "browser_actions": 0,
+      "resumed_at": null,
+      "human_s": 5407.068
+    },
+    {
+      "run_id": "run_01M2VXAQZXRVH599MHRGTCRECA",
+      "kind_of_run": "discovery",
+      "capability": "open_subaccount",
+      "request_id": "req_01M2VXBK43NF6CBCEQ2Z4B02CQ",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "approval",
+      "decided_by": "anil",
+      "requested_at": "2026-09-19T04:03:57.208Z",
+      "queued_s": 23.11,
+      "in_control_s": 0.007,
+      "browser_actions": 0,
+      "resumed_at": null,
+      "human_s": 23.117
+    },
+    {
+      "run_id": "run_01M2X580T08222HXDT54AX9PT1",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M2X58CS0RD3R8DYD3DBQK9PA",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "approval",
+      "decided_by": "reviewer",
+      "requested_at": "2026-09-19T15:41:15.433Z",
+      "queued_s": 11.93,
+      "in_control_s": 0.01,
+      "browser_actions": 0,
+      "resumed_at": "review.submit",
+      "human_s": 11.94
+    },
+    {
+      "run_id": "run_01M2X59APHBAFNAYGMVW7PXJMB",
+      "kind_of_run": "replay",
+      "capability": "member_savings_balance",
+      "request_id": "req_01M2X59KVVR2H7WKQNJN6ZTN6Y",
+      "reason": "STUCK",
+      "kind": "manual_completion",
+      "decided_by": "reviewer",
+      "requested_at": "2026-09-19T15:41:55.463Z",
+      "queued_s": 17.382,
+      "in_control_s": 16.982,
+      "browser_actions": 3,
+      "resumed_at": "done",
+      "human_s": 34.364
+    },
+    {
+      "run_id": "run_01M2X9K4XJB082NPDGCZX124CA",
+      "kind_of_run": "replay",
+      "capability": "member_savings_balance",
+      "request_id": "req_01M2X9KF4EJTVTZ9HJ0P1DESD3",
+      "reason": "STUCK",
+      "kind": "manual_completion",
+      "decided_by": "anil",
+      "requested_at": "2026-09-19T16:57:12.605Z",
+      "queued_s": 9.91,
+      "in_control_s": 22.146,
+      "browser_actions": 3,
+      "resumed_at": "done",
+      "human_s": 32.056
+    },
+    {
+      "run_id": "run_01M2X9N53WW2Q0JQZQMBV19WX7",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M2X9NFVV68QP8D0KZ8BEMDRQ",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "approval",
+      "decided_by": "anil",
+      "requested_at": "2026-09-19T16:58:18.887Z",
+      "queued_s": 10.999,
+      "in_control_s": 0.012,
+      "browser_actions": 0,
+      "resumed_at": "review.submit",
+      "human_s": 11.011
+    },
+    {
+      "run_id": "run_01M2XA968ZZHZS4R06Y7653BT7",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M2XA9MB4EKJA2CPJWBFF0RKZ",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "recovery",
+      "decided_by": "cua-resume",
+      "requested_at": "2026-09-19T17:09:18.831Z",
+      "queued_s": 7.178,
+      "in_control_s": 0.008,
+      "browser_actions": 0,
+      "resumed_at": "review.submit",
+      "human_s": 7.186
+    },
+    {
+      "run_id": "run_01M2XEAZRD77BJVCT5P4CFWVAH",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M2XEBAMEPFGG05D72289C7H0",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "recovery",
+      "decided_by": "cua-resume",
+      "requested_at": "2026-09-19T18:20:08.727Z",
+      "queued_s": 14.098,
+      "in_control_s": 0.008,
+      "browser_actions": 0,
+      "resumed_at": "review.submit",
+      "human_s": 14.106
+    },
+    {
+      "run_id": "run_01M37QNC1Z0PY34CHB0E9T0TX9",
+      "kind_of_run": "replay",
+      "capability": "member_savings_balance",
+      "request_id": "req_01M37QNRA4RZMKTGSW03GTBCZS",
+      "reason": "STUCK",
+      "kind": "manual_completion",
+      "decided_by": "demo-presenter",
+      "requested_at": "2026-09-23T18:15:31.919Z",
+      "queued_s": 21.052,
+      "in_control_s": 17.922,
+      "browser_actions": 2,
+      "resumed_at": "done",
+      "human_s": 38.974
+    },
+    {
+      "run_id": "run_01M37QQWTYB3WYZZPXKRBDBKC7",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M37QRN3PH6BQVVWCHNCM5KCR",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "approval",
+      "decided_by": "demo-presenter",
+      "requested_at": "2026-09-23T18:17:06.946Z",
+      "queued_s": 40.84,
+      "in_control_s": 0.009,
+      "browser_actions": 0,
+      "resumed_at": "review.submit",
+      "human_s": 40.849
+    },
+    {
+      "run_id": "run_01M37QVVPVKS37166NAB8FE9TK",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M37QWK9E1T47CNWXYDXDF77J",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "recovery",
+      "decided_by": "cua-resume",
+      "requested_at": "2026-09-23T18:19:16.156Z",
+      "queued_s": 0.955,
+      "in_control_s": 0.006,
+      "browser_actions": 0,
+      "resumed_at": "review.submit",
+      "human_s": 0.961
+    },
+    {
+      "run_id": "run_01M37XDMD9CY0KTFMFVEXNP0DT",
+      "kind_of_run": "discovery",
+      "capability": "member_savings_balance",
+      "request_id": null,
+      "reason": "STUCK",
+      "kind": "not_asked",
+      "decided_by": null,
+      "requested_at": "2026-09-23T19:56:03.770Z",
+      "queued_s": 0.0,
+      "in_control_s": 0.0,
+      "browser_actions": 0,
+      "resumed_at": null,
+      "human_s": 0.0
+    },
+    {
+      "run_id": "run_01M3JBJ8E3V4EPJDJT3PP5X68T",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M3JBJW3MGSRGQCW5TXNVP39A",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "recovery",
+      "decided_by": "api:local-agent",
+      "requested_at": "2026-09-27T21:15:53.344Z",
+      "queued_s": 1.237,
+      "in_control_s": 0.011,
+      "browser_actions": 0,
+      "resumed_at": "review.submit",
+      "human_s": 1.248
+    },
+    {
+      "run_id": "run_01M3JBKB2ANFYHAGMV46FAJMAN",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M3JBKYWSX0Y84QRPHMSWWGHK",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "abort",
+      "decided_by": "api:local-agent",
+      "requested_at": "2026-09-27T21:16:28.963Z",
+      "queued_s": 0.389,
+      "in_control_s": 0.0,
+      "browser_actions": 0,
+      "resumed_at": null,
+      "human_s": 0.389
+    },
+    {
+      "run_id": "run_01M3K11CTEEFK9PYTW9BT95RPB",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M3K125AJN27GQYN9EXSHQGSG",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "recovery",
+      "decided_by": "api:local-agent",
+      "requested_at": "2026-09-28T03:31:14.400Z",
+      "queued_s": 1.161,
+      "in_control_s": 0.011,
+      "browser_actions": 0,
+      "resumed_at": "review.submit",
+      "human_s": 1.172
+    },
+    {
+      "run_id": "run_01M3K12EDVFNKHGK5VX2KZHNYF",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M3K138P407H7TSCPDQRKJ3AA",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "abort",
+      "decided_by": "api:local-agent",
+      "requested_at": "2026-09-28T03:31:50.611Z",
+      "queued_s": 0.249,
+      "in_control_s": 0.0,
+      "browser_actions": 0,
+      "resumed_at": null,
+      "human_s": 0.249
+    },
+    {
+      "run_id": "run_01M3K1PCNBA4Q1KTTFBNJFJXBS",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M3K1Q0EZT5GEMVTSDYRW1BZP",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "abort",
+      "decided_by": "api:local-agent",
+      "requested_at": "2026-09-28T03:42:37.546Z",
+      "queued_s": 6.281,
+      "in_control_s": 0.0,
+      "browser_actions": 0,
+      "resumed_at": null,
+      "human_s": 6.281
+    },
+    {
+      "run_id": "run_01M3K5AK7H171CWM3GGP19ZZDY",
+      "kind_of_run": "replay",
+      "capability": "open_subaccount",
+      "request_id": "req_01M3K5B0K811V0XMXTKJCQ48FR",
+      "reason": "NEEDS_APPROVAL",
+      "kind": "abort",
+      "decided_by": "api:local-agent",
+      "requested_at": "2026-09-28T04:45:58.768Z",
+      "queued_s": 4.705,
+      "in_control_s": 0.0,
+      "browser_actions": 0,
+      "resumed_at": null,
+      "human_s": 4.705
+    }
+  ]
+}

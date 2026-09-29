@@ -200,7 +200,8 @@ fixtures.
 | `cua mcp [--client local-agent] [--tenant local] [--root DIR] [--handoff consent\|all\|none]` | approved capabilities as MCP tools over stdio, for an MCP-compatible agent; calls go through the same run service as `cua serve` | |
 | `cua benchmark list \| run \| report [--suite core\|all\|<category>]` | run a benchmark suite (`bench/tasks/`) through the repeated-LLM baseline, discovery and replay; aggregate `bench/reports/runs.jsonl` into `summary.md` ([bench/README.md](bench/README.md)) | |
 | `cua metrics run <run_id \| dir> [--json \| --events]` | one run explained: outcome and why, where the time went, model calls, tokens and estimated cost, locators, recoveries, human intervention; `--events` prints its canonical events | |
-| `cua metrics capability <name> [--version N]` \| `cua metrics report [--out DIR]` | health of each approved capability from its replays (success, failure, escalation, human, locator failure, drift, unknown side effect, latency, last success and failure), and model spend | |
+| `cua metrics capability <name> [--version N]` \| `cua metrics report [--out DIR]` | health of each approved capability from its replays (success, failure, escalation, human, locator failure, drift, unknown side effect, latency, last success and failure), model spend, and human intervention | |
+| `cua metrics humans [--out DIR]` | every request to a person by how it ended (approval, recovery, manual completion, abort, expired, ...), with the time on the person (mean, median, p95; queued and in control), browser actions, and who decided | |
 | `cua surfaces` | this build's surface adapters and their features, and for each registered capability the features it needs and whether it runs here | |
 | `cua schema` | regenerate `capabilities/schema/capability-1.3.json` | |
 | `cua mockapp` | the target app on :8000 | |
@@ -848,6 +849,30 @@ question does not need (no typed text, no query strings).
 model is *unpriced*, never free, and every figure is an estimate, not billing
 data. Capability health leaves out runs with an injected fault and runs refused
 for want of an approval (counted, not rated), and is kept per version.
+
+`cua metrics humans [--out DIR]` reports what people spent on the runs. It
+takes every request to a person and says how it ended:
+
+| Ended as | Meaning |
+|---|---|
+| `approval` | a person approved a step that commits a change |
+| `recovery` | a person handed back and the automation carried on |
+| `manual_completion` | a person handed back with only the outputs left to read |
+| `abort` | a person stopped the run |
+| `expired` | nobody answered before the request expired |
+| `unanswered` | nobody took it while the process waited; the run is suspended for `cua resume` |
+| `returned` | handed back to a screen no checkpoint held on, so the run asked again |
+| `not_asked` | the run needed a person and had no channel to one |
+| `open` | the run ended with the request still open |
+
+Each kind gets its count, and the mean, median and p95 of the run's time on the
+person. That time is split into *queued* (until someone took the request) and
+*in control* (while they held it). The report also gives the browser actions,
+who decided, the share of runs that needed a person against the share where one
+acted, and a cost per intervention at the `human.operator_hour` in
+`bench/pricing.yaml` (an assumption). `cua metrics run` lists the same per
+request, and benchmark rows record `human_interventions`, `human_wait_s`,
+`human_action_count` and `human_kinds`.
 
 ## License
 

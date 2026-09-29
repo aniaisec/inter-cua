@@ -35,6 +35,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from cua.artifact.schema import DONE
 from cua.observability.events import Event
 from cua.observability.recorder import _HUMAN_STATES, RunRecord, format_ts, parse_ts
 
@@ -102,6 +103,73 @@ class LLMUsage(_Model):
         return self.input_tokens + self.output_tokens + self.thinking_tokens
 
 
+InterventionKind = Literal[
+    "approval",
+    "recovery",
+    "manual_completion",
+    "abort",
+    "expired",
+    "unanswered",
+    "returned",
+    "not_asked",
+    "open",
+]
+INTERVENTION_KINDS: tuple[InterventionKind, ...] = (
+    "approval",
+    "recovery",
+    "manual_completion",
+    "abort",
+    "expired",
+    "unanswered",
+    "returned",
+    "not_asked",
+    "open",
+)
+"""How one request to a person ended. Not every human event is the same:
+
+``approval``           a person approved a step that commits a change;
+``recovery``           a person handed back and the automation carried on
+                       with the remaining steps;
+``manual_completion``  a person handed back with the work done: only the
+                       outputs were left to read;
+``abort``              a person stopped the run;
+``expired``            nobody answered before the request expired;
+``unanswered``         nobody took it while the process waited: the run is
+                       suspended for ``cua resume``;
+``returned``           handed back, but no checkpoint held on the screen, so
+                       the run asked again (the next request is its own);
+``not_asked``          the run needed a person and had no channel to one;
+``open``               the run ended (or was killed) with the request open.
+"""
+DECIDED: frozenset[str] = frozenset(
+    {"approval", "recovery", "manual_completion", "abort", "returned"}
+)
+"""The kinds a person decided; the rest are the absence of one."""
+
+
+class Intervention(_Model):
+    """One request to a person, and what it cost in their time."""
+
+    request_id: str | None
+    reason: str | None = None
+    """``STUCK``, ``NEEDS_APPROVAL``, ``UNRECOVERABLE``, ``DEAD_END``."""
+    kind: InterventionKind
+    decided_by: str | None = None
+    requested_at: str
+    queued_s: float = 0.0
+    """Waiting for someone to take it (PAUSED)."""
+    in_control_s: float = 0.0
+    """A person held the controls (HUMAN_IN_CONTROL)."""
+    browser_actions: int = 0
+    """What the person did in the browser; console decisions are not counted."""
+    resumed_at: str | None = None
+
+    @property
+    def human_s(self) -> float:
+        """The time the run spent on a person: queued plus in control."""
+        return round(self.queued_s + self.in_control_s, 3)
+
+
 class HumanMetrics(_Model):
     handoffs: int = 0
     actions: int = 0
@@ -110,6 +178,11 @@ class HumanMetrics(_Model):
     resumed: int = 0
     aborted: int = 0
     wait_s: float = 0.0
+    """Queued plus in control, over every request."""
+    queued_s: float = 0.0
+    in_control_s: float = 0.0
+    browser_actions: int = 0
+    interventions: list[Intervention] = Field(default_factory=list)
 
     @property
     def intervened(self) -> bool:
@@ -283,14 +356,109 @@ def _llm(record: RunRecord) -> LLMUsage:
 
 
 def _human(record: RunRecord, end: str) -> HumanMetrics:
-    waits = [(a, b) for a, b, _ in _human_intervals(record, end)]
+    intervals = _human_intervals(record, end)
+    interventions = _interventions(record, intervals)
+    browser = [e for e in record.of("human.action") if e.attrs.get("source") == "browser"]
     return HumanMetrics(
         handoffs=len(record.of("human.handoff")),
         actions=len(record.of("human.action")),
         resumed=len(record.of("human.resumed")),
         aborted=len(record.of("human.aborted")),
-        wait_s=round(sum(b - a for a, b in waits), 3),
+        wait_s=round(sum(i.end - i.start for i in intervals), 3),
+        queued_s=round(sum(i.end - i.start for i in intervals if i.state == "PAUSED"), 3),
+        in_control_s=round(
+            sum(i.end - i.start for i in intervals if i.state == "HUMAN_IN_CONTROL"), 3
+        ),
+        browser_actions=len(browser),
+        interventions=interventions,
     )
+
+
+def _interventions(record: RunRecord, intervals: list[_Interval]) -> list[Intervention]:
+    """One per request, in the order they were made. An answer names its
+    request where the log has it; otherwise (the discovery loop's abort) it
+    belongs to the latest request made before it."""
+    asks = record.of("human.handoff")
+    if not asks:
+        return []
+    answers: dict[int, dict[str, Event]] = {i: {} for i in range(len(asks))}
+    for e in record.of("human.resumed", "human.aborted", "human.pending", "human.carried_on"):
+        owner = _owner(asks, e)
+        if owner is not None:
+            answers[owner].setdefault(e.type, e)
+    out: list[Intervention] = []
+    for i, ask in enumerate(asks):
+        request = ask.attrs.get("request")
+        got = answers[i]
+        resumed, aborted = got.get("human.resumed"), got.get("human.aborted")
+        carried = got.get("human.carried_on")
+        kind: InterventionKind
+        by: str | None = None
+        if request is None:
+            kind = "not_asked"
+        elif aborted is not None:
+            by = aborted.attrs.get("by")
+            kind = "expired" if by == "timeout" else "abort"
+        elif resumed is not None:
+            by = resumed.attrs.get("by")
+            if resumed.attrs.get("decision") == "approve":
+                kind = "approval"
+            elif carried is not None:
+                kind = "manual_completion" if carried.attrs.get("at") == DONE else "recovery"
+            elif record.header.kind == "discovery":
+                kind = "recovery"  # the loop always carries on with its next turn
+            else:
+                kind = "returned"
+        elif "human.pending" in got:
+            kind = "unanswered"
+        else:
+            kind = "open"
+        mine = [
+            iv
+            for iv in intervals
+            if (iv.request == request if iv.request is not None else _owned_by(asks, i, iv.start))
+        ]
+        out.append(
+            Intervention(
+                request_id=request,
+                reason=ask.attrs.get("reason"),
+                kind=kind,
+                decided_by=by,
+                requested_at=ask.timestamp,
+                queued_s=round(sum(iv.end - iv.start for iv in mine if iv.state == "PAUSED"), 3),
+                in_control_s=round(
+                    sum(iv.end - iv.start for iv in mine if iv.state == "HUMAN_IN_CONTROL"), 3
+                ),
+                browser_actions=sum(
+                    1
+                    for e in record.of("human.action")
+                    if e.attrs.get("source") == "browser"
+                    and request is not None
+                    and e.attrs.get("request") == request
+                ),
+                resumed_at=carried.attrs.get("at") if carried is not None else None,
+            )
+        )
+    return out
+
+
+def _owner(asks: list[Event], e: Event) -> int | None:
+    request = e.attrs.get("request")
+    if request is not None:
+        for i, ask in enumerate(asks):
+            if ask.attrs.get("request") == request:
+                return i
+    before = [i for i, ask in enumerate(asks) if ask.timestamp <= e.timestamp]
+    return before[-1] if before else None
+
+
+def _owned_by(asks: list[Event], i: int, at: float) -> bool:
+    """A state from a log that did not name its request: the request made
+    last before it."""
+    starts = [parse_ts(a.timestamp) for a in asks]
+    # A transition is written a moment before the log line that asks.
+    later = [j for j, s in enumerate(starts) if s - 1.0 <= at]
+    return bool(later) and later[-1] == i
 
 
 def _side_effect(record: RunRecord, result: dict[str, Any]) -> str | None:
@@ -421,8 +589,8 @@ def breakdown(record: RunRecord, start: str, end: str) -> dict[str, float]:
 def _spans(record: RunRecord, end: str) -> list[_Span]:
     spans: list[_Span] = []
     events = record.events
-    for a, b, _ in _human_intervals(record, end):
-        spans.append(_Span(a, b, "human"))
+    for iv in _human_intervals(record, end):
+        spans.append(_Span(iv.start, iv.end, "human"))
     starts = [e for e in events if e.type == "llm.started"]
     ends = [e for e in events if e.type == "llm.completed" and "error" not in e.attrs]
     for s, f in zip(starts, ends, strict=False):
@@ -455,8 +623,16 @@ def _spans(record: RunRecord, end: str) -> list[_Span]:
     return [s for s in spans if s.end > s.start]
 
 
-def _human_intervals(record: RunRecord, end: str) -> list[tuple[float, float, str]]:
-    out: list[tuple[float, float, str]] = []
+@dataclass(frozen=True)
+class _Interval:
+    start: float
+    end: float
+    state: str
+    request: str | None
+
+
+def _human_intervals(record: RunRecord, end: str) -> list[_Interval]:
+    out: list[_Interval] = []
     transitions = record.transitions
     for i, t in enumerate(transitions):
         if t.to not in _HUMAN_STATES:
@@ -464,7 +640,7 @@ def _human_intervals(record: RunRecord, end: str) -> list[tuple[float, float, st
         stop = transitions[i + 1].ts if i + 1 < len(transitions) else end
         a, b = parse_ts(t.ts), parse_ts(stop)
         if b > a:
-            out.append((a, b, t.to))
+            out.append(_Interval(a, b, t.to, t.request_id))
     return out
 
 

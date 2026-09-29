@@ -37,3 +37,11 @@ infrastructure:
   retention_months: 12
   source: AWS list prices, us-east-1 on-demand c7i.large (2 vCPU, 4 GiB) Linux host and S3 Standard; not re-checked against a bill
   as_of: "2026-09-29"
+
+# What an hour of an operator's time costs, for pricing interventions
+# (`cua metrics humans`). An assumption, not a measurement: set it to what an
+# hour of the people who answer handoffs costs you, fully loaded.
+human:
+  operator_hour: 40
+  source: assumed fully loaded cost of a back-office operations operator; not measured
+  as_of: "2026-09-29"

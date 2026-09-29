@@ -1,4 +1,4 @@
-"""``cua metrics run | capability | report``.
+"""``cua metrics run | capability | report | humans``.
 
 Reads run directories; writes nothing unless ``--out`` is given. Imports no
 model client: explaining a replay must not be able to reach one.
@@ -60,6 +60,16 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
     rep.add_argument("--out", type=Path, help="Also write metrics.json and metrics.md here")
     common(rep)
 
+    hu = msub.add_parser(
+        "humans",
+        help="How often runs needed a person, what they did, and how long it took",
+        description="Every request to a person, by how it ended (approval, recovery, manual "
+        "completion, abort, expired, unanswered, ...), with the run's time on the person: "
+        "mean, median and p95.",
+    )
+    hu.add_argument("--out", type=Path, help="Also write humans.json and humans.md here")
+    common(hu)
+
 
 def main(args: argparse.Namespace) -> int:
     from cua.observability.cost import load_prices
@@ -70,6 +80,8 @@ def main(args: argparse.Namespace) -> int:
         return _run(args, roots, prices)
     if args.metrics_command == "capability":
         return _capability(args, roots, prices)
+    if args.metrics_command == "humans":
+        return _humans(args, roots, prices)
     return _report(args, roots, prices)
 
 
@@ -151,11 +163,19 @@ def explain(m: Any, path: Path) -> str:
         "  human      "
         + (
             f"{h.handoffs} handoff(s), {h.actions} action(s), {h.resumed} handed back, "
-            f"{h.aborted} aborted; waited {h.wait_s:.1f} s"
+            f"{h.aborted} aborted; waited {h.wait_s:.1f} s "
+            f"({h.queued_s:.1f} queued, {h.in_control_s:.1f} in control)"
             if h.handoffs or h.intervened
             else "none"
         )
     )
+    for i in h.interventions:
+        lines.append(
+            f"    {i.kind:17} {i.reason or '-':14} by {i.decided_by or '-'}: "
+            f"{i.human_s:.1f} s ({i.queued_s:.1f} queued, {i.in_control_s:.1f} in control), "
+            f"{i.browser_actions} browser action(s)"
+            + (f", carried on at {i.resumed_at}" if i.resumed_at else "")
+        )
     lines.append(f"  side effect {m.side_effect or 'not reported'}")
     if m.steps:
         lines += [
@@ -273,6 +293,8 @@ def _report(args: argparse.Namespace, roots: list[Path], prices: Any) -> int:
     if not runs:
         print("cua metrics: no runs found", file=sys.stderr)
         return EX_USAGE
+    from cua.observability.humans import summarise
+
     health = all_health(runs, include_injected=args.include_injected)
     spend = model_spend(runs)
     data = {
@@ -280,6 +302,7 @@ def _report(args: argparse.Namespace, roots: list[Path], prices: Any) -> int:
         "runs": len(runs),
         "health": [h.model_dump(mode="json") for h in health],
         "model_spend": spend,
+        "humans": summarise(runs, prices.human),
     }
     md = report_markdown(data, health)
     if args.out is not None:
@@ -312,6 +335,34 @@ def model_spend(runs: list[Any]) -> dict[str, Any]:
     return out
 
 
+def _humans(args: argparse.Namespace, roots: list[Path], prices: Any) -> int:
+    from cua.observability.humans import markdown, summarise
+
+    runs = _load_all(roots, prices)
+    if not runs:
+        print("cua metrics: no runs found", file=sys.stderr)
+        return EX_USAGE
+    data = {"roots": [r.as_posix() for r in roots], **summarise(runs, prices.human)}
+    md = "\n".join(
+        [
+            "# Human intervention",
+            "",
+            f"{data['runs']} runs read from {', '.join(f'`{r}`' for r in data['roots'])}.",
+            "",
+            *markdown(data)[2:],
+        ]
+    )
+    if args.out is not None:
+        args.out.mkdir(parents=True, exist_ok=True)
+        (args.out / "humans.json").write_text(
+            json.dumps(data, indent=2) + "\n", encoding="utf-8", newline="\n"
+        )
+        (args.out / "humans.md").write_text(md, encoding="utf-8", newline="\n")
+        print(f"cua metrics: wrote {(args.out / 'humans.md').as_posix()}", file=sys.stderr)
+    print(json.dumps(data, indent=2) if args.json else md)
+    return 0
+
+
 def report_markdown(data: dict[str, Any], health: list[Any]) -> str:
     lines = [
         "# Capability metrics",
@@ -337,6 +388,10 @@ def report_markdown(data: dict[str, Any], health: list[Any]) -> str:
             f"| {kind} | {s['runs']} | {s['llm_calls']} | {s['tokens']:,} | "
             f"{s['llm_wait_s']:.1f} | {cost} |"
         )
+    if data.get("humans"):
+        from cua.observability.humans import markdown
+
+        lines += ["", *markdown(data["humans"])]
     lines += [
         "",
         "Rates are over the runs counted, which are few for some versions: read them as "

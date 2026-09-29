@@ -57,6 +57,16 @@ class InfrastructurePrice(BaseModel):
     as_of: str = ""
 
 
+class HumanPrice(BaseModel):
+    """What an hour of an operator's time costs: an assumption, configured."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    operator_hour: Decimal
+    source: str = ""
+    as_of: str = ""
+
+
 class PriceTable(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -64,6 +74,8 @@ class PriceTable(BaseModel):
     providers: dict[str, dict[str, ModelPrice]] = Field(default_factory=dict)
     infrastructure: InfrastructurePrice | None = None
     """None: browser time and storage are left unpriced, never taken as free."""
+    human: HumanPrice | None = None
+    """None: a person's time is reported in seconds, not priced."""
 
     def price(self, provider: str | None, model: str | None) -> ModelPrice | None:
         if not provider or not model:

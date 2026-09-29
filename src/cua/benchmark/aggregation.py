@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 import statistics
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable
 from decimal import Decimal
 from typing import Any
@@ -71,6 +71,11 @@ def stats(rows: list[RunMetrics]) -> dict[str, Any]:
         ),
         "escalation_rate": _rate(sum(r.escalated for r in rows), n),
         "human_intervention_rate": _rate(sum(r.human_intervention for r in rows), n),
+        "runs_requiring_human": sum(r.escalated or r.human_interventions > 0 for r in rows),
+        "human_interventions": sum(r.human_interventions for r in rows),
+        "human_wait_s": round(sum(r.human_wait_s for r in rows), 3),
+        "human_action_count": sum(r.human_action_count for r in rows),
+        "human_kinds": dict(sorted(sum((Counter(r.human_kinds) for r in rows), Counter()).items())),
         "success_rate_after": {
             str(k): _rate(sum(r.match == "exact" for r in by_rep[:k]), k)
             for k in REPETITION_MARKS
