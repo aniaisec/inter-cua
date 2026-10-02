@@ -20,8 +20,103 @@ credit-union core: framesets, nested tables, no ids, unlabeled inputs, and
 thirteen failure modes you can switch on per request.
 
 - **Design write-up:** [REPORT.md](REPORT.md)
-- **Evidence** (two real model discovery runs, seven replays including
-  failures and handoffs): [evidence/](evidence/README.md)
+- **Evidence:** [discovery, replay, failures and human handoffs](evidence/README.md)
+- **Implementation status:** [phase history and verification notes](docs/IMPLEMENTATION_PROGRESS.md)
+
+## Measured results
+
+The [statistical evaluation](bench/reports/statistical/summary.md) compares
+180 repeated-model invocations with 180 replays: six paired tasks, 30 runs
+per task, Gemini 3.8 Flash, Chromium on Windows, September 29, 2026. Both
+strategies use the same mock app, credentials, policy and injected faults.
+
+| Metric | Repeated LLM | Deterministic replay |
+|---|---:|---:|
+| Exact expected result (95% CI) | 83.9% (78–89) | 83.3% (77–88) |
+| Median latency | 24.35 s | 7.62 s |
+| P95 latency | 54.20 s | 13.94 s |
+| Mean model calls per invocation | 7.97 | 0 |
+| Estimated model cost per invocation | $0.0540 | $0 |
+| Wrong results | 29 | 0 |
+| Duplicate commits | 29 | 0 |
+| Runs ending needing a person | 33.3% | 33.3% |
+
+Replay reduced model usage and latency in this experiment. Its exact-result
+rate was similar: on the renamed-button task, the model adapted while every
+replay stopped safely. The baseline's wrong results were duplicate commits
+on retried requests. No person acted during these unattended benchmark runs.
+The report includes uncertainty intervals and excludes 30 provider failures
+that were rerun in a second session. This synthetic suite on one application
+does not establish performance on other applications.
+
+Replay still uses compute and stores evidence. The
+[cost report](bench/reports/break_even.md), using configured infrastructure
+prices and measured evidence, puts replay at about $0.0002–0.0003 per run and
+model-plus-infrastructure break-even at one or two invocations, depending on
+the capability. Human review and recovery costs are separate; the
+[human intervention report](bench/reports/humans.md) records those observed
+times and labels the operator's hourly price as an assumption.
+
+## Quick demo
+
+After [setup](#setup), start `cua mockapp` in one terminal. In a second
+terminal, replay an already approved capability without a model key:
+
+```bash
+cua replay capabilities/member_savings_balance.json --input member_id=10003
+cua replay capabilities/member_savings_balance.json --input member_id=99999
+cua replay capabilities/member_savings_balance.json --input member_id=10003 --inject renamed_button
+```
+
+The first returns balance `1411.21`; the second returns the typed business
+outcome `NOT_FOUND`; the third stops with `LOCATOR_UNRESOLVED`. Each prints a
+JSON result and keeps evidence in its run directory. The [full demo](#demo-path) walks through
+discovery, review, approval, human takeover and an approved commit.
+
+## Runtime architecture
+
+```text
+Agent / CLI / HTTP / MCP
+          |
+          v
+Capability registry -- typed inputs, approved versions, lifecycle
+          |
+          v
+Runtime -- tenant policy, consent, idempotency, budgets, workflows
+          |
+          v
+Deterministic replay -- checkpoints, recovery, human handoff
+          |
+          +--> Playwright browser
+          +--> Windows UI Automation
+          +--> Optional vision candidates, validated before action
+          |
+          v
+Evidence --> metrics / capability health / drift --> reviewed candidates
+```
+
+Discovery is the model-driven entry point that creates a draft. A person
+describes and approves its exact content before unattended execution. The
+registry retains versions and enforces deprecation and revocation; a drift
+repair becomes another draft, evaluated and reviewed before approval.
+
+## Security results
+
+The [security benchmark](bench/security/reports/summary.md) staged 22 attacks
+with a scripted model that follows hostile screen instructions, then judged
+their effects against the real components.
+
+| Measured outcome | Result |
+|---|---:|
+| Attacks blocked or contained as expected | 22/22 |
+| Unsafe actions / secret exposures | 0 / 0 |
+| Policy / approval bypasses | 0 / 0 |
+| Tenant isolation failures | 0 |
+
+These results cover the declared fixtures, including exfiltration, tampered
+artifacts, forged approval, reused consent and cross-tenant requests. See the
+[threat model](docs/THREAT_MODEL.md) and [security design](#security) for the
+controls and limits.
 
 ## Setup
 
@@ -142,12 +237,39 @@ cua replay capabilities/open_subaccount.json --input member_id=10003 --input ini
 
 In PowerShell, write `` ` `` instead of `\` at line ends.
 
+## Development
+
+The quality gate is `make test`. On Windows without Make, use the equivalent
+commands in the activated environment:
+
+```bash
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy
+python -m pytest
+```
+
+For a quick check without GUI automation, use
+`python -m pytest -m "not browser and not desktop"`. Browser tests start their
+own mock app; desktop tests require Windows and the `windows` extra.
+For a small benchmark harness check without a model key:
+
+```bash
+cua benchmark run --suite core --task lookup-success --repetitions 1
+cua benchmark report --latest
+```
+
+The default scripted model checks the harness. A live comparison requires
+`--llm gemini` or `--llm anthropic`, credentials, and paid model calls. See
+[benchmark setup and reproduction](bench/README.md) for repetitions, strategies,
+raw metrics, statistical reports and configurable pricing.
+
 ## Run without live services
 
 | What | Command | Needs |
 |---|---|---|
 | Full gate: lint, format, `mypy --strict`, every test | `make test` | Chromium |
-| Tests that need no browser | `python -m pytest -m "not browser"` | nothing |
+| Tests that need no browser | `python -m pytest -m "not browser and not desktop"` | nothing |
 | Discovery with no model | `cua discover --llm scripted --script scripts/discovery/<name>.yaml ...` | mock app |
 | Replay the committed, approved capabilities | `cua replay capabilities/<name>.json --input ...` | mock app |
 | Regenerate every replay under `evidence/` | `make evidence` | port 8000 free |

@@ -1082,3 +1082,32 @@ Status: COMPLETE (pending verification)
 
 ### Next
 - Phase 17: README redesign.
+
+## Phase 17 — README redesign
+
+Status: COMPLETE
+
+### Changes
+- README opens with the measured Phase 14 comparison (six paired tasks, 180 invocations per strategy), confidence intervals, drift behavior and duplicate commits.
+- Added a short replay demo, current registry/runtime/surface architecture, lifecycle explanation, and the measured 22-scenario security table.
+- Linked statistical, cost, human, security and threat-model reports; preserved detailed discovery, approval, handoff, API/MCP and CLI instructions.
+- Added Windows-friendly quality commands and a small scripted benchmark command; excluded desktop tests from the GUI-free test command.
+
+### Tests
+- 792 non-browser, non-desktop tests passed on Python 3.14.5.
+- Ruff lint and format checks passed; mypy passed for 143 source files.
+- All local README file links resolve; git diff whitespace check passed.
+- Browser replay integration suite passed, covering success, business outcomes, drift, recovery, approval, idempotency, budgets and evidence redaction; replay CLI options verified.
+
+### Results
+- Figures are copied from committed generated reports, with experimental limits and infrastructure pricing assumptions stated.
+- Phases 14–16 retain their existing pending-verification status; this documentation phase does not certify the entire desktop suite.
+
+### Known issues
+- No new live-model benchmark was run; the README identifies the measured model, environment and date.
+
+### Commit
+- `docs: redesign README around measured results and quick demo`.
+
+### Next
+- Phase 18: reproducible demo script and evidence.
