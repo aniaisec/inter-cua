@@ -1,4 +1,4 @@
-.PHONY: help install mockapp discover replay operator benchmark test lint typecheck evidence clean
+.PHONY: help install mockapp discover replay operator benchmark demo test lint typecheck evidence clean
 
 PY ?= python3
 MOCKAPP_PORT ?= 8000
@@ -42,3 +42,6 @@ evidence: ## Regenerate the replay evidence (needs :8000 free); discovery runs a
 clean:
 	rm -rf .pytest_cache .ruff_cache .mypy_cache
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
+
+demo: ## Reproducible seven-stage demo (100 replays by default; ARGS="--repetitions 3" for smoke)
+	$(PY) scripts/demo/run_demo.py $(ARGS)

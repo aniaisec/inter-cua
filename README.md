@@ -73,6 +73,19 @@ outcome `NOT_FOUND`; the third stops with `LOCATOR_UNRESOLVED`. Each prints a
 JSON result and keeps evidence in its run directory. The [full demo](#demo-path) walks through
 discovery, review, approval, human takeover and an approved commit.
 
+For the complete automated demonstration, including 100 independent replays,
+handoff/resume, single-use consent and a hostile-page security scenario:
+
+```bash
+python scripts/demo/run_demo.py
+# Quick check: add --repetitions 3
+```
+
+It starts isolated services and writes a report under the gitignored `demo/`
+directory. Discovery and the operator are scripted by default. See the
+[reproducible demo guide](scripts/demo/README.md) for live discovery, evidence,
+report regeneration and verification.
+
 ## Runtime architecture
 
 ```text
