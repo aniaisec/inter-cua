@@ -5,11 +5,19 @@ It uses Python 3.11 (the package minimum), with no provider credentials or paid
 model calls. Jobs have read-only repository permissions and run serial tests
 within each job. New runs cancel older runs for the same ref.
 
-The `quality` job checks Ruff lint and formatting, strict mypy, and every
+The `quality` job checks Ruff lint and formatting, strict mypy for both its
+native Linux platform and Windows, and every
 non-browser, non-desktop test. The `browser` job installs Chromium and its
 Linux dependencies, runs every browser test excluding Windows desktop tests,
 then produces fresh benchmark and security reports. Desktop UI Automation
 still requires a separate interactive Windows session.
+
+The hosted browser job explicitly sets `CUA_CHROMIUM_NO_SANDBOX=1` for detached
+Chromium: hosted Linux runners can restrict the user namespaces its sandbox
+requires. Detached browsers keep their sandbox enabled outside this opt-in.
+Vision tests capture fixture controls on their current platform because native
+fonts and form controls differ between Windows and Linux; match thresholds
+and refusal assertions remain unchanged.
 
 The benchmark smoke runs only deterministic replay: two independent runs each
 of successful lookup, unknown-member lookup and a write without consent.

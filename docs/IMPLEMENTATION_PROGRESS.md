@@ -1177,3 +1177,11 @@ Status: IMPLEMENTED — GitHub-hosted Linux verification pending
 - The hosted Ubuntu/Python 3.11 workflow and full browser test selection have not been run in this phase. Local verification used Windows/Python 3.14.5.
 - Branch protection must be configured by a repository administrator to require `quality` and `browser`. Desktop tests remain an interactive Windows check.
 - Scripted smoke results check runtime correctness, not live-model performance or statistical improvements.
+
+### Hosted CI portability fixes
+- Retrieved the first failed hosted run: six Linux mypy errors, detached Chromium startup failures in consent/handoff paths, and three vision assertions using Windows-rendered screenshots on Linux.
+- Kept runtime Windows guards while allowing mypy to analyze their exports on either platform; accessed Windows-only ctypes/subprocess attributes dynamically. CI now checks native Linux and Windows type targets.
+- Added explicit `CUA_CHROMIUM_NO_SANDBOX=1` opt-in for detached browsers in the hosted browser job. Other detached launches keep the sandbox enabled by default. Three unit cases verify the opt-in.
+- Vision integration fixtures capture controls on their current platform before approving test artifacts, preserving recorder coverage, confidence thresholds and refusal assertions.
+- Windows verification: 824 non-browser/non-desktop tests passed; 11 vision integration tests passed; lint/format and Linux/Windows mypy checks passed.
+- Ubuntu/WSL verification on Python 3.14.4: all 19 targeted browser tests passed, covering every failure from the hosted run plus related API/catalog/vision cases, the complete demo, CLI resume and MCP invocation. Supplied missing Chromium libraries from a local test directory; no distro package installation was required.

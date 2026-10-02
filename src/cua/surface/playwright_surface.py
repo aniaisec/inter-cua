@@ -1008,9 +1008,14 @@ class BrowserProcess:
         ]
         if headless:
             args.append("--headless=new")
+        # Hosted Linux runners can forbid Chromium's user-namespace sandbox.
+        # Keep it enabled by default; opt out explicitly for isolated CI only.
+        if os.environ.get("CUA_CHROMIUM_NO_SANDBOX") == "1":
+            args.append("--no-sandbox")
         args.append("about:blank")
         new_group: dict[str, Any] = (
-            {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+            # The attribute exists only on Windows, including in typeshed.
+            {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP")}  # noqa: B009
             if sys.platform == "win32"
             else {"start_new_session": True}
         )

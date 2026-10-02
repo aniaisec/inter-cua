@@ -29,6 +29,7 @@ from cua.surface.conditions import RegionPresent
 from cua.surface.playwright_surface import PlaywrightSurface
 from cua.surface.protocol import ClickPoint, Observation, PerceptionDrift, Rect, StaleRefError
 from cua.surface.vision import image
+from cua.surface.vision.candidate import Appearance
 from cua.tenant import load_tenant
 from mockapp.injects import Inject
 from tests.integration.test_replay import ENV, GOAL1, REPO, Harness, goal2_inputs
@@ -49,10 +50,49 @@ class VisionHarness(Harness):
             EVIDENCE / discovery,
             policy=load_policy(POLICY, load_tenant("local", root=REPO / "tenants")),
         )
+        # Committed screenshots were captured on Windows. Native controls and
+        # fonts render differently on Linux, so record fixture appearances on
+        # the same platform as replay, without lowering the match threshold.
+        surface = PlaywrightSurface(self.page)
+        sign_on(surface, self.base_url)
+        pictures = {"search.submit": self.picture(surface, "Search")}
+        if cap.name == "open_subaccount":
+            response = self.page.request.post(
+                f"{self.base_url}/subaccount/10003",
+                form={"F_ACCTTYP": "Savings", "F_DEPAMT": "250.00"},
+            )
+            assert response.ok
+            self.page.goto(f"{self.base_url}/review/10003")
+            pictures["review.submit"] = self.picture(surface, "Confirm")
+        assert all(step.appearance is not None for step in cap.steps if step.id in pictures)
+        cap = cap.model_copy(
+            update={
+                "steps": [
+                    step.model_copy(update={"appearance": pictures[step.id]})
+                    if step.id in pictures
+                    else step
+                    for step in cap.steps
+                ]
+            }
+        )
         path = self.tmp / "recorded" / f"{cap.name}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         save(cap, path)
         return self.approved(path)
+
+    @staticmethod
+    def picture(surface: PlaywrightSurface, name: str) -> Appearance:
+        screen = surface.observe(screenshot=True)
+        assert screen.screenshot_png is not None
+        nodes = [node for node in screen.nodes if node.role == "button" and node.name == name]
+        assert len(nodes) == 1
+        box = nodes[0].bbox
+        assert box is not None
+        scale = image.scale_of(screen.screenshot_png, screen.viewport)
+        pixels = Rect(x=box.x * scale, y=box.y * scale, w=box.w * scale, h=box.h * scale)
+        crop = image.crop(screen.screenshot_png, pixels)
+        w, h = image.size_of(crop)
+        return Appearance.of(crop, w=w, h=h, scale=scale)
 
     def replay(
         self,

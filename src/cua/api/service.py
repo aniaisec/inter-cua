@@ -35,7 +35,7 @@ from __future__ import annotations
 import gc
 import hashlib
 import json
-import sys
+import platform
 import threading
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -536,7 +536,7 @@ def _com_enter() -> Any:
     thread, so that it is also uninitialised on the thread that initialised
     it, when the run is over. The COM module, or None off Windows or without
     the windows extra (a desktop run is then refused on its own terms)."""
-    if sys.platform != "win32":
+    if platform.system() != "Windows":
         return None
     try:
         import comtypes

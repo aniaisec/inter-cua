@@ -19,13 +19,13 @@ Two things measured against the target decide how this layer acts:
 from __future__ import annotations
 
 import ctypes
-import sys
+import platform
 from ctypes import wintypes
 from typing import Any
 
 from cua.surface.windows.perception import DIALOG_CLASS, RawElement
 
-if sys.platform != "win32":  # pragma: no cover - imported only on Windows
+if platform.system() != "Windows":  # pragma: no cover - imported only on Windows
     raise ImportError("cua.surface.windows.uia needs Windows UI Automation")
 
 import comtypes
@@ -36,7 +36,10 @@ from comtypes.gen import UIAutomationClient as UIA  # noqa: E402
 
 COMError = comtypes.COMError
 
-_user32 = ctypes.WinDLL("user32", use_last_error=True)
+# These attributes exist only on Windows, including in typeshed. Runtime
+# platform detection above preserves the guard while letting mypy check this
+# module and its exports on every host.
+_user32 = getattr(ctypes, "WinDLL")("user32", use_last_error=True)  # noqa: B009
 _user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
 _user32.PostMessageW.restype = wintypes.BOOL
 _user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
@@ -47,7 +50,7 @@ _user32.GetDlgCtrlID.argtypes = [wintypes.HWND]
 _user32.GetDlgCtrlID.restype = ctypes.c_int
 _user32.GetDpiForWindow.argtypes = [wintypes.HWND]
 _user32.GetDpiForWindow.restype = wintypes.UINT
-_ENUM_PROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+_ENUM_PROC = getattr(ctypes, "WINFUNCTYPE")(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)  # noqa: B009
 _user32.EnumWindows.argtypes = [_ENUM_PROC, wintypes.LPARAM]
 _user32.EnumWindows.restype = wintypes.BOOL
 _user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
