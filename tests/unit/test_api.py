@@ -225,7 +225,14 @@ def test_capabilities_are_those_of_the_tenants_app_family_the_client_may_use(
     names = [c["name"] for c in api.get("/capabilities", headers=READER).json()["capabilities"]]
     assert names == ["member_savings_balance"]
     desk = api.get("/capabilities", headers={**AGENT, "X-Cua-Tenant": "desk"}).json()
-    assert {c["name"] for c in desk["capabilities"]} == {"deskcalc_compute", "deskcalc_record"}
+    desktop_names = {"deskcalc_compute", "deskcalc_record"}
+    # Default listing offers only invocable capabilities. Linux has no UIA
+    # adapter, but the complete listing still respects tenant app-family scope.
+    assert {c["name"] for c in desk["capabilities"]} == (
+        desktop_names if sys.platform == "win32" else set()
+    )
+    all_desk = api.get("/capabilities?all=true", headers={**AGENT, "X-Cua-Tenant": "desk"}).json()
+    assert {c["name"] for c in all_desk["capabilities"]} == desktop_names
 
 
 def test_a_capability_is_described_never_handed_over(api: TestClient) -> None:
