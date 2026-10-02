@@ -1154,3 +1154,26 @@ Status: COMPLETE
 
 ### Next
 - Phase 19: CI gates and benchmark/security artifacts.
+
+## Phase 19 — CI gates and benchmark/security artifacts
+
+Status: IMPLEMENTED — GitHub-hosted Linux verification pending
+
+### Changes
+- Added GitHub Actions quality and Chromium jobs for pushes, pull requests and manual dispatch on Python 3.11, with read-only permissions, cancellation and timeouts.
+- Quality runs Ruff lint/format, strict mypy and all non-GUI tests. Browser runs all browser tests excluding desktop UI Automation, a six-invocation replay smoke, and the full security benchmark.
+- Added `scripts/ci/check_benchmark.py`: requires completed session/coverage, independent uncached run IDs, exact scoring, zero replay model calls, commits and duplicate side effects. Invalid or missing evidence fails.
+- Uploads JUnit, raw benchmark/session metrics and Markdown/JSON reports even on failures; excludes raw browser evidence and private session plumbing. Browser artifacts retained for 14 days.
+- Added `docs/CI.md`, README link and gitignored local artifact output. Existing committed reports are preserved.
+
+### Verification
+- Six real Chromium smoke invocations passed the new gate; report regeneration passed.
+- Full security CLI: 22/22 attacks blocked, zero unsafe actions, secret exposures, policy/approval bypasses or tenant isolation failures.
+- Non-browser/non-desktop regression: 817 passed, 117 deselected. Four additional session-validation cases were then added; focused gate suite: 14 passed.
+- Ruff lint/format, source mypy and diff whitespace checks passed; workflow YAML parses.
+- Browser execution required leaving the local sandbox because Chromium spawn was refused with EPERM; the authorized rerun passed.
+
+### Remaining verification
+- The hosted Ubuntu/Python 3.11 workflow and full browser test selection have not been run in this phase. Local verification used Windows/Python 3.14.5.
+- Branch protection must be configured by a repository administrator to require `quality` and `browser`. Desktop tests remain an interactive Windows check.
+- Scripted smoke results check runtime correctness, not live-model performance or statistical improvements.

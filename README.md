@@ -252,6 +252,9 @@ In PowerShell, write `` ` `` instead of `\` at line ends.
 
 ## Development
 
+GitHub Actions runs quality and browser gates and uploads fresh benchmark/security
+reports; see [CI gates and artifacts](docs/CI.md) for coverage and reproduction.
+
 The quality gate is `make test`. On Windows without Make, use the equivalent
 commands in the activated environment:
 

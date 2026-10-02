@@ -18,6 +18,7 @@ dist/
 
 # Capabilities recorded by following the README demo path.
 /demo/
+/artifacts/
 
 # Local review receipts written by `cua describe`; approvals themselves are committed.
 /.cua/
