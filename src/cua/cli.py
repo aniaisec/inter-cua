@@ -17,6 +17,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from cua.artifact.schema import SCHEMA_VERSION
 from cua.termlink import link
 
 EX_USAGE = 64
@@ -385,7 +386,9 @@ def _add_artifact_commands(sub: argparse._SubParsersAction[argparse.ArgumentPars
     t.add_argument("--ttl-s", type=int, default=900, help="Seconds the token is valid (900)")
 
     s = sub.add_parser("schema", help="Write the capability JSON Schema")
-    s.add_argument("--out", type=Path, default=Path("capabilities/schema/capability-1.2.json"))
+    s.add_argument(
+        "--out", type=Path, default=Path(f"capabilities/schema/capability-{SCHEMA_VERSION}.json")
+    )
 
     sub.add_parser(
         "surfaces",

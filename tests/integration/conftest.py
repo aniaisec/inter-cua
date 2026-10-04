@@ -22,7 +22,7 @@ import httpx
 import pytest
 from playwright.sync_api import Browser, BrowserContext, Page, Playwright, sync_playwright
 
-from tests.conftest import free_port
+from tests.conftest import browser_launch_error, free_port
 
 CDP_TIMEOUT_S = 20.0
 VIEWPORT = {"width": 1280, "height": 800}
@@ -47,7 +47,9 @@ def playwright_instance() -> Iterator[Playwright]:
 
 
 @pytest.fixture(scope="session")
-def browser_session(playwright_instance: Playwright) -> Iterator[BrowserSession]:
+def browser_session(
+    playwright_instance: Playwright, request: pytest.FixtureRequest
+) -> Iterator[BrowserSession]:
     port = free_port()
     cdp_url = f"http://127.0.0.1:{port}"
     try:
@@ -56,7 +58,8 @@ def browser_session(playwright_instance: Playwright) -> Iterator[BrowserSession]
             args=[f"--remote-debugging-port={port}"],
         )
     except Exception as exc:  # pragma: no cover - missing browser binary
-        pytest.skip(f"Chromium not available ({exc}); run `playwright install chromium`")
+        browser_launch_error(exc, required=request.config.getoption("--require-browser"))
+        raise  # pragma: no cover - helper always raises
 
     deadline = time.monotonic() + CDP_TIMEOUT_S
     while time.monotonic() < deadline:

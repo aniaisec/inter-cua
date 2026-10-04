@@ -90,3 +90,38 @@ def signed_in(client: httpx.Client) -> httpx.Client:
     response = client.post("/login", data={"F_USRID": "operator", "F_PWD": "operator"})
     assert response.status_code == 200
     return client
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--require-browser",
+        action="store_true",
+        default=False,
+        help="Fail Chromium launch errors and require at least one executed browser test.",
+    )
+
+
+_browser_executed = 0
+
+
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:
+    global _browser_executed
+    if report.when == "call" and not report.skipped and "browser" in report.keywords:
+        _browser_executed += 1
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    if session.config.getoption("--require-browser") and _browser_executed == 0:
+        reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+        if reporter:
+            reporter.write_line("--require-browser: no browser tests executed")
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
+
+
+def browser_launch_error(exc: Exception, *, required: bool) -> None:
+    """Only Playwright's explicit missing executable diagnostic permits a skip."""
+    from playwright.sync_api import Error
+
+    if not required and isinstance(exc, Error) and "Executable doesn't exist at" in str(exc):
+        pytest.skip(f"Chromium is not installed ({exc}); run `playwright install chromium`")
+    raise exc
