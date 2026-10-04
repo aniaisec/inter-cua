@@ -1,5 +1,8 @@
 # REPORT
 
+Historical design and verification snapshot. For current setup and runtime behavior,
+see the [documentation index](docs/index.md).
+
 inter-cua turns one LLM-driven run through a legacy UI into a capability an
 agent can call: a typed contract plus the steps to carry it out, replayed with
 no model in the process. When replay cannot safely go on, a person takes over

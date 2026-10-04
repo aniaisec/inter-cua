@@ -1,5 +1,8 @@
 # Test and behaviour baseline
 
+Historical design and verification snapshot. For current setup and runtime behavior,
+see the [documentation index](../index.md).
+
 The state of inter-cua before the benchmark, observability and registry work
 begins. Later changes are measured against these numbers. The git tag
 `inter-cua-baseline` marks the commit they were taken on. It is never moved.

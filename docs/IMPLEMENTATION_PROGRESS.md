@@ -1,5 +1,8 @@
 # Implementation progress
 
+Historical design and verification snapshot. For current setup and runtime behavior,
+see the [documentation index](index.md).
+
 One entry per phase of the post-v1.0 work: benchmark, observability,
 registry, drift, composition, security, surfaces, and API/MCP.
 

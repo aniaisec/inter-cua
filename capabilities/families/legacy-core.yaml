@@ -4,9 +4,9 @@
 # The recorder merges this into each draft capability. A discovery run only
 # walks the happy path once; it cannot learn what "member not found" or
 # "session expired" look like on this product. Those are facts about the
-# vendor's app, shared by every tenant running it, so they live here as data —
-# a tenant whose deployment words them differently overrides them in an
-# overlay rather than in code.
+# vendor's app, shared by every tenant running it, so they live here as data.
+# Tenant overlays are not implemented and are refused. A deployment with
+# different wording needs a separately reviewed family/capability definition.
 #
 # Detectors and recoverers that refer to a step or checkpoint the recorded
 # capability does not have are left out of it (NOT_FOUND only means something

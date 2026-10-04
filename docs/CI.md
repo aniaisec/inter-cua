@@ -9,6 +9,7 @@ The `quality` job checks Ruff lint and formatting, strict mypy for both its
 native Linux platform and Windows, and every
 non-browser, non-desktop test. The `browser` job installs Chromium and its
 Linux dependencies, runs every browser test excluding Windows desktop tests,
+using `--require-browser` (launch errors and zero executed browser tests fail),
 then produces fresh benchmark and security reports. Desktop UI Automation
 still requires a separate interactive Windows session.
 
