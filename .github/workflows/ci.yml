@@ -47,7 +47,7 @@ jobs:
           cache: pip
       - run: python -m pip install -e '.[dev]'
       - run: python -m playwright install --with-deps chromium
-      - run: python -m pytest -m 'browser and not desktop' --junitxml=artifacts/browser.xml
+      - run: python -m pytest --require-browser -m 'browser and not desktop' --junitxml=artifacts/browser.xml
       - name: Deterministic benchmark smoke
         run: >-
           python -m cua.cli benchmark run --suite core --llm scripted

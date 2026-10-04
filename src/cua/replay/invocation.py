@@ -33,7 +33,7 @@ class Budget(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    timeout_s: float = Field(default=120.0, gt=0)
+    timeout_s: float = Field(default=120.0, gt=0, allow_inf_nan=False)
     """Wall clock for the whole run, recoveries included."""
     max_recoveries: int = Field(default=3, ge=0)
     """Caps the capability's own ``recovery_limits.per_run``; never raises it."""
@@ -96,9 +96,11 @@ def check_input(name: str, value: str, spec: InputSpec) -> str | None:
     shown = "***" if spec.sensitive else repr(value)
     if spec.type == "decimal":
         try:
-            Decimal(value)
+            number = Decimal(value)
         except InvalidOperation:
             return f"{name}={shown} is not a decimal"
+        if not number.is_finite():
+            return f"{name}={shown} is not a finite decimal"
     elif spec.type == "integer" and not re.fullmatch(r"-?[0-9]+", value):
         return f"{name}={shown} is not an integer"
     if spec.pattern is not None and re.search(spec.pattern, value) is None:

@@ -50,4 +50,6 @@ def _number(value: str, *, currency: bool) -> Decimal:
         number = Decimal(text)
     except InvalidOperation as exc:  # pragma: no cover - the regex already refused it
         raise ParseError(f"{value!r} is not a number") from exc
+    if not number.is_finite():
+        raise ParseError("it is not a finite number")
     return -number if negative else number
