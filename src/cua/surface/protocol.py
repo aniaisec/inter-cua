@@ -3,10 +3,10 @@
 Nothing above this module is allowed to know that the target is a web page.
 The agent loop, the replay engine and the capability artifact all deal in
 ``Observation`` / ``Node`` / ``Action`` / ``Condition`` and let a ``Surface``
-implementation decide what those mean for one kind of target. Today there is
-one implementation (Playwright, in ``playwright_surface.py``); a desktop
-adapter would implement the same protocol and reinterpret the same conditions
-(``conditions.py`` carries the per-condition desktop notes).
+implementation decide what those mean for one kind of target. The current
+implementations are Playwright Chromium (``playwright_surface.py``) and Windows
+UI Automation (``windows/``). Both implement this protocol; their descriptors
+declare supported features, and ``conditions.py`` carries desktop semantics.
 
 Two rules the rest of the design leans on:
 
