@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import os
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, Literal, Protocol, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -160,7 +160,9 @@ class NoProviderError(RuntimeError):
     """No key for any provider, and no script to play instead."""
 
 
-def select_client(choice: str = "auto", model: str | None = None) -> LLMClient:
+def select_client(
+    choice: str = "auto", model: str | None = None, *, environ: Mapping[str, str] | None = None
+) -> LLMClient:
     """The client for ``choice``, or for whichever key is present.
 
     ``auto`` prefers Claude when both keys are set; set ``CUA_LLM`` (or pass
@@ -169,10 +171,11 @@ def select_client(choice: str = "auto", model: str | None = None) -> LLMClient:
     for Gemini), else the default above — never one provider's model name
     sent to the other.
     """
+    env = os.environ if environ is None else environ
     if choice == "auto":
-        choice = os.environ.get("CUA_LLM") or "auto"
+        choice = env.get("CUA_LLM") or "auto"
     if choice == "auto":
-        choice = next((p for p, keys in PROVIDER_KEYS.items() if _has_key(keys)), "auto")
+        choice = next((p for p, keys in PROVIDER_KEYS.items() if _has_key(keys, env)), "auto")
         if choice == "auto":
             raise NoProviderError(
                 "no model API key found: set ANTHROPIC_API_KEY or GEMINI_API_KEY in .env, "
@@ -182,13 +185,15 @@ def select_client(choice: str = "auto", model: str | None = None) -> LLMClient:
         raise NoProviderError(f"unknown model provider {choice!r}; use anthropic, gemini or auto")
     # Checked here, before a browser is launched: without it the run starts,
     # and fails only at the first model call, as an opaque SDK error.
-    if not _has_key(PROVIDER_KEYS[choice]):
+    if not _has_key(PROVIDER_KEYS[choice], env):
         raise NoProviderError(
             f"--llm {choice} needs {' or '.join(PROVIDER_KEYS[choice])} set in .env"
         )
     if choice == "anthropic":
-        return AnthropicMessagesClient(model or os.environ.get("CUA_MODEL") or ANTHROPIC_MODEL)
-    return GeminiClient(model or os.environ.get("CUA_GEMINI_MODEL") or GEMINI_MODEL)
+        return AnthropicMessagesClient(
+            model or env.get("CUA_MODEL") or ANTHROPIC_MODEL, environ=environ
+        )
+    return GeminiClient(model or env.get("CUA_GEMINI_MODEL") or GEMINI_MODEL, environ=environ)
 
 
 PROVIDER_KEYS: dict[str, tuple[str, ...]] = {
@@ -199,8 +204,9 @@ PROVIDER_KEYS: dict[str, tuple[str, ...]] = {
 ``auto``: Claude first, as planned."""
 
 
-def _has_key(names: tuple[str, ...]) -> bool:
-    return any(os.environ.get(n) for n in names)
+def _has_key(names: tuple[str, ...], environ: Mapping[str, str] | None = None) -> bool:
+    env = os.environ if environ is None else environ
+    return any(env.get(n) for n in names)
 
 
 # --------------------------------------------------------------------------
@@ -215,6 +221,7 @@ class AnthropicMessagesClient:
         *,
         max_tokens: int = MAX_TOKENS,
         client: Any | None = None,
+        environ: Mapping[str, str] | None = None,
     ) -> None:
         import anthropic  # only discovery needs a model SDK; replay must never import one
 
@@ -222,7 +229,15 @@ class AnthropicMessagesClient:
         self._max_tokens = max_tokens
         # Typed loosely on purpose: messages are built as plain dicts in the
         # wire shape, which the SDK accepts but its TypedDicts cannot prove.
-        self._client: Any = client or anthropic.Anthropic()
+        self._client: Any = client or (
+            anthropic.Anthropic(
+                api_key=environ.get("ANTHROPIC_API_KEY", ""),
+                auth_token=environ.get("ANTHROPIC_AUTH_TOKEN", ""),
+                base_url=environ.get("ANTHROPIC_BASE_URL") or "https://api.anthropic.com",
+            )
+            if environ is not None
+            else anthropic.Anthropic()
+        )
 
     @property
     def provider(self) -> Provider:
@@ -324,6 +339,7 @@ class GeminiClient:
         *,
         max_tokens: int = MAX_TOKENS,
         client: Any | None = None,
+        environ: Mapping[str, str] | None = None,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         from google import genai  # only discovery needs a model SDK
@@ -338,6 +354,9 @@ class GeminiClient:
         # Claude. A dropped connection has no status code and is retried in
         # _generate. Anything else fails the call at once.
         self._client: Any = client or genai.Client(
+            api_key=(environ.get("GEMINI_API_KEY") or environ.get("GOOGLE_API_KEY"))
+            if environ is not None
+            else None,
             http_options=types.HttpOptions(
                 retry_options=types.HttpRetryOptions(
                     attempts=GEMINI_ATTEMPTS,
@@ -345,7 +364,7 @@ class GeminiClient:
                     max_delay=30.0,
                     http_status_codes=[408, 429, 500, 502, 503, 504],
                 )
-            )
+            ),
         )
         self._calls = 0
 

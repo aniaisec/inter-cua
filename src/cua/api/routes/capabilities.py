@@ -34,7 +34,7 @@ def list_capabilities(
     all: bool = False, caller: Caller = Authenticated, service: RunService = Service
 ) -> dict[str, Any]:
     caller.require("read")
-    entries, _ = catalog.scan(service.settings.capabilities_dir)
+    entries, _ = catalog.scan(service.settings.capabilities_dir, project=service.settings.project)
     shown = [
         e
         for e in entries
@@ -100,7 +100,9 @@ def _versions(caller: Caller, service: RunService, name: str) -> list[Version]:
     caller.require_capability(name)
     mine = [
         v
-        for v in Registry(service.settings.capabilities_dir).versions(name)
+        for v in Registry(
+            service.settings.capabilities_dir, project=service.settings.project
+        ).versions(name)
         if caller.tenant.refusal(name, v.capability.target.app_family) is None
     ]
     if not mine:

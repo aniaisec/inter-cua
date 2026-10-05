@@ -28,7 +28,10 @@ import os
 import secrets
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from cua.project import ProjectContext
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -81,9 +84,38 @@ class AccessConfig(BaseModel):
         return self
 
 
-def load_access(path: Path = ACCESS_FILE) -> AccessConfig:
+def load_access(path: Path = ACCESS_FILE, *, project: ProjectContext | None = None) -> AccessConfig:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    return AccessConfig.model_validate(data)
+    config = AccessConfig.model_validate(data)
+    if project is None:
+        return config
+    return config.model_copy(
+        update={
+            "tenants": {
+                key: spec.model_copy(
+                    update={
+                        "file": project.relative(spec.file) if spec.file is not None else None,
+                        "policy": project.relative(spec.policy)
+                        if spec.policy is not None
+                        else None,
+                    }
+                )
+                for key, spec in config.tenants.items()
+            },
+            "clients": {
+                key: client.model_copy(
+                    update={
+                        "key": client.key.model_copy(
+                            update={"path": str(project.relative(client.key.path))}
+                        )
+                    }
+                )
+                if client.key.provider == "file" and client.key.path is not None
+                else client
+                for key, client in config.clients.items()
+            },
+        }
+    )
 
 
 @dataclass(frozen=True)
@@ -129,10 +161,11 @@ class Gate:
         root: Path | None = None,
         environ: dict[str, str] | None = None,
         tenants_dir: Path = TENANTS_DIR,
+        project: ProjectContext | None = None,
     ) -> None:
         self.config = config
-        base = root or Path.cwd()
-        env = os.environ if environ is None else environ
+        base = root or (project.root if project is not None else Path.cwd())
+        env = environ if environ is not None else (project.environ if project else os.environ)
         self._keys: dict[str, bytes] = {}
         self.disabled: dict[str, str] = {}
         for name, client in config.clients.items():
@@ -144,7 +177,9 @@ class Gate:
         self.tenants: dict[str, tuple[Tenant, Policy]] = {}
         for tenant_id, spec in config.tenants.items():
             tenant = load_tenant(
-                str(spec.file) if spec.file is not None else tenant_id, root=tenants_dir
+                str(spec.file) if spec.file is not None else tenant_id,
+                root=tenants_dir,
+                project=project,
             )
             if tenant.id != tenant_id:
                 raise ValueError(f"tenant {tenant_id!r} loads a file for tenant {tenant.id!r}")

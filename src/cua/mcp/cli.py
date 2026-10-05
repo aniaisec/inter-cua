@@ -22,8 +22,8 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
     m.add_argument(
         "--root",
         type=Path,
-        help="Run from this directory (the repository): an MCP client may start the server "
-        "anywhere, and every other path here is relative to it",
+        help="Select this project directory: an MCP client may start the server "
+        "anywhere; explicit file arguments remain relative to the invocation directory",
     )
     m.add_argument("--client", default="local-agent", help="Client in the access file")
     m.add_argument("--tenant", default="local", help="One of the client's tenants")
@@ -56,8 +56,8 @@ def main(args: argparse.Namespace) -> int:
     from cua.mcp.server import McpServer
 
     try:
-        config = load_access(args.access)
-        gate = Gate(config)
+        config = load_access(args.access, project=args.project)
+        gate = Gate(config, project=args.project, environ=args.project.environ)
     except (OSError, ValueError) as exc:
         print(f"cua mcp: {exc}", file=sys.stderr)
         return EX_USAGE
@@ -87,7 +87,9 @@ def main(args: argparse.Namespace) -> int:
             runs_dir=args.runs_dir,
             capabilities_dir=args.capabilities_dir,
             operator_url=args.operator_url,
-        )
+            project=args.project,
+        ),
+        environ=args.project.environ,
     )
     server = McpServer(
         service,

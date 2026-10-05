@@ -184,7 +184,9 @@ class McpServer:
 
     def _capabilities(self, caller: Caller) -> list[Capability]:
         """What ``tools/list`` offers, and so all ``tools/call`` will run."""
-        entries, _ = catalog.scan(self.service.settings.capabilities_dir)
+        entries, _ = catalog.scan(
+            self.service.settings.capabilities_dir, project=self.service.settings.project
+        )
         return [
             e.capability
             for e in entries

@@ -46,10 +46,10 @@ def main(args: argparse.Namespace) -> int:
     from cua.api.service import RunService, ServiceSettings
 
     try:
-        config = load_access(args.access)
+        config = load_access(args.access, project=args.project)
         for path in create_keys(config):
             print(f"cua serve: created an API key at {link(path)}", file=sys.stderr)
-        gate = Gate(config)
+        gate = Gate(config, project=args.project, environ=args.project.environ)
     except (OSError, ValueError) as exc:
         print(f"cua serve: {exc}", file=sys.stderr)
         return EX_USAGE
@@ -72,9 +72,11 @@ def main(args: argparse.Namespace) -> int:
             runs_dir=args.runs_dir,
             capabilities_dir=args.capabilities_dir,
             operator_url=args.operator_url,
+            project=args.project,
             workers=args.workers,
             allow_inject=args.allow_inject,
-        )
+        ),
+        environ=args.project.environ,
     )
     print(
         f"cua serve: {link(f'http://{args.host}:{args.port}/docs')} (tenants: "

@@ -80,7 +80,7 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
 def main(args: argparse.Namespace) -> int:
     from cua.registry.store import Registry, RegistryError
 
-    registry = Registry(args.capabilities_dir)
+    registry = Registry(args.capabilities_dir, project=args.project)
     command = args.registry_command
     try:
         if command == "list":

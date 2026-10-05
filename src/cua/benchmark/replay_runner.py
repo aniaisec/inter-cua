@@ -205,6 +205,7 @@ def run_workflow_replay(
             inject=inject,
         ),
         capabilities_dir=capabilities_dir,
+        project=env.project,
         runs_dir=env.runs_dir,
         config=ReplayConfig(),
         environ=env.environ,

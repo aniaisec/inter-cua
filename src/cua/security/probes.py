@@ -132,7 +132,7 @@ def discovery(lab: Lab, sc: Scenario) -> Observed:
     from cua.surface.protocol import Surface
 
     s = sc.setup
-    script = load_script(BENCH / str(s["script"]))
+    script = load_script((lab.project.relative(BENCH) if lab.project else BENCH) / str(s["script"]))
     goal = Goal(
         goal=script.goal or sc.title,
         name="security_probe",
@@ -145,7 +145,10 @@ def discovery(lab: Lab, sc: Scenario) -> Observed:
     log = RunLog.create(lab.runs)
     before = lab.counters()
     # The loop warns on stderr about what it refuses; the run's log keeps it.
-    with contextlib.redirect_stderr(io.StringIO()), PlaywrightSurface.launch() as surface:
+    with (
+        contextlib.redirect_stderr(io.StringIO()),
+        PlaywrightSurface.launch(environ=lab.project.environ if lab.project else None) as surface,
+    ):
         surface.restrict_egress(lab.policy.allowed_origins)
         watched = _Masks(surface)
         outcome = DiscoveryLoop(

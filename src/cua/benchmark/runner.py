@@ -39,6 +39,7 @@ from cua.benchmark.storage import (
 from cua.benchmark.subject import Subject, subject_for, task_version
 from cua.evidence.logger import new_run_id, utc_now
 from cua.observability.cost import PRICING_PATH, PriceTable
+from cua.project import ProjectContext
 
 BENCH_RUNS = Path("bench/runs")
 Progress = Callable[[RunMetrics], None]
@@ -65,6 +66,8 @@ class Plan:
     prices: PriceTable = field(default_factory=PriceTable)
     reports_dir: Path = REPORTS_DIR
     runs_root: Path = BENCH_RUNS
+    project: ProjectContext | None = None
+    pricing_path: Path = PRICING_PATH
 
     def count_for(self, task: BenchmarkTask, strategy: Strategy) -> int:
         """Runs of ``task`` under ``strategy``: the strategy's own override,
@@ -76,13 +79,19 @@ class Plan:
         return count
 
 
-def llm_factory(llm: str, model: str | None) -> Callable[[BenchmarkTask], LLMClient]:
+def llm_factory(
+    llm: str, model: str | None, *, project: ProjectContext | None = None
+) -> Callable[[BenchmarkTask], LLMClient]:
     """A fresh client per run, so no state carries from one invocation to
     the next. ``scripted`` plays the task's script with its inputs filled in."""
 
     def make(task: BenchmarkTask) -> LLMClient:
         if llm != "scripted":
-            return select_client(llm, model)
+            return (
+                select_client(llm, model, environ=project.environ)
+                if project
+                else select_client(llm, model)
+            )
         if task.goal.script is None:
             raise SkipStrategy(f"{task.id} has no script for --llm scripted")
         text = Path(task.goal.script).read_text(encoding="utf-8")
@@ -96,8 +105,11 @@ def llm_factory(llm: str, model: str | None) -> Callable[[BenchmarkTask], LLMCli
 def run_session(plan: Plan, progress: Progress | None = None) -> SessionInfo:
     session_id = "bench_" + new_run_id().removeprefix("run_")
     runs_dir = plan.runs_root / session_id
-    make_llm = llm_factory(plan.llm, plan.model)
-    subjects = {t.id: subject_for(t) for t in plan.tasks}
+    make_llm = llm_factory(plan.llm, plan.model, project=plan.project)
+    subjects = {
+        t.id: subject_for(t, plan.project.path("capabilities")) if plan.project else subject_for(t)
+        for t in plan.tasks
+    }
     asks_model = any(s != "inter_cua_replay" for s in plan.strategies)
     provider, model = _provider(plan) if asks_model else (None, plan.model)
     info = SessionInfo(
@@ -112,24 +124,29 @@ def run_session(plan: Plan, progress: Progress | None = None) -> SessionInfo:
         model=model,
         llm_settings=generation_settings(provider) if provider else {},
         prompt_version=prompt_version() if asks_model else None,
-        app_version=app_version(),
+        app_version=app_version(plan.project.relative("mockapp"))
+        if plan.project
+        else app_version(),
         task_versions={t.id: task_version(t) for t in plan.tasks},
         capability_versions={i: v for i, s in subjects.items() if (v := s.version()) is not None},
-        git_commit=_git("rev-parse", "HEAD"),
-        git_dirty=(_git("status", "--porcelain") or "") != "",
+        git_commit=_git("rev-parse", "HEAD", cwd=plan.project.root if plan.project else None),
+        git_dirty=(
+            _git("status", "--porcelain", cwd=plan.project.root if plan.project else None) or ""
+        )
+        != "",
         python=sys.version.split()[0],
         platform=platform.platform(),
         machine=f"{platform.machine()}, {os.cpu_count()} logical CPUs",
         playwright=_version("playwright"),
         browser=_browser_version(),
-        pricing_sha256=_sha256(PRICING_PATH),
+        pricing_sha256=_sha256(plan.pricing_path),
     )
     append_session(info, plan.reports_dir)
     rows = 0
     answered: set[str] = set()
     notes: list[str] = []
-    with mockapp() as base_url:
-        env = bench_env(base_url, runs_dir)
+    with mockapp(cwd=plan.project.root) if plan.project else mockapp() as base_url:
+        env = bench_env(base_url, runs_dir, project=plan.project)
         for task in plan.tasks:
             subject = subjects[task.id]
             # A task's own environment (a credential the app will reject) is
@@ -194,6 +211,9 @@ def _runs(
                 # A workflow that commits runs only under a key.
                 idempotency_key=key or f"{session_id}-{task.id}-{rep}",
                 commits_earlier=earlier,
+                capabilities_dir=plan.project.path("capabilities")
+                if plan.project
+                else Path("capabilities"),
             )
         elif strategy == "inter_cua_replay":
             assert cap is not None and subject.path is not None
@@ -239,7 +259,11 @@ def _provider(plan: Plan) -> tuple[str, str | None]:
     what was asked rather than how it was spelled."""
     if plan.llm == "scripted":
         return "scripted", None
-    client = select_client(plan.llm, plan.model)
+    client = (
+        select_client(plan.llm, plan.model, environ=plan.project.environ)
+        if plan.project
+        else select_client(plan.llm, plan.model)
+    )
     return client.provider, client.model
 
 
@@ -250,7 +274,16 @@ def _record_capability(row: RunMetrics, env: BenchEnv) -> RunMetrics:
         return row
     out = env.runs_dir / "capabilities" / f"{row.task_id}-{row.repetition}.json"
     try:
-        save(record(Path(row.run_dir), policy=env.policy), out)
+        save(
+            record(
+                Path(row.run_dir),
+                policy=env.policy,
+                families_dir=env.project.path("families")
+                if env.project
+                else Path("capabilities/families"),
+            ),
+            out,
+        )
     except (RecordError, OSError, ValueError) as exc:
         return row.model_copy(update={"detail": f"{row.detail}; not recordable: {exc}"})
     note = f"recorded draft {out.as_posix()}"
@@ -277,10 +310,10 @@ def _version(package: str) -> str | None:
         return None
 
 
-def _git(*args: str) -> str | None:
+def _git(*args: str, cwd: Path | None = None) -> str | None:
     try:
         done = subprocess.run(
-            ["git", *args], capture_output=True, text=True, check=True, timeout=10
+            ["git", *args], cwd=cwd, capture_output=True, text=True, check=True, timeout=10
         )
     except (OSError, subprocess.SubprocessError):
         return None

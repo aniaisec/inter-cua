@@ -61,6 +61,7 @@ from cua.escalation.channel import HandoffSettings
 from cua.escalation.requests import Queue
 from cua.evidence.logger import append_jsonl, new_run_id, utc_now
 from cua.observability.recorder import is_run_dir, read_run
+from cua.project import ProjectContext
 from cua.replay import runner
 from cua.replay.engine import ReplayConfig
 from cua.replay.invocation import ApprovalGrant, Invocation
@@ -80,6 +81,20 @@ class ServiceSettings:
     workers: int = 2
     """Runs executing at once; more wait their turn in state ``running``."""
     allow_inject: bool = False
+    project: ProjectContext | None = None
+
+    def __post_init__(self) -> None:
+        # Workers receive absolute paths even when the library caller used cwd defaults.
+        runs = self.project.relative(self.runs_dir) if self.project else self.runs_dir.resolve()
+        caps = self.capabilities_dir
+        if self.project is not None:
+            caps = (
+                self.project.path("capabilities")
+                if caps == Path("capabilities")
+                else (self.project.relative(caps))
+            )
+        object.__setattr__(self, "runs_dir", runs)
+        object.__setattr__(self, "capabilities_dir", caps.resolve())
 
 
 class RunService:
@@ -99,7 +114,11 @@ class RunService:
         self._replay = replay
         self._resume = resume
         self._check_resume = check_resume
-        self._environ = environ
+        self._environ = (
+            dict(environ)
+            if environ is not None
+            else (dict(settings.project.environ) if settings.project is not None else None)
+        )
         self._pool = ThreadPoolExecutor(max_workers=settings.workers, thread_name_prefix="cua-run")
         self._active: dict[str, Future[None]] = {}
         self._lock = threading.RLock()
@@ -129,7 +148,12 @@ class RunService:
                 400, "inject_not_allowed", "this server was not started with --allow-inject"
             )
         try:
-            path = catalog.find(self.settings.capabilities_dir, body.capability, body.version)
+            path = catalog.find(
+                self.settings.capabilities_dir,
+                body.capability,
+                body.version,
+                project=self.settings.project,
+            )
             cap = open_capability(path).capability
         except catalog.CatalogError as exc:
             raise ApiError(404, "capability_not_found", str(exc)) from None

@@ -20,6 +20,7 @@ from pathlib import Path
 
 from ulid import ULID
 
+from cua.project import ProjectContext
 from cua.security.lab import Lab, make_lab, new_canary
 from cua.security.models import Metrics, Observed, Report, Result, Scenario, Suite
 from cua.security.probes import PROBES
@@ -35,6 +36,7 @@ def run_suite(
     live: bool = True,
     runs_root: Path = RUNS_ROOT,
     progress: Callable[[Result], None] | None = None,
+    project: ProjectContext | None = None,
 ) -> Report:
     from cua.benchmark.environment import mockapp
 
@@ -55,13 +57,15 @@ def run_suite(
 
     for sc in (s for s in chosen if not s.live):
         # A lab each: a tampering scenario edits its copy of the capabilities.
-        record(_one(make_lab(root / "offline" / sc.id, None), sc))
+        record(_one(make_lab(root / "offline" / sc.id, None, project=project), sc))
 
     live_ones = [s for s in chosen if s.live]
     if live_ones and live:
         canary = new_canary()
-        with mockapp(env={"MOCKAPP_OPERATOR_PASSWORD": canary}) as base_url:
-            lab = make_lab(root / "live", base_url, canary=canary)
+        with mockapp(
+            env={"MOCKAPP_OPERATOR_PASSWORD": canary}, cwd=project.root if project else None
+        ) as base_url:
+            lab = make_lab(root / "live", base_url, canary=canary, project=project)
             with ThreadPoolExecutor(max_workers=1) as pool:
                 for sc in live_ones:
                     record(pool.submit(_one, lab, sc).result())

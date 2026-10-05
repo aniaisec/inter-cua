@@ -32,6 +32,7 @@ from typing import Any
 
 from cua.artifact import requirements
 from cua.artifact.schema import Capability, InputSpec
+from cua.project import ProjectContext
 from cua.registry import lifecycle
 from cua.registry.models import Status, Version
 from cua.registry.resolver import Unresolvable, default_version, resolve
@@ -67,11 +68,13 @@ class CatalogError(LookupError):
     """No capability by that name, or no such version of it."""
 
 
-def scan(directory: Path) -> tuple[list[Entry], list[Unreadable]]:
+def scan(
+    directory: Path, *, project: ProjectContext | None = None
+) -> tuple[list[Entry], list[Unreadable]]:
     """One entry per capability in the registry at ``directory``: the version
     a call by name would run (``cua.registry.resolver``). The catalog is a
     view of the registry, never a second list of what exists."""
-    registry = Registry(directory)
+    registry = Registry(directory, project=project)
     by_name: dict[str, list[Version]] = {}
     for v in registry.all_versions():
         by_name.setdefault(v.record.name, []).append(v)
@@ -83,10 +86,12 @@ def scan(directory: Path) -> tuple[list[Entry], list[Unreadable]]:
     return entries, registry.unreadable
 
 
-def find(directory: Path, name: str, version: int | None = None) -> Path:
+def find(
+    directory: Path, name: str, version: int | None = None, *, project: ProjectContext | None = None
+) -> Path:
     """The file holding the version of ``name`` a call would run."""
     try:
-        return resolve(Registry(directory), name, version).path
+        return resolve(Registry(directory, project=project), name, version).path
     except Unresolvable as exc:
         raise CatalogError(str(exc)) from None
 

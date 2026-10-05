@@ -82,7 +82,13 @@ def _cap_version(cap: Capability) -> str:
 def task_version(task: BenchmarkTask) -> str:
     """A fingerprint of the task as run: goal, inputs, conditions and truth.
     Editing any of them is a new task, even under the same id."""
-    canonical = json.dumps(task.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+    definition = task.model_dump(mode="json")
+    # Execution paths are absolute, but relocation alone is not a task change.
+    for name, (resolved, declared) in task._declared_paths.items():
+        owner = definition["goal"] if name == "script" else definition
+        if owner.get(name) == resolved:
+            owner[name] = declared
+    canonical = json.dumps(definition, sort_keys=True, separators=(",", ":"))
     return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12]
 
 

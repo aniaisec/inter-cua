@@ -145,7 +145,7 @@ def _known(args: argparse.Namespace) -> Any:
 
     known = Known()
     try:
-        for v in Registry(args.capabilities_dir).all_versions():
+        for v in Registry(args.capabilities_dir, project=args.project).all_versions():
             known.add(v.capability)
     except RegistryError as exc:
         print(f"cua drift: registry not read ({exc}); classifying from the logs", file=sys.stderr)
@@ -228,18 +228,22 @@ def _propose(args: argparse.Namespace) -> int:
     from cua.policy.allowlist import load_policy
     from cua.tenant import load_tenant
 
-    run_dir = locate_run(args.run, [*_roots(args), Path("evidence/runs")])
+    run_dir = locate_run(args.run, [*_roots(args), args.project.path("runs")])
     if run_dir is None:
         print(f"cua drift propose: no run {args.run!r} found", file=sys.stderr)
         return EX_USAGE
     try:
-        tenant = load_tenant(args.tenant)
+        tenant = load_tenant(args.tenant, project=args.project)
         policy = load_policy(args.policy or tenant.policy_file, tenant)
     except (OSError, ValueError) as exc:
         print(f"cua drift propose: {exc}", file=sys.stderr)
         return EX_USAGE
     candidate, new = propose(
-        run_dir, capabilities_dir=args.capabilities_dir, policy=policy, step=args.step
+        run_dir,
+        capabilities_dir=args.capabilities_dir,
+        policy=policy,
+        step=args.step,
+        state_dir=args.project.path("state"),
     )
     r = candidate.record
     if args.json:
@@ -285,6 +289,7 @@ def _evaluate(args: argparse.Namespace) -> int:
             task_ids=args.task,
             repetitions=args.repetitions,
             runs_root=args.runs_root,
+            project=args.project,
             progress=progress,
         )
     except SuiteError as exc:
@@ -385,7 +390,7 @@ def _registered(args: argparse.Namespace) -> dict[tuple[str, int], tuple[str, st
     try:
         return {
             (v.record.name, v.record.version): (v.status, v.record.artifact_hash)
-            for v in Registry(args.capabilities_dir).all_versions()
+            for v in Registry(args.capabilities_dir, project=args.project).all_versions()
         }
     except RegistryError:
         return {}

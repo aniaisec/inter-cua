@@ -25,6 +25,7 @@ EX_USAGE = 64
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cua", description=__doc__)
+    parser.add_argument("--root", type=Path, dest="project_root", help="Select a project directory")
     sub = parser.add_subparsers(dest="command", required=True)
 
     mockapp = sub.add_parser("mockapp", help="Run the mock legacy target app")
@@ -139,6 +140,7 @@ def _add_discover(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> N
         default=Path("capabilities"),
         help="Where a run that reaches done is recorded, as <name>.json (draft)",
     )
+    d.add_argument("--families-dir", type=Path, default=Path("capabilities/families"))
     d.add_argument("--no-record", action="store_true", help="Keep the run; record nothing")
 
 
@@ -401,7 +403,21 @@ def _add_artifact_commands(sub: argparse._SubParsersAction[argparse.ArgumentPars
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
-    args = parser.parse_args(argv)
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    args = parser.parse_args(arguments)
+    from cua.project import ProjectContext, bind_cli
+
+    try:
+        global_root = args.project_root
+        mcp_root = getattr(args, "root", None)
+        if global_root is not None and mcp_root is not None:
+            if global_root.resolve() != mcp_root.resolve():
+                raise ValueError("contradictory global --root and mcp --root")
+        args.project = ProjectContext.resolve(global_root if global_root is not None else mcp_root)
+        bind_cli(parser, args, arguments)
+    except (OSError, ValueError) as exc:
+        print(f"cua: {exc}", file=sys.stderr)
+        return EX_USAGE
 
     if args.command == "mockapp":
         import uvicorn
@@ -410,13 +426,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "discover":
-        load_dotenv(Path(".env"))
         return _discover(args)
     if args.command == "replay":
-        load_dotenv(Path(".env"))
         return _replay(args)
     if args.command == "resume":
-        load_dotenv(Path(".env"))
         return _resume(args)
     if args.command == "operator":
         return _operator(args)
@@ -429,10 +442,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "approve":
         return _approve(args)
     if args.command == "approval-token":
-        load_dotenv(Path(".env"))
         return _approval_token(args)
     if args.command == "benchmark":
-        load_dotenv(Path(".env"))
         from cua.benchmark.cli import main as benchmark
 
         return benchmark(args)
@@ -445,7 +456,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         return registry(args)
     if args.command == "drift":
-        load_dotenv(Path(".env"))
         from cua.drift.cli import main as drift
 
         return drift(args)
@@ -454,25 +464,19 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         return security(args)
     if args.command == "workflow":
-        load_dotenv(Path(".env"))
         from cua.workflow.cli import main as workflow
 
         return workflow(args)
     if args.command == "mcp":
-        if args.root is not None:
-            os.chdir(args.root)
-        load_dotenv(Path(".env"))
         from cua.mcp.cli import main as mcp
 
         return mcp(args)
     if args.command == "serve":
-        load_dotenv(Path(".env"))
         from cua.api.cli import main as serve
 
         return serve(args)
     if args.command == "catalog":
         if args.catalog_command == "invoke":
-            load_dotenv(Path(".env"))
             return _catalog_invoke(args)
         return _catalog_list(args)
 
@@ -500,7 +504,7 @@ def _discover(args: argparse.Namespace) -> int:
     from cua.tenant import SYSTEM_SECRET_PREFIX, load_tenant
 
     try:
-        tenant = load_tenant(args.tenant)
+        tenant = load_tenant(args.tenant, project=args.project)
         credentials_spec = dict(parse_credential(c) for c in args.credential)
         if not credentials_spec and len(tenant.app_secrets) == 1:
             (key,) = tenant.app_secrets
@@ -516,9 +520,16 @@ def _discover(args: argparse.Namespace) -> int:
             outputs=[parse_output(o) for o in args.output],
             credentials=credentials_spec,
         )
-        credentials = {name: resolve(ref, tenant) for name, ref in credentials_spec.items()}
+        credentials = {
+            name: resolve(ref, tenant, environ=args.project.environ)
+            for name, ref in credentials_spec.items()
+        }
         args.policy = args.policy or tenant.policy_file
         policy = load_policy(args.policy, tenant)
+        if not args.no_record:
+            from cua.artifact.recorder import load_family
+
+            load_family(tenant.app_family, args.families_dir)
     except (SpecError, SecretError, OSError, ValueError) as exc:
         print(f"cua discover: {exc}", file=sys.stderr)
         return EX_USAGE
@@ -531,7 +542,7 @@ def _discover(args: argparse.Namespace) -> int:
         llm = ScriptedClient(load_script(args.script))
     else:
         try:
-            llm = select_client(args.llm, args.model)
+            llm = select_client(args.llm, args.model, environ=args.project.environ)
         except NoProviderError as exc:
             print(f"cua discover: {exc}", file=sys.stderr)
             return EX_USAGE
@@ -563,7 +574,7 @@ def _discover(args: argparse.Namespace) -> int:
 
         opened: AbstractContextManager[Surface] = WindowsSurface.launch(tenant)
     else:
-        opened = PlaywrightSurface.launch(headed=args.headed or None)
+        opened = PlaywrightSurface.launch(headed=args.headed or None, environ=args.project.environ)
     log = RunLog.create(args.runs_dir)
     print(
         f"cua discover: run {log.run_id} ({llm.provider}: {llm.model}) -> {link(log.dir)}",
@@ -644,7 +655,7 @@ def _discover(args: argparse.Namespace) -> int:
 
         out = args.capabilities_dir / f"{goal.name}.json"
         try:
-            _record_run(log.dir, out, args.policy)
+            _record_run(log.dir, out, args.policy, args.families_dir)
             summary["capability"] = out.as_posix()
         except RecordError as exc:
             print(f"cua discover: the run could not be recorded: {exc}", file=sys.stderr)
@@ -690,7 +701,7 @@ def _invoke(
 
     request = request or {}
     try:
-        tenant = load_tenant(tenant_id)
+        tenant = load_tenant(tenant_id, project=args.project)
         policy = load_policy(args.policy or tenant.policy_file, tenant)
         budget = Budget.model_validate(
             {
@@ -717,6 +728,7 @@ def _invoke(
             policy=policy,
             invocation=invocation,
             runs_dir=args.runs_dir,
+            environ=args.project.environ,
             allow_draft=allow_draft,
             config=ReplayConfig(
                 step_timeout_s=args.step_timeout,
@@ -741,7 +753,7 @@ def _invoke(
 def _catalog_list(args: argparse.Namespace) -> int:
     from cua import catalog
 
-    entries, broken = catalog.scan(args.capabilities_dir)
+    entries, broken = catalog.scan(args.capabilities_dir, project=args.project)
     for b in broken:
         print(f"cua catalog: skipped {b.path.as_posix()}: {b.error}", file=sys.stderr)
     if args.json:
@@ -801,7 +813,7 @@ def _catalog_invoke(args: argparse.Namespace) -> int:
         name = args.name or asked
         if not name:
             raise ValueError("name the capability to invoke (or give one in the request)")
-        path = catalog.find(args.capabilities_dir, name, args.version)
+        path = catalog.find(args.capabilities_dir, name, args.version, project=args.project)
         cap = open_capability(path).capability
         arguments: dict[str, Any] = dict(request.get("inputs", {}))
         if args.args is not None:
@@ -822,7 +834,7 @@ def _catalog_invoke(args: argparse.Namespace) -> int:
         "catalog invoke",
         args,
         path,
-        tenant_id=args.tenant or request.get("tenant") or "local",
+        tenant_id=args.tenant or request.get("tenant") or args.project.config.default_tenant,
         inputs=inputs,
         request=request,
     )
@@ -852,6 +864,7 @@ def _resume(args: argparse.Namespace) -> int:
     try:
         result = resume(
             args.resume_token,
+            environ=args.project.environ,
             runs_dir=args.runs_dir,
             by=args.by,
             resume_at=args.resume_at,
@@ -881,7 +894,7 @@ def _operator(args: argparse.Namespace) -> int:
     from cua.tenant import load_tenant
 
     try:
-        tenant = load_tenant(args.tenant)
+        tenant = load_tenant(args.tenant, project=args.project)
         policy = load_policy(args.policy or tenant.policy_file, tenant)
     except (OSError, ValueError) as exc:
         print(f"cua operator: {exc}", file=sys.stderr)
@@ -939,7 +952,7 @@ def _record(args: argparse.Namespace) -> int:
     if out is None:
         try:
             run = json.loads((args.run_dir / "run.json").read_text(encoding="utf-8"))
-            out = Path("capabilities") / f"{run['goal']['name']}.json"
+            out = args.project.path("capabilities") / f"{run['goal']['name']}.json"
         except (OSError, KeyError, ValueError) as exc:
             print(
                 f"cua record: {args.run_dir.as_posix()} is not a discovery run: {exc}",
@@ -990,7 +1003,7 @@ def _surfaces(args: argparse.Namespace) -> int:
     for d in adapters.values():
         print(f"{d.name}  v{d.version}  drives {', '.join(d.targets)}")
         print(f"    features: {', '.join(ordered(d.features))}")
-    entries, broken = catalog.scan(args.capabilities_dir)
+    entries, broken = catalog.scan(args.capabilities_dir, project=args.project)
     for b in broken:
         print(f"cua surfaces: skipped {b.path.as_posix()}: {b.error}", file=sys.stderr)
     if entries:
@@ -1029,7 +1042,7 @@ def _approval_token(args: argparse.Namespace) -> int:
     from cua.tenant import load_tenant
 
     try:
-        tenant = load_tenant(args.tenant)
+        tenant = load_tenant(args.tenant, project=args.project)
         cap = open_capability(args.capability).capability
         inputs = dict(_pair(i, "--input") for i in args.input)
         problems = validate_inputs(cap, inputs)
@@ -1043,7 +1056,7 @@ def _approval_token(args: argparse.Namespace) -> int:
             tenant,
             inputs,
             approved_by=args.by,
-            key=tokens.signing_key(tenant),
+            key=tokens.signing_key(tenant, environ=args.project.environ),
             ttl_s=args.ttl_s,
         )
     except (ArtifactError, SecretError, tokens.TokenRefused, OSError, ValueError) as exc:

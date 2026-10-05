@@ -155,7 +155,9 @@ screenshots, the observed screen text. An `escalated` answer adds
 `resume_token` and `required_action`, which says what has to happen and which
 run tool carries the run on.
 
-Configure your MCP client's stdio server with an absolute command and root.
+Configure your MCP client's stdio server with an absolute command and project root.
+`cua --root DIR mcp` also works. Explicit file overrides are relative to the
+client's invocation directory, so use absolute overrides when needed.
 Substitute the actual checkout path; spaces are allowed inside each argument.
 A generic Windows configuration is:
 

@@ -97,7 +97,9 @@ def main(args: argparse.Namespace) -> int:
     from cua.benchmark.registry import SuiteError, load_suite, select
 
     try:
-        suite = load_suite(args.suite)
+        suite = load_suite(
+            args.suite, root=args.project.relative("bench/tasks"), project=args.project
+        )
     except SuiteError as exc:
         print(f"cua benchmark: {exc}", file=sys.stderr)
         return EX_USAGE
@@ -131,7 +133,7 @@ def main(args: argparse.Namespace) -> int:
         from cua.agent.llm import NoProviderError, select_client
 
         try:
-            select_client(args.llm, args.model)
+            select_client(args.llm, args.model, environ=args.project.environ)
         except NoProviderError as exc:
             print(f"cua benchmark: {exc}", file=sys.stderr)
             return EX_USAGE
@@ -154,6 +156,9 @@ def main(args: argparse.Namespace) -> int:
         discovery_repetitions=args.discovery_repetitions,
         prices=load_prices(args.pricing),
         reports_dir=args.reports_dir,
+        runs_root=args.project.relative("bench/runs"),
+        project=args.project,
+        pricing_path=args.pricing,
     )
     info = run_session(plan, progress=_progress)
     for note in info.notes:

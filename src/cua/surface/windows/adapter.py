@@ -279,7 +279,11 @@ class WindowsSurface:
             command += [self._app.inject_flag, inject]
         self.close()  # a fresh session, as a web run starts from the sign-on page
         self._process = subprocess.Popen(
-            command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
+            command,
+            cwd=self._app.cwd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
         )
         self._observation, self._handles = None, {}
         deadline = time.monotonic() + START_TIMEOUT_S

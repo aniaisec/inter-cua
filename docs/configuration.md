@@ -1,29 +1,66 @@
 # Configuration, paths and secrets
 
-Run CLI and HTTP commands from the repository root. There is currently no `cua.toml`,
-ancestor project discovery, `cua init`, or `cua doctor`. These are planned work.
-Only MCP currently supports `cua mcp --root DIR`; it changes the process working
-directory before loading `.env` and configuration.
+CLI commands select the nearest ancestor containing `cua.toml`. Use global
+`cua --root DIR <command>` to select a project from an unrelated directory.
+MCP also accepts `cua mcp --root DIR`; conflicting global and MCP roots are
+refused. A directory without `cua.toml` retains the existing cwd defaults;
+an explicit root without a config uses those defaults under that root.
+An invalid root or configuration fails before application interaction.
+`cua init` and `cua doctor` remain planned work.
 
-## File lookup
+## Project file and lookup
 
-| Setting | Current default / resolution |
-|---|---|
-| Tenant | `--tenant local` reads `tenants/local.yaml`; a path can select a file |
-| Policy | Explicit `--policy`, else tenant `policy`, else `policies/default.yaml` |
-| Family template | `capabilities/families/<app_family>.yaml` during discovery recording |
-| Working capabilities | `capabilities/`; named invocation selects a registered approved version |
-| Registered versions | `capabilities/registry/` with lifecycle ledger |
-| Discovery / replay evidence | `evidence/runs/`, overridden by `--runs-dir` where exposed |
-| HTTP/MCP authorization | `api/access.yaml`, overridden by `--access` |
-| Review receipts and local keys | `.cua/` |
-| Workflows | `workflows/` |
+All fields except `version` are optional. Version 1 accepts these settings:
 
-Relative policy, secret-file, desktop launch, and explicit CLI paths are relative
-to the current working directory, not the tenant file's directory. Changing cwd
-can change which files are loaded. Use absolute paths where a flag supports them,
-or launch from the root; `--tenant /path/file.yaml` does not relocate the rest of
-the project. For MCP, resolve these paths relative to its `--root`.
+```toml
+version = 1
+default_tenant = "local"
+
+[paths]
+tenants = "tenants"
+capabilities = "capabilities"
+families = "capabilities/families"
+workflows = "workflows"
+runs = "evidence/runs"
+state = ".cua"
+access = "api/access.yaml"
+```
+
+Configured relative paths resolve against the selected project root; absolute
+paths remain absolute. Unknown fields and unsupported versions are refused.
+Named tenant, capability and workflow lookups use the configured directories.
+Registry versions live below the capability directory in `registry/`; review
+receipts live below `state` in `reviews/`. Schema output follows the configured
+capability directory. Discovery checks `families/<app_family>.yaml` before any
+model or application work when recording is enabled. `--families-dir` overrides
+that directory; `--no-record` allows discovery without a family template.
+
+**Explicit CLI file paths remain relative to the invocation directory.** This
+includes `--policy`, `--access`, `--runs-dir`, directory overrides, positional
+capability files and workflow files. Use a capability name (for example
+`cua --root DIR replay member_savings_balance`) for configured lookup; use an
+absolute file path to select a particular file from anywhere. Spaces in paths
+work when the shell argument is quoted.
+
+Tenant policy and secret-file references, access-file tenant/policy/key
+references, and desktop launch paths remain project-relative, regardless of
+where their configuration file is stored. A `--tenant /path/file.yaml` selects
+that file without relocating its policy or secrets. Desktop child processes
+start with the selected project as their working directory. The runtime
+captures absolute paths before dispatching workers and does not change the
+parent process's cwd.
+
+For example, both commands select the same project:
+
+```powershell
+cua --root "C:\work\my project" catalog --json
+cua mcp --root "C:\work\my project"
+```
+
+```sh
+cua --root "/work/my project" catalog --json
+cua mcp --root "/work/my project"
+```
 
 ## Tenant binding
 
@@ -36,8 +73,10 @@ See [local tenant](../tenants/local.yaml) and [desktop tenant](../tenants/desk.y
 
 ## Environment precedence
 
-Commands that use credentials load `.env` from the current working directory.
-Process environment values win; non-empty `.env` values fill only absent keys.
+Project selection reads `.env` only from the selected root into an invocation
+environment snapshot. Process environment values win; non-empty `.env` values
+fill only absent keys. Loading one project does not mutate the process environment
+or carry its `.env` values into another project or service.
 The loader accepts simple `KEY=VALUE` lines, comments and surrounding quotes,
 not shell expansion. Copy [.env.example](../.env.example) only if `.env` does not
 already exist, then edit locally; it is gitignored.

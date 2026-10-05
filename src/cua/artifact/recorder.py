@@ -206,7 +206,10 @@ def load_family(app_family: str, root: Path = FAMILIES_DIR) -> FamilyTemplate:
             f"no template for app family {app_family!r} at {path.as_posix()}; "
             "a capability without one would have no outcome detectors"
         )
-    return FamilyTemplate.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
+    try:
+        return FamilyTemplate.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
+    except yaml.YAMLError as exc:
+        raise RecordError(f"invalid family template at {path}: {exc}") from exc
 
 
 class _Run:
