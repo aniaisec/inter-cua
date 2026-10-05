@@ -1191,7 +1191,7 @@ Status: IMPLEMENTED — GitHub-hosted Linux verification pending
 - Hosted Linux/Python 3.11 passed both mypy targets. Its newly reached non-GUI suite found one test assuming desktop capabilities are invocable on Linux (823 passed). Corrected that assertion to reflect platform availability and additionally check tenant scope with `?all=true`; all 33 API unit tests pass on Windows and Ubuntu.
 
 
-## Adoption P03 � project configuration and path resolution
+## Adoption P03 — project configuration and path resolution
 
 Implemented October 4, 2026.
 
