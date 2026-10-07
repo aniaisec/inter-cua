@@ -1,0 +1,37 @@
+# What automation may do on a DeskCalc deployment (tenants/desk.yaml): the
+# same policy engine as the web, checked before every action by discovery and
+# replay alike. Only the data differs.
+#
+# A desktop location is uia://<app>/<window title>, so a "path" here is the
+# window title: /DeskCalc is the main window, and nothing else is allowed.
+
+allowed_origins:
+  - "{tenant.base_url}"
+
+allowed_paths:
+  - "^/DeskCalc$"
+
+allowed_actions: [click, type, press, read, select]
+blocked_actions: [download, external_navigation]
+
+# Record appends the result to the ledger: the commit. It needs an approval
+# (a per-invocation token, else a human), exactly as Confirm does on the web.
+risky_rules:
+  - id: record_entry
+    role: button
+    name: "^Record$"
+    location: "/DeskCalc$"  # searched in the whole location, uia://deskcalc/DeskCalc
+    reason: appends an entry to the ledger
+
+# DeskCalc has no sign-on: no credential may be typed anywhere.
+credential_paths: []
+
+sensitive_labels: "(?i)password|passcode|\\bpin\\b|ssn|social security"
+
+# As on the web, and with the same stated cost: a result of 9-16 digits is
+# scrubbed as if it were an account number.
+scrub_patterns:
+  - id: ssn
+    pattern: "(?<![0-9])[0-9]{3}-[0-9]{2}-[0-9]{4}(?![0-9])"
+  - id: long_number
+    pattern: "(?<![0-9A-Za-z-])(?:[0-9]{9,16}|[0-9]{4}(?:[ -][0-9]{4}){2,3})(?![0-9A-Za-z])"

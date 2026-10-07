@@ -1,6 +1,7 @@
 # Reproducible demo (Phase 18)
 
-Run from the repository root with the package and Chromium installed. The runner
+With the package and Chromium installed, `cua demo --repetitions 3` runs from any
+directory, including a non-editable wheel installation. The runner
 starts its own mock app and operator console on free ports; it never stops an
 existing service or replaces the repository's capabilities or curated evidence.
 
@@ -20,6 +21,11 @@ uses the same runner, with `ARGS` forwarded. Without `--out`, each invocation
 creates a new `demo/demo_<session-id>/`. An explicitly named directory must
 not exist: the runner refuses to overwrite it. Use a different name to rerun.
 The default 100 replay demonstration can take 10–20 minutes depending on load.
+The `cua demo` command defaults to two replays; the compatibility script above
+retains its 100-replay default. Starter files come from `cua.resources`, also
+used by `cua init PATH --template demo`. No repository keys, approval receipts,
+or checkout paths are copied; synthetic capability approval happens explicitly
+inside each session.
 
 ## What runs
 

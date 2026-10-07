@@ -1248,3 +1248,50 @@ Verification on Windows / Python 3.14.5:
 - Selected browser regressions: 16 passed, 1 deselected, including the project
   path scenario, discovery, demo, workflows, drift, HTTP, MCP and security.
   Live Windows UIA and hosted Linux CI remain outside local verification.
+
+## Adoption P04 - packaged resources and initialization
+
+Implemented October 6, 2026.
+
+- Added `cua init PATH --template demo|web|windows` with a non-writing dry run,
+  complete destination preflight, exclusive creation, rollback on write failure,
+  refusal of symlink destinations, and unique private project signing keys.
+  Existing edits and secret files are never overwritten.
+- Starter TOML, YAML, JSON, scripts, environment examples, ignore files and guides
+  live under `src/cua/resources/templates`, read through `importlib.resources`.
+  Demo capabilities are drafts; no signing keys or review receipts are packaged.
+- Inventoried demo inputs: two synthetic capability drafts, legacy-core family,
+  local tenant and policy, discovery scripts, and the external-link security
+  scenario/script. Mock-app HTML remains in the packaged `mockapp/templates`;
+  operator, evidence, reporting and security implementation remain Python modules.
+- Replaced checkout copying and injected checkout PYTHONPATH in demo setup with
+  the same initializer/resource source. Added `cua demo` (two default replays),
+  retained compatibility scripts, and explicitly reviewed/approved the synthetic
+  committing capability within each demo session.
+- Added a clean installed-wheel CI job and resource-content gate covering dotfiles,
+  YAML, JSON/schema, mock HTML and the Windows app script. The gate initializes
+  all templates and runs the complete demo outside the checkout with PYTHONPATH
+  removed and a non-editable package in a fresh virtual environment.
+- Verification: full non-browser suite 898 passed, 1 skipped, 118 deselected;
+  final initializer regressions 13 passed, 1 skipped (Windows symlink privilege).
+  Existing seven-stage browser demo passed. Fresh installed-wheel checks passed,
+  including all three templates, mock HTML, and the full browser demo with zero
+  replay model calls and exactly one consented commit. Ruff lint/format and
+  Linux/Windows mypy pass (149 source files).
+- Browser and mock-server subprocess verification required execution outside
+  the session sandbox. Live Windows UIA and the newly added hosted CI job have
+  not been executed in this phase.
+
+### P04 review and commit verification
+
+- Fixed initialization of destinations containing parent segments: a path such
+  as `unused/../project` now normalizes without creating unused directories,
+  while symlink ancestors are still refused before normalization. Added a
+  regression test and corrected packaged template command comments.
+- Final full non-browser suite: 900 passed, 1 skipped, 118 deselected. The skip
+  requires Windows symlink privileges; final initializer suite: 14 passed,
+  1 skipped. Ruff lint/format, strict Linux/Windows mypy and diff checks pass.
+- Rebuilt the final wheel and installed it non-editably into a fresh environment.
+  With PYTHONPATH removed and cwd outside the checkout, all three initializer
+  templates, mock HTML and the complete seven-stage browser demo passed. Replay
+  used zero model calls and the demo made exactly one consented commit.

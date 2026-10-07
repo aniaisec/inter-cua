@@ -1,0 +1,8 @@
+tenants:
+  local: {}
+clients:
+  local-agent:
+    key: {provider: file, path: .cua/api-keys/local-agent.key}
+    tenants: [local]
+    capabilities: ["*"]
+    scopes: [read, invoke, approve, operate]

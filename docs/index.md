@@ -26,7 +26,7 @@ Start with the [README first-run sequence](../README.md) and [getting started](g
 [REPORT](../REPORT.md), [phase history](IMPLEMENTATION_PROGRESS.md) and
 [baseline](baseline/TEST_BASELINE.md) record earlier decisions and verification.
 They are historical snapshots, not current setup instructions. Project
-configuration, initialization, diagnostics and service hardening are planned
-extensions; only landed commands should be assumed available.
+configuration and initialization are implemented. Diagnostics and further
+service hardening remain planned; only landed commands should be assumed available.
 
 [Project README](../README.md)

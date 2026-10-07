@@ -1,0 +1,72 @@
+# What automation may do on a tenant's deployment. Checked before every
+# action, by the discovery loop and by replay alike.
+#
+# {tenant.base_url} is filled in from tenants/<id>.yaml, so one policy serves
+# every tenant running the same app family.
+
+allowed_origins:
+  - "{tenant.base_url}"
+
+# Screens automation may act on, and places a link may take it: regexes
+# searched in the URL path. Anything else on the tenant (an admin console, the
+# mock app's /_debug) is as off limits as another origin.
+allowed_paths:
+  - "^/$"
+  - "^/(login|logoff|notice|nav|search|directory)$"
+  - "^/(member|subaccount|review)/[0-9]+$"
+  - "^/member/[0-9]+/documents$"
+
+allowed_actions: [click, type, press, read, select]
+
+# Never, whoever asks: a link to another origin, and a link that fetches a
+# file. Judged from the link's destination before it is clicked.
+blocked_actions: [download, external_navigation]
+download_pattern: "(?i)\\.(csv|pdf|xlsx?|docx?|zip|exe|msi|dmg)$"
+
+# An action that commits something on the core system. Matching one does not
+# block the action: it needs an approval (a per-invocation token, else a human).
+risky_rules:
+  - id: commit_on_review
+    role: button
+    name: "^(Confirm|Submit|Approve|Transfer|Post|Delete)$"
+    location: "/review/"
+    reason: commits a change on the core system of record
+
+# Where a credential may be typed: the sign-on screen only. A password (a
+# credential field named like sensitive_labels) goes only into a field
+# labelled like one. A screen that asks for the password again anywhere else
+# is refused before the value is substituted.
+credential_paths:
+  - "^/login$"
+
+# Painted out by the screenshot call itself, before the image exists.
+screenshot_masks:
+  - [{strategy: near_text, text: Password, role: textbox}]
+
+# A control labelled like this has its value replaced with *** in every
+# observation the model or the log sees.
+sensitive_labels: "(?i)password|passcode|\\bpin\\b|ssn|social security"
+
+# Text shaped like personal data is replaced with *** wherever it appears: in
+# what the model is shown, in every log line, tree and result, and in a kept
+# trace. Shape, not context, so it holds on screens nobody anticipated. The
+# cost is stated, not hidden: a capability that must return a 9-16 digit
+# account number cannot run under this policy until the policy says so.
+scrub_patterns:
+  - id: ssn
+    pattern: "(?<![0-9])[0-9]{3}-[0-9]{2}-[0-9]{4}(?![0-9])"
+  - id: long_number
+    # A run of 9-16 digits (account numbers), or a card number in groups of
+    # four. Not part of a longer token, so ULIDs, hashes and dates are left
+    # alone.
+    pattern: "(?<![0-9A-Za-z-])(?:[0-9]{9,16}|[0-9]{4}(?:[ -][0-9]{4}){2,3})(?![0-9A-Za-z])"
+
+# The vision fallback (cua replay --vision): when every rung of a click's
+# ladder misses, look for the control's recorded picture on a masked
+# screenshot. Only one clear match on a safe step, clear of every mask, where
+# the tree has no other control and no risky rule covers the screen, is
+# clicked; anything else is escalated. Both this and --vision must be on.
+vision:
+  allowed: true
+  min_confidence: 0.97
+  min_margin: 0.1

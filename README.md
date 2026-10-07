@@ -33,8 +33,8 @@ future extensions. See [platform support and limitations](docs/platforms.md).
 
 ## Installation and no-key demo
 
-Use Python 3.11 or newer and run these commands in a checkout. The demo currently
-uses repository resources. Playwright's Chromium binary is installed separately
+Use Python 3.11 or newer. The demo uses packaged resources and also runs from a
+non-editable wheel outside the checkout. Playwright's Chromium binary is installed separately
 from the Python package. The short demo starts its own services and runs all seven
 stages with three independent replays; no provider key or `.env` setup is needed.
 
@@ -46,7 +46,7 @@ Set-Location inter-cua
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 .\.venv\Scripts\python.exe -m playwright install chromium
-.\.venv\Scripts\python.exe scripts/demo/run_demo.py --repetitions 3
+.\.venv\Scripts\python.exe -m cua.cli demo --repetitions 3
 ```
 
 POSIX shell (Linux/macOS browser environment):
@@ -57,7 +57,7 @@ cd inter-cua
 python3 -m venv .venv
 .venv/bin/python -m pip install -e ".[dev]"
 .venv/bin/python -m playwright install chromium
-.venv/bin/python scripts/demo/run_demo.py --repetitions 3
+.venv/bin/python -m cua.cli demo --repetitions 3
 ```
 
 On Debian/Ubuntu, install the matching Python venv package if `python3 -m venv`
@@ -68,6 +68,17 @@ install OS packages. For later CLI examples, activate with
 `.\.venv\Scripts\Activate.ps1` in PowerShell or `. .venv/bin/activate` in POSIX.
 If PowerShell activation is restricted, use the environment's executable directly,
 for example `.\.venv\Scripts\python.exe -m cua.cli --help`.
+
+To create an editable project after installation, run
+`cua init my-project --template demo`, then read `my-project/README.md`.
+The `web` and `windows` templates provide application-specific starting
+configuration. Add `--dry-run` to preview files without writing. Existing files
+are refused; no capability is automatically approved.
+
+For a non-editable installation, build a wheel in the checkout with
+`python -m pip wheel --no-deps --wheel-dir dist .`, then install the resulting
+wheel into a fresh virtual environment. Run `cua init` or `cua demo` from any
+directory; the package supplies starter YAML/JSON, scripts, and mock HTML.
 
 A successful run writes `summary.md`, `summary.json`, a masked command manifest and
 evidence under a fresh `demo/demo_<session-id>/`. Expect three successful replays,

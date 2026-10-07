@@ -1,0 +1,39 @@
+# Scripted discovery for goal 1, for `cua discover --llm scripted`.
+#
+# The same tool calls a model makes, with each target named by locator ladder
+# instead of by ref (refs are renumbered on every screen). Every discovery run
+# exports one of these as script.yaml in its run directory; this one follows
+# the path an operator takes by hand.
+#
+#   cua discover --llm scripted --script scripts/discovery/member_savings_balance.yaml \
+#     --goal "Look up a member by id and return the current savings balance" \
+#     --name member_savings_balance --entry /login \
+#     --param member_id:string=10003 \
+#     --output savings_balance:decimal --output "member_name:string?"
+goal: Look up a member by id and return the current savings balance
+steps:
+  - tool: type
+    target: [{strategy: near_text, text: User ID, role: textbox}]
+    text: ${credentials.app_login.username}
+    reason: The sign-on screen asks for a user id first.
+  - tool: type
+    target: [{strategy: near_text, text: Password, role: textbox}]
+    text: ${credentials.app_login.password}
+    reason: Then the password.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Sign On}]
+    reason: Submit the sign-on form.
+  - tool: type
+    target: [{strategy: near_text, text: Member ID, role: textbox, within: {frame: main}}]
+    text: "10003"
+    reason: Member Search takes the five digit member id.
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Search, within: {frame: main}}]
+    reason: Run the search.
+  - tool: done
+    outputs:
+      savings_balance:
+        - {strategy: table_cell, row_contains: Savings, column_header: Balance, within: {frame: main}}
+      member_name:
+        - {strategy: near_text, text: Name, role: cell, within: {frame: main}}
+    reason: The member detail screen shows the Savings row of the Balances table.
