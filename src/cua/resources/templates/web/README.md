@@ -16,6 +16,7 @@ Your next command, after those edits (replace the goal and output with your app)
 
 ```sh
 python -m playwright install chromium
+cua doctor --tenant local --probe-browser
 cua discover --goal "Look up an item" --name lookup --entry /login --output result:string
 cua describe lookup
 cua approve lookup --by YOUR_NAME

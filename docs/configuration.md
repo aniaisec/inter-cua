@@ -10,7 +10,11 @@ Create an editable project with `cua init PATH --template demo|web|windows`.
 `--dry-run` lists files without writing or generating a signing key. Existing
 files and symlink destinations are refused; repeated initialization preserves
 edits and secrets. Each template includes a guide with its next command.
-`cua doctor` remains planned work.
+`cua doctor --tenant local` checks the selected project's local prerequisites.
+Use `--json` for a machine report, `--probe-browser` for a local launch check,
+and `--probe-app` for an unauthenticated HEAD request to the tenant base URL.
+Static diagnostics require no provider key, model call, or application interaction.
+See [doctor findings and remedies](troubleshooting.md#doctor-findings).
 
 ## Project file and lookup
 

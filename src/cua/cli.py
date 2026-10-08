@@ -23,14 +23,20 @@ from cua.termlink import link
 EX_USAGE = 64
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="cua", description=__doc__)
+def _build_parser(*, diagnostic: bool = False) -> argparse.ArgumentParser:
+    from cua.doctor import DoctorParser
+
+    parser_type = DoctorParser if diagnostic else argparse.ArgumentParser
+    parser = parser_type(prog="cua", description=__doc__)
     parser.add_argument("--root", type=Path, dest="project_root", help="Select a project directory")
     sub = parser.add_subparsers(dest="command", required=True)
 
     from cua.initialize import add_parser as _add_init
 
     _add_init(sub)
+    from cua.doctor import add_parser as _add_doctor
+
+    _add_doctor(sub)
     demo = sub.add_parser("demo", help="Run the packaged seven-stage synthetic demo")
     demo.add_argument("--out", type=Path, help="New session directory; existing paths refused")
     demo.add_argument("--repetitions", type=int, default=2)
@@ -411,9 +417,17 @@ def _add_artifact_commands(sub: argparse._SubParsersAction[argparse.ArgumentPars
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = _build_parser()
     arguments = list(sys.argv[1:] if argv is None else argv)
-    args = parser.parse_args(arguments)
+    from cua.doctor import invocation_error, is_invocation
+
+    diagnostic = is_invocation(arguments)
+    parser = _build_parser(diagnostic=diagnostic)
+    try:
+        args = parser.parse_args(arguments)
+    except ValueError:
+        if not diagnostic:
+            raise
+        return invocation_error(json_output="--json" in arguments)
     if args.command == "init":
         from cua.initialize import main as initialize
 
@@ -431,8 +445,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.project = ProjectContext.resolve(global_root if global_root is not None else mcp_root)
         bind_cli(parser, args, arguments)
     except (OSError, ValueError) as exc:
+        if args.command == "doctor":
+            return invocation_error(json_output=args.json, configuration=True)
         print(f"cua: {exc}", file=sys.stderr)
         return EX_USAGE
+
+    if args.command == "doctor":
+        from cua.doctor import main as doctor
+
+        return doctor(args)
 
     if args.command == "mockapp":
         import uvicorn
