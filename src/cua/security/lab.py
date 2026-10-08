@@ -23,6 +23,7 @@ import httpx
 
 from cua.policy.allowlist import Policy, load_policy
 from cua.policy.tokens import SIGNING_KEY
+from cua.project import ProjectContext
 from cua.tenant import SecretBinding, Tenant, load_tenant
 
 OPERATOR_VAR = "CUA_SEC_OPERATOR"
@@ -41,6 +42,7 @@ class Lab:
     canary: str
     """The operator password for this session."""
     live: bool
+    project: ProjectContext | None = None
 
     @property
     def capabilities(self) -> Path:
@@ -74,14 +76,24 @@ def new_canary() -> str:
     return "cnry" + secrets.token_hex(8)
 
 
-def make_lab(root: Path, base_url: str | None, *, canary: str | None = None) -> Lab:
+def make_lab(
+    root: Path,
+    base_url: str | None,
+    *,
+    canary: str | None = None,
+    project: ProjectContext | None = None,
+) -> Lab:
     root.mkdir(parents=True, exist_ok=True)
     caps = root / "capabilities"
     if caps.exists():
         shutil.rmtree(caps)
-    shutil.copytree(Path("capabilities"), caps, ignore=shutil.ignore_patterns("candidates"))
+    shutil.copytree(
+        project.path("capabilities") if project else Path("capabilities"),
+        caps,
+        ignore=shutil.ignore_patterns("candidates"),
+    )
     canary = canary or new_canary()
-    base = load_tenant("local")
+    base = load_tenant("local", project=project)
     tenant = base.model_copy(
         update={
             "base_url": base_url or OFFLINE_URL,
@@ -94,10 +106,14 @@ def make_lab(root: Path, base_url: str | None, *, canary: str | None = None) -> 
     return Lab(
         root=root,
         tenant=tenant,
-        policy=load_policy(Path("policies/default.yaml"), tenant),
+        policy=load_policy(
+            project.relative("policies/default.yaml") if project else Path("policies/default.yaml"),
+            tenant,
+        ),
         environ={OPERATOR_VAR: f"operator:{canary}", SIGNING_VAR: secrets.token_hex(32)},
         canary=canary,
         live=base_url is not None,
+        project=project,
     )
 
 

@@ -44,6 +44,7 @@ from cua.benchmark.replay_runner import consent, run_replay
 from cua.drift.models import Evaluation, Gate, SideResult, TaskResult
 from cua.drift.store import Candidate, CandidateError, Candidates
 from cua.evidence.logger import new_run_id
+from cua.project import ProjectContext
 
 RUNS_ROOT = Path("bench/runs/candidates")
 Progress = Callable[[str, RunMetrics], None]
@@ -58,9 +59,22 @@ class _Side:
     allow_draft: bool
 
 
-def tasks_for(name: str, suite: str = "core", task_ids: Iterable[str] = ()) -> list[BenchmarkTask]:
+def tasks_for(
+    name: str,
+    suite: str = "core",
+    task_ids: Iterable[str] = (),
+    *,
+    project: ProjectContext | None = None,
+) -> list[BenchmarkTask]:
     """The suite's automated tasks that run this capability."""
-    chosen = select(load_suite(suite), task_ids=task_ids)
+    chosen = select(
+        load_suite(
+            suite,
+            root=project.relative("bench/tasks") if project else Path("bench/tasks"),
+            project=project,
+        ),
+        task_ids=task_ids,
+    )
     out = []
     for task in chosen:
         try:
@@ -80,6 +94,7 @@ def evaluate(
     repetitions: int = 1,
     runs_root: Path = RUNS_ROOT,
     progress: Progress | None = None,
+    project: ProjectContext | None = None,
 ) -> Candidate:
     if candidate.edited_outside:
         raise CandidateError(
@@ -93,7 +108,7 @@ def evaluate(
         raise CandidateError(f"the version it repairs cannot be loaded: {exc}") from None
     if incumbent.content_hash() != r.base.artifact_hash:
         raise CandidateError(f"{r.base.path} is no longer {r.name} v{r.base.version} as it drifted")
-    tasks = tasks_for(r.name, suite, task_ids)
+    tasks = tasks_for(r.name, suite, task_ids, project=project)
     sides = (
         _Side("incumbent", incumbent, Path(r.base.path), allow_draft=False),
         _Side("candidate", candidate.capability, candidate.path, allow_draft=True),
@@ -103,8 +118,8 @@ def evaluate(
     results: list[TaskResult] = []
     injected = r.drift[0].injected
     if tasks:
-        with mockapp() as base_url:
-            env = bench_env(base_url, runs_dir)
+        with mockapp(cwd=project.root) if project else mockapp() as base_url:
+            env = bench_env(base_url, runs_dir, project=project)
             for task in tasks:
                 got = {}
                 for side in sides:

@@ -18,7 +18,10 @@ for one tenant answers a request for another.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from cua.project import ProjectContext
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -74,6 +77,8 @@ class DesktopApp(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     launch: list[str] = Field(min_length=1)
+    cwd: str | None = None
+    """Launch directory; project loading binds this to its root."""
     inject_flag: str | None = None
     """How a test deployment is told which fault to inject (``?inject=x`` on
     the entry location). None: this deployment takes no injections."""
@@ -158,13 +163,36 @@ class Tenant(BaseModel):
         return f"{scheme}://{rest.split('/', 1)[0]}"
 
 
-def load_tenant(name_or_path: str, *, root: Path = TENANTS_DIR) -> Tenant:
+def load_tenant(
+    name_or_path: str, *, root: Path = TENANTS_DIR, project: ProjectContext | None = None
+) -> Tenant:
     """Load ``tenants/<name>.yaml``, or a tenant file given by path."""
+    if project is not None:
+        root = project.path("tenants")
     path = Path(name_or_path)
     if path.suffix not in (".yaml", ".yml"):
         path = root / f"{name_or_path}.yaml"
+    elif project is not None:
+        path = project.explicit(path)
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return Tenant.model_validate(data)
+    tenant = Tenant.model_validate(data)
+    if project is None:
+        return tenant
+    # Resolve references once, before passing the tenant to any worker.
+    return tenant.model_copy(
+        update={
+            "policy": str(project.relative(tenant.policy or DEFAULT_POLICY)),
+            "desktop": tenant.desktop.model_copy(update={"cwd": str(project.root)})
+            if tenant.desktop is not None
+            else None,
+            "secrets": {
+                key: binding.model_copy(update={"path": str(project.relative(binding.path))})
+                if binding.provider == "file" and binding.path is not None
+                else binding
+                for key, binding in tenant.secrets.items()
+            },
+        }
+    )
 
 
 def shared_bindings(tenants: list[Tenant]) -> list[str]:

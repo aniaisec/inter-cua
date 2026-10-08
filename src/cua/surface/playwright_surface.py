@@ -201,6 +201,7 @@ class PlaywrightSurface:
         viewport: Viewport | None = None,
         cdp_port: int | None = None,
         detached: bool = False,
+        environ: dict[str, str] | None = None,
     ) -> Self:
         """Start a browser this surface owns.
 
@@ -216,7 +217,7 @@ class PlaywrightSurface:
         """
         view = viewport or DEFAULT_VIEWPORT
         port = cdp_port if cdp_port is not None else _free_port()
-        headless = not (headed if headed is not None else _headed_from_env())
+        headless = not (headed if headed is not None else _headed_from_env(environ))
         playwright = sync_playwright().start()
         if detached:
             process: BrowserProcess | None = None
@@ -226,6 +227,7 @@ class PlaywrightSurface:
                     port=port,
                     headless=headless,
                     viewport=view,
+                    environ=environ,
                 )
                 target = process.open_page(playwright)
                 return cls._connect(
@@ -236,9 +238,12 @@ class PlaywrightSurface:
                 if process is not None:
                     process.kill()
                 raise
+        browser_env: dict[str, str | float | bool] | None = (
+            dict(environ) if environ is not None else None
+        )
         try:
             browser = playwright.chromium.launch(
-                headless=headless, args=[f"--remote-debugging-port={port}"]
+                headless=headless, args=[f"--remote-debugging-port={port}"], env=browser_env
             )
             # Downloads are refused by the browser itself, under the policy's
             # check of a link's destination: a download reached some other way
@@ -995,7 +1000,13 @@ class BrowserProcess:
 
     @classmethod
     def start(
-        cls, executable: str, *, port: int, headless: bool, viewport: Viewport
+        cls,
+        executable: str,
+        *,
+        port: int,
+        headless: bool,
+        viewport: Viewport,
+        environ: dict[str, str] | None = None,
     ) -> BrowserProcess:
         profile = Path(tempfile.mkdtemp(prefix="cua-session-"))
         args = [
@@ -1010,7 +1021,8 @@ class BrowserProcess:
             args.append("--headless=new")
         # Hosted Linux runners can forbid Chromium's user-namespace sandbox.
         # Keep it enabled by default; opt out explicitly for isolated CI only.
-        if os.environ.get("CUA_CHROMIUM_NO_SANDBOX") == "1":
+        env = os.environ if environ is None else environ
+        if env.get("CUA_CHROMIUM_NO_SANDBOX") == "1":
             args.append("--no-sandbox")
         args.append("about:blank")
         new_group: dict[str, Any] = (
@@ -1020,7 +1032,7 @@ class BrowserProcess:
             else {"start_new_session": True}
         )
         proc = subprocess.Popen(
-            args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **new_group
+            args, env=environ, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **new_group
         )
         browser = cls(proc.pid, f"http://127.0.0.1:{port}", profile)
         deadline = _deadline(CDP_START_TIMEOUT_S)
@@ -1205,8 +1217,9 @@ def _title_of(page: Page) -> str:
         return ""
 
 
-def _headed_from_env() -> bool:
-    return os.environ.get("CUA_HEADED", "0") not in ("", "0", "false", "False")
+def _headed_from_env(environ: dict[str, str] | None = None) -> bool:
+    env = os.environ if environ is None else environ
+    return env.get("CUA_HEADED", "0") not in ("", "0", "false", "False")
 
 
 def _free_port() -> int:

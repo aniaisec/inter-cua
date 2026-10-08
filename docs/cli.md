@@ -1,6 +1,6 @@
 # CLI reference
 
-Run from the repository root in the activated environment. Use `cua --help` and `cua <command> --help` for complete flags. There is no global `--root`; MCP supports `cua mcp --root DIR`. See [path resolution](configuration.md).
+Use `cua --help` and `cua <command> --help` for complete flags. The nearest ancestor `cua.toml` selects the project; global `cua --root DIR <command>` selects it explicitly. MCP also supports `cua mcp --root DIR`. Explicit CLI file paths remain relative to the invocation directory. See [path resolution](configuration.md).
 
 | Command | What it does | Exit |
 |---|---|---|

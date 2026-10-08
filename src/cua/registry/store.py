@@ -35,6 +35,7 @@ from pydantic import ValidationError
 from cua.artifact.schema import Capability
 from cua.artifact.store import CAPABILITIES_DIR, ArtifactError, Loaded, open_capability
 from cua.policy.approval import STATE_DIR, last_review
+from cua.project import ProjectContext
 from cua.registry import lifecycle
 from cua.registry.models import LedgerEntry, Record, Status, Version
 from cua.tenant import TENANTS_DIR, Tenant, load_tenant
@@ -60,12 +61,14 @@ class Registry:
         *,
         state_dir: Path = STATE_DIR,
         tenants_dir: Path = TENANTS_DIR,
+        project: ProjectContext | None = None,
     ) -> None:
         self.capabilities_dir = capabilities_dir
         self.root = capabilities_dir / REGISTRY
         self.ledger_path = self.root / LEDGER
-        self.state_dir = state_dir
-        self.tenants_dir = tenants_dir
+        self.state_dir = project.path("state") if project is not None else state_dir
+        self.tenants_dir = project.path("tenants") if project is not None else tenants_dir
+        self.project = project
         self.unreadable: list[Unreadable] = []
         """Files skipped by the last scan, with the reason."""
 
@@ -256,7 +259,7 @@ class Registry:
             return out
         for path in sorted(self.tenants_dir.glob("*.yaml")):
             try:
-                out.append(load_tenant(str(path)))
+                out.append(load_tenant(str(path), project=self.project))
             except (OSError, ValueError):
                 continue
         return out

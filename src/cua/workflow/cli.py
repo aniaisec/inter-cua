@@ -135,7 +135,7 @@ def _plan(args: argparse.Namespace, name: str) -> Any:
     from cua.workflow.planner import plan
 
     path = find_workflow(name, args.workflows_dir)
-    return path, plan(load_workflow(path), Registry(args.capabilities_dir))
+    return path, plan(load_workflow(path), Registry(args.capabilities_dir, project=args.project))
 
 
 def _list(args: argparse.Namespace) -> int:
@@ -147,7 +147,7 @@ def _list(args: argparse.Namespace) -> int:
     if not paths:
         print(f"No workflows in {args.workflows_dir.as_posix()}.")
         return 0
-    tenant = load_tenant(args.tenant)
+    tenant = load_tenant(args.tenant, project=args.project)
     for path in paths:
         try:
             _, p = _plan(args, path.as_posix())
@@ -174,7 +174,7 @@ def _check(args: argparse.Namespace) -> int:
     from cua.workflow import validator
 
     path, p = _plan(args, args.workflow)
-    tenant = load_tenant(args.tenant)
+    tenant = load_tenant(args.tenant, project=args.project)
     wf = p.workflow
     problems = validator.problems(p)
     refusals = validator.refusals(p, tenant)
@@ -254,7 +254,7 @@ def _run(args: argparse.Namespace) -> int:
 
     try:
         path = find_workflow(args.workflow, args.workflows_dir)
-        tenant = load_tenant(args.tenant)
+        tenant = load_tenant(args.tenant, project=args.project)
         policy = load_policy(args.policy or tenant.policy_file, tenant)
         handoff = _handoff_settings(args)
         request = WorkflowRequest(
@@ -278,12 +278,18 @@ def _run(args: argparse.Namespace) -> int:
             policy=policy,
             request=request,
             capabilities_dir=args.capabilities_dir,
+            environ=args.project.environ,
+            project=args.project,
             runs_dir=args.runs_dir,
             config=ReplayConfig(
                 step_timeout_s=args.step_timeout,
                 screenshots=False if args.no_screenshots else None,
             ),
-            surface=lambda: launched(headed=args.headed or None, detached=handoff is not None),
+            surface=lambda: launched(
+                headed=args.headed or None,
+                detached=handoff is not None,
+                environ=args.project.environ,
+            ),
             handoff=handoff,
         )
     except InvocationError as exc:
@@ -345,7 +351,7 @@ def _approval_token(args: argparse.Namespace) -> int:
     wrong = validate_inputs(step.capability, inputs)
     if wrong:
         raise ValueError(f"step {step.id!r}: " + "; ".join(wrong))
-    tenant = load_tenant(args.tenant)
+    tenant = load_tenant(args.tenant, project=args.project)
     try:
         created = tokens.create_signing_key(tenant)
         if created is not None:
@@ -358,7 +364,7 @@ def _approval_token(args: argparse.Namespace) -> int:
             tenant,
             inputs,
             approved_by=args.by,
-            key=tokens.signing_key(tenant),
+            key=tokens.signing_key(tenant, environ=args.project.environ),
             ttl_s=args.ttl_s,
         )
     except tokens.TokenRefused as exc:

@@ -24,6 +24,7 @@ import httpx
 
 from cua.policy.allowlist import Policy, load_policy
 from cua.policy.tokens import SIGNING_KEY
+from cua.project import ProjectContext
 from cua.tenant import SecretBinding, Tenant, load_tenant
 
 STARTUP_S = 30.0
@@ -64,7 +65,9 @@ def free_port() -> int:
 
 
 @contextmanager
-def mockapp(port: int | None = None, *, env: dict[str, str] | None = None) -> Iterator[str]:
+def mockapp(
+    port: int | None = None, *, env: dict[str, str] | None = None, cwd: Path | None = None
+) -> Iterator[str]:
     """A mock app of its own for this session; yields its base URL. ``env``:
     extra environment for it (the security benchmark's canary password)."""
     port = port or free_port()
@@ -82,7 +85,8 @@ def mockapp(port: int | None = None, *, env: dict[str, str] | None = None) -> It
             "--log-level",
             "warning",
         ],
-        env={**os.environ, "PYTHONPATH": str(Path.cwd()), **(env or {})},
+        env={**os.environ, "PYTHONPATH": str(cwd or Path.cwd()), **(env or {})},
+        cwd=cwd,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -116,6 +120,7 @@ class BenchEnv:
     """What secrets resolve from: the process environment, plus a signing key
     made for this session (consent minted here is good only here)."""
     runs_dir: Path
+    project: ProjectContext | None = None
 
     @property
     def signing_key(self) -> bytes:
@@ -148,9 +153,12 @@ def bench_env(
     *,
     tenant: str = "local",
     policy: Path = Path("policies/default.yaml"),
+    project: ProjectContext | None = None,
 ) -> BenchEnv:
     """The tenant, pointed at this session's app, with its own signing key."""
-    base = load_tenant(tenant)
+    base = load_tenant(tenant, project=project)
+    if project is not None:
+        policy = project.relative(policy)
     bound = base.model_copy(
         update={
             "base_url": base_url,
@@ -161,7 +169,7 @@ def bench_env(
         }
     )
     environ = {
-        **os.environ,
+        **(project.environ if project is not None else os.environ),
         SIGNING_VAR: secrets.token_hex(32),
     }
     environ.setdefault(OPERATOR_VAR, MOCK_CREDENTIAL)
@@ -170,4 +178,5 @@ def bench_env(
         policy=load_policy(policy, bound),
         environ=environ,
         runs_dir=runs_dir,
+        project=project,
     )

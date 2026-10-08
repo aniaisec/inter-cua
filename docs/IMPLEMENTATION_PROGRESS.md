@@ -1189,3 +1189,62 @@ Status: IMPLEMENTED — GitHub-hosted Linux verification pending
 - Windows verification: 824 non-browser/non-desktop tests passed; 11 vision integration tests passed; lint/format and Linux/Windows mypy checks passed.
 - Ubuntu/WSL verification on Python 3.14.4: all 19 targeted browser tests passed, covering every failure from the hosted run plus related API/catalog/vision cases, the complete demo, CLI resume and MCP invocation. Supplied missing Chromium libraries from a local test directory; no distro package installation was required.
 - Hosted Linux/Python 3.11 passed both mypy targets. Its newly reached non-GUI suite found one test assuming desktop capabilities are invocable on Linux (823 passed). Corrected that assertion to reflect platform availability and additionally check tenant scope with `?all=true`; all 33 API unit tests pass on Windows and Ubuntu.
+
+
+## Adoption P03 — project configuration and path resolution
+
+Implemented October 4, 2026.
+
+- Added version 1 `cua.toml` and `ProjectContext`: nearest-ancestor selection,
+  explicit global `--root`, configured directories and default tenant, absolute
+  paths, and selected-root `.env` snapshots with process-environment precedence.
+- Preserved invocation-relative explicit CLI files and project-relative tenant,
+  access, policy, key and secret references. MCP's existing `mcp --root DIR`
+  spelling remains supported; conflicting roots fail with exit 64. Removed its
+  process-wide `chdir` and capture service paths before worker dispatch.
+- Passed project paths and environments through discovery/recording, review,
+  registry/catalog, replay/resume, workflows, drift, HTTP/MCP, benchmark and demo
+  helpers. Desktop child processes use the selected root as their cwd.
+- Added discovery `--families-dir` and validate recording templates before model
+  or UI work. `--no-record` retains discovery-only operation. Invalid family YAML
+  returns a usage error. Capability content seals and approval rules are unchanged.
+- Updated configuration, CLI, integration and first-application documentation.
+  Init, doctor and packaged demo resources remain subsequent phases.
+
+Verification on Windows / Python 3.14.5:
+
+- Full non-browser/non-desktop suite: 880 passed, 118 deselected.
+- New project unit coverage: 22 cases, including path precedence, absolute
+  overrides, bad roots/configuration, nested projects, environment/provider
+  isolation, MCP root placement, recording preflight, and two concurrent services.
+- New live browser scenario: discovery, review, approval and replay from root,
+  nested and unrelated directories, with spaces in the project path; passed.
+  Replay recorded no model calls and approval preserved the content hash.
+- Ruff lint/format, strict mypy (147 source files), and diff whitespace checks pass.
+- Browser regressions: 15 passed, 1 deselected across discovery, the seven-stage
+  demo, workflows, drift, HTTP, MCP and security. Together with the new project
+  scenario, 16 live browser tests passed. Chromium required execution outside
+  this session's filesystem/process sandbox (spawn EPERM).
+- Live Windows UIA execution and hosted Linux CI were not run in this phase.
+
+
+### P03 code review and commit verification
+
+- Preserved benchmark task fingerprints when resolving execution paths; changing
+  inputs or definitions still changes their fingerprint. Benchmark application,
+  Git and pricing provenance now come from the selected project and pricing file.
+- Passed the invocation environment to ordinary and detached browser launches,
+  including headed and sandbox options. Prevented Anthropic SDK fallback to a
+  later process auth token or endpoint when a project snapshot is supplied.
+- Copied configured family templates into the demo workspace and applied project
+  review-state paths to HTTP capability detail/version responses.
+- Added regression coverage for these review findings. Full non-browser suite:
+  886 passed, 118 deselected. Focused project/API checks: 60 passed; subsequent
+  benchmark/helper checks: 80 passed. Ruff lint/format and strict Windows/Linux
+  mypy targets pass (147 source files).
+- From an unrelated invocation directory, the explicit-root benchmark completed
+  six independent correct replays with zero model calls or commits; report
+  generation and the existing CI benchmark gate passed.
+- Selected browser regressions: 16 passed, 1 deselected, including the project
+  path scenario, discovery, demo, workflows, drift, HTTP, MCP and security.
+  Live Windows UIA and hosted Linux CI remain outside local verification.

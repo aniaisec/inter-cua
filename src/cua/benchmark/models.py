@@ -13,7 +13,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 from cua.artifact.schema import ValueType
 
@@ -116,6 +116,8 @@ class GoalSpec(_Model):
 
 
 class BenchmarkTask(_Model):
+    _declared_paths: dict[str, tuple[str, str]] = PrivateAttr(default_factory=dict)
+
     id: str
     name: str
     description: str = ""

@@ -113,13 +113,20 @@ class InvocationError(Exception):
 
 
 @contextmanager
-def launched(headed: bool | None = None, *, detached: bool = False) -> Iterator[PlaywrightSurface]:
-    with PlaywrightSurface.launch(headed=headed, detached=detached) as surface:
+def launched(
+    headed: bool | None = None, *, detached: bool = False, environ: dict[str, str] | None = None
+) -> Iterator[PlaywrightSurface]:
+    with PlaywrightSurface.launch(headed=headed, detached=detached, environ=environ) as surface:
         yield surface
 
 
 def surface_for(
-    cap: Capability, tenant: Tenant, *, headed: bool | None = None, detached: bool = False
+    cap: Capability,
+    tenant: Tenant,
+    *,
+    headed: bool | None = None,
+    detached: bool = False,
+    environ: dict[str, str] | None = None,
 ) -> SurfaceFactory:
     """The adapter ``cap.target.surface`` names, for this tenant: a browser for
     a web target, the tenant's application under UI Automation for a desktop
@@ -129,7 +136,7 @@ def surface_for(
         from cua.surface.windows.adapter import WindowsSurface
 
         return lambda: WindowsSurface.launch(tenant)
-    return lambda: launched(headed, detached=detached)
+    return lambda: launched(headed, detached=detached, environ=environ)
 
 
 class SessionRecord(BaseModel):
@@ -289,7 +296,8 @@ def replay(
         allow_draft=allow_draft,
         lifecycle=lifecycle,
         config=config or ReplayConfig(),
-        surface=surface or surface_for(cap, tenant, headed=headed, detached=handoff is not None),
+        surface=surface
+        or surface_for(cap, tenant, headed=headed, detached=handoff is not None, environ=environ),
         handoff=handoff,
         run_id=run_id,
     )

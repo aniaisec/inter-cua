@@ -1,8 +1,11 @@
 # Your first application
 
-Complete the [no-key demo](getting-started.md) first. An own-application setup
-currently requires manually creating files inside the checkout; there is no
-initialization wizard or independent installed project yet. Start with a read-only
+Complete the [no-key demo](getting-started.md) first. Create your own project
+directory and a `cua.toml` containing `version = 1`, then create the files below
+inside it. Commands find that project from nested directories; use
+`cua --root /absolute/project/path <command>` from elsewhere. There is no
+initialization wizard yet. See [project configuration](configuration.md) for
+custom directories and explicit CLI path behavior. Start with a read-only
 operation on a test deployment you can inspect and reset.
 
 ## 1. Bind a tenant

@@ -54,6 +54,7 @@ from cua.evidence.logger import RUNS_DIR, append_jsonl, utc_now
 from cua.policy import tokens
 from cua.policy.allowlist import Policy
 from cua.policy.tokens import SpentTokens, TokenRefused
+from cua.project import ProjectContext
 from cua.registry.store import Registry
 from cua.replay.engine import ReplayConfig
 from cua.replay.invocation import ApprovalGrant, Budget, Invocation, check_input
@@ -123,6 +124,7 @@ def run(
     handoff: HandoffSettings | None = None,
     environ: dict[str, str] | None = None,
     step_runner: StepRunner | None = None,
+    project: ProjectContext | None = None,
 ) -> WorkflowResult:
     """Raises ``WorkflowError`` for a workflow that cannot be planned or is
     wired wrong; returns a ``WorkflowResult`` for everything else."""
@@ -145,7 +147,7 @@ def run(
         stored = WorkflowResult.model_validate(entry.result)
         return stored.model_copy(update={"cached": True})
 
-    p = plan(workflow, Registry(capabilities_dir), entry.pins if entry else None)
+    p = plan(workflow, Registry(capabilities_dir, project=project), entry.pins if entry else None)
     wrong = validator.problems(p)
     if wrong:
         raise WorkflowError(f"{path.as_posix()}: " + "; ".join(wrong))

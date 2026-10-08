@@ -67,6 +67,7 @@ def main(args: argparse.Namespace) -> int:
             only=args.scenario or None,
             live=not args.offline,
             runs_root=args.runs_root,
+            project=args.project,
             progress=progress,
         )
     except ValueError as exc:

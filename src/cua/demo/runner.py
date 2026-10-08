@@ -26,6 +26,7 @@ from ulid import ULID
 
 from cua.benchmark.environment import free_port
 from cua.evidence.build import BuildError, Call, Person, click_find, expect
+from cua.project import ProjectContext
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -62,18 +63,24 @@ def server(args: list[str], url: str, cwd: Path, env: dict[str, str]) -> Iterato
             proc.wait(timeout=10)
 
 
-def prepare(out: Path, base_url: str) -> tuple[Path, dict[str, str]]:
+def prepare(
+    out: Path, base_url: str, *, project: ProjectContext | None = None
+) -> tuple[Path, dict[str, str]]:
     """Refuse overwrites; keep all runtime state and approval receipts local."""
+    project = project or ProjectContext.resolve(ROOT)
     out.mkdir(parents=True, exist_ok=False)
     work = out / "workspace"
     work.mkdir()
     for folder in ("capabilities", "policies", "tenants"):
         shutil.copytree(
-            ROOT / folder, work / folder, ignore=shutil.ignore_patterns("candidates", "__pycache__")
+            project.path(folder) if folder != "policies" else project.relative(folder),
+            work / folder,
+            ignore=shutil.ignore_patterns("candidates", "__pycache__"),
         )
-    shutil.copytree(ROOT / "scripts" / "discovery", work / "scripts" / "discovery")
+    shutil.copytree(project.path("families"), work / "capabilities/families", dirs_exist_ok=True)
+    shutil.copytree(project.relative("scripts/discovery"), work / "scripts" / "discovery")
     shutil.copytree(
-        ROOT / "bench" / "security",
+        project.relative("bench/security"),
         work / "bench" / "security",
         ignore=shutil.ignore_patterns("runs", "reports", "__pycache__"),
     )
@@ -86,7 +93,7 @@ def prepare(out: Path, base_url: str) -> tuple[Path, dict[str, str]]:
     }
     tenant_path.write_text(yaml.safe_dump(tenant), encoding="utf-8")
     env = {
-        **os.environ,
+        **project.environ,
         "PYTHONUTF8": "1",
         "PYTHONPATH": os.pathsep.join((str(ROOT / "src"), str(ROOT))),
         "CUA_SECRET_MOCKCORE_OPERATOR": "operator:operator",
@@ -355,6 +362,7 @@ class Demo:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, help="Source demo project (default: checkout)")
     parser.add_argument("--out", type=Path, help="New session directory; existing paths refused")
     parser.add_argument("--repetitions", type=int, default=100)
     parser.add_argument("--llm", choices=("scripted", "gemini", "anthropic"), default="scripted")
@@ -364,16 +372,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--repetitions must be positive")
     if args.model and args.llm == "scripted":
         parser.error("--model requires a live provider")
-    if args.llm != "scripted":
-        from cua.cli import load_dotenv
-
-        load_dotenv(ROOT / ".env")
-    out = (args.out or ROOT / "demo" / f"demo_{ULID()}").resolve()
+    try:
+        project = ProjectContext.resolve(args.root or ROOT)
+    except (OSError, ValueError) as exc:
+        print(f"demo: {exc}", file=sys.stderr)
+        return 64
+    out = (args.out or project.root / "demo" / f"demo_{ULID()}").resolve()
     app_port, console_port = free_port(), free_port()
     base, console = f"http://127.0.0.1:{app_port}", f"http://127.0.0.1:{console_port}"
     demo = None
     try:
-        work, env = prepare(out, base)
+        work, env = prepare(out, base, project=project)
         demo = Demo(out, work, env, console)
         demo.save()
         with (

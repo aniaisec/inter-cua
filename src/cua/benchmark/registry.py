@@ -14,6 +14,7 @@ import yaml
 from pydantic import ValidationError
 
 from cua.benchmark.models import BenchmarkTask, Suite
+from cua.project import ProjectContext
 
 TASKS_DIR = Path("bench/tasks")
 ALL = "all"
@@ -39,7 +40,39 @@ def categories(root: Path = TASKS_DIR) -> list[str]:
     return sorted(p.name for p in root.iterdir() if p.is_dir() and any(p.glob("*.yaml")))
 
 
-def load_suite(name_or_path: str, *, root: Path = TASKS_DIR) -> Suite:
+def load_suite(
+    name_or_path: str, *, root: Path = TASKS_DIR, project: ProjectContext | None = None
+) -> Suite:
+    suite = _load_suite(name_or_path, root=root)
+    if project is None:
+        return suite
+    tasks = []
+    for task in suite.tasks:
+        bound = task.model_copy(
+            update={
+                "capability": str(project.relative(task.capability)) if task.capability else None,
+                "workflow": str(project.relative(task.workflow)) if task.workflow else None,
+                "goal": task.goal.model_copy(
+                    update={"script": str(project.relative(task.goal.script))}
+                )
+                if task.goal.script
+                else task.goal,
+            }
+        )
+        bound._declared_paths = {
+            name: (str(project.relative(value)), value)
+            for name, value in (
+                ("capability", task.capability),
+                ("workflow", task.workflow),
+                ("script", task.goal.script),
+            )
+            if value is not None
+        }
+        tasks.append(bound)
+    return suite.model_copy(update={"tasks": tasks})
+
+
+def _load_suite(name_or_path: str, *, root: Path = TASKS_DIR) -> Suite:
     """``core`` → ``bench/tasks/core.yaml``; ``browser`` → every file in
     ``bench/tasks/browser/``; ``all`` → every category; a path as it is."""
     if name_or_path == ALL:
