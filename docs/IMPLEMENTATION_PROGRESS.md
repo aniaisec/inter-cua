@@ -1337,3 +1337,44 @@ Implemented October 7, 2026.
   one consented commit; base-package doctor works without the vision extra.
 - Local HTTP/browser verification needed execution outside the session sandbox;
   live Windows UIA and hosted Linux CI were not run in this phase.
+
+## Adoption P06 - optional providers and distribution gates
+
+Implemented October 8, 2026.
+
+- Moved Anthropic and Google Gen AI out of base dependencies into independent
+  `anthropic` and `gemini` extras, combined by `discovery`. `dev` includes both,
+  vision and test/build tools. Browser replay, HTTP/MCP, scripted discovery,
+  initialization, diagnostics and the no-key demo remain in base.
+- SDK imports stay lazy; missing selected SDKs report the exact extra before UI
+  launch. Provider/key precedence is preserved. Doctor's optional dependency
+  remedies also name the corresponding extras.
+- Hatch reads the version solely from `cua.__version__`; added `cua --version`,
+  project URLs, supported Python classifiers and the changelog. Recorded 71
+  Python 3.11 development constraints from a fresh resolved environment, retaining
+  compatible library ranges in distribution metadata.
+- Added wheel/sdist metadata/resource inventory and fresh installed-package
+  gates. CI checks base wheel and sdist-built wheel, each provider independently,
+  combined discovery, vision, and Windows dependencies/adapter imports. Every
+  combination checks CLI entry points, all templates, doctor and mock HTML.
+  Base additionally runs the seven-stage discovery/review/replay demo without
+  provider SDKs. Consumer installs resolve library ranges without dev pins.
+- Reviewed the complete diff. Corrected the metadata gate to handle Hatch's
+  expanded discovery/dev extras while still rejecting SDKs in base; added its
+  regression. Corrected the Windows adapter check to use its class descriptor.
+  Restricted scratch work to system temporary directories and disabled cached
+  sdist wheels so the source rebuild gate always executes outside the checkout.
+- Verification on Windows / Python 3.11.9: full non-browser/non-desktop suite
+  1006 passed, 1 skipped, 119 deselected. The skip requires Windows symlink
+  privileges. Python 3.14.5 focused provider/doctor/packaging checks: 117 passed
+  before the final Hatch metadata regression was added; that regression passed
+  in the full Python 3.11 run. Ruff lint/format and strict Linux/Windows mypy pass
+  (150 source files).
+- All seven fresh installation combinations passed: base wheel, base rebuilt
+  from sdist, Anthropic, Gemini, discovery, vision and Windows. Both base browser
+  demos used zero replay model calls and made exactly one consented commit.
+  Version metadata, dotfiles, templates, JSON/schema, scripts and mock HTML
+  passed archive checks. Provider tests use synthetic keys and make no model
+  requests. Local server/browser checks required access outside the sandbox.
+- Interactive Windows UIA, paid live providers and hosted Linux CI remain
+  outside local verification. Distribution building/testing publishes no release.

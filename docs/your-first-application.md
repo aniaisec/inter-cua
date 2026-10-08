@@ -73,8 +73,10 @@ command works in PowerShell and POSIX shells:
 cua discover --tenant my-app --name item_lookup --entry /login --goal "Look up an item by its code and return the displayed quantity" --param item_code:string=SAMPLE-001 --output quantity:integer --capabilities-dir demo/my-app --llm gemini
 ```
 
-Live discovery needs the selected provider's key and incurs charges. Scripted
-discovery needs an application-specific tool-call script; the banking script cannot
+Live discovery needs the selected provider's SDK extra and key and incurs charges.
+For the command above, install `"inter-cua[gemini]"` alongside your installed
+distribution, or `".[gemini]"` from a checkout. See [packaging](packaging.md).
+Scripted discovery needs an application-specific tool-call script; the banking script cannot
 discover a different application. Use `--no-record` deliberately only for discovery
 evidence without a draft. For Windows targets, follow [platform constraints](platforms.md)
 and the desktop reference family.

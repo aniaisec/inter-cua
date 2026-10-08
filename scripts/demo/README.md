@@ -58,7 +58,8 @@ paid model calls. This is a demonstration, not a comparative benchmark.
 
 ## Optional live discovery
 
-Set the provider's key in the environment or the repository's `.env`, then
+Install the selected `gemini` or `anthropic` extra (both are in `dev`). Set the
+provider's key in the environment or the repository's `.env`, then
 explicitly select a provider. Only discovery uses it; the operator and hostile
 page model remain scripted, and replay remains deterministic.
 

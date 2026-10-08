@@ -5,6 +5,9 @@ in the README. Those are the canonical installation and short-demo commands.
 The demo uses packaged resources and works outside a checkout after installing
 a wheel. Python 3.11 or newer and a Playwright Chromium
 installation are required. The runner starts its own services on free ports.
+The base install needs no provider SDK. For live discovery install the
+corresponding `anthropic` or `gemini` extra and set its key; see
+[package extras](packaging.md). The `dev` extra includes both SDKs for tests.
 
 Use `cua init my-project --template demo` to create an editable no-key sample;
 read its generated `README.md` for the next command. Choose `--template web` or

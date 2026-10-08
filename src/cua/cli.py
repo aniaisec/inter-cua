@@ -17,6 +17,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from cua import __version__
 from cua.artifact.schema import SCHEMA_VERSION
 from cua.termlink import link
 
@@ -28,6 +29,7 @@ def _build_parser(*, diagnostic: bool = False) -> argparse.ArgumentParser:
 
     parser_type = DoctorParser if diagnostic else argparse.ArgumentParser
     parser = parser_type(prog="cua", description=__doc__)
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--root", type=Path, dest="project_root", help="Select a project directory")
     sub = parser.add_subparsers(dest="command", required=True)
 

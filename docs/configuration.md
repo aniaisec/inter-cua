@@ -99,7 +99,12 @@ already exist, then edit locally; it is gitignored.
 | `CUA_API_KEY_BALANCE_READER` | Enable optional read-only HTTP client |
 
 With auto-selection an explicit preference is used first; otherwise an Anthropic
-key is preferred when both provider keys exist. Scripted discovery, replay,
+key is preferred when both provider keys exist. Install the selected SDK with
+`python -m pip install "inter-cua[anthropic]"` or `"inter-cua[gemini]"`
+alongside your installed distribution; checkout developers can use
+`python -m pip install -e ".[discovery]"` for both. A missing selected SDK fails
+before launching the UI with its installation remedy; auto does not switch
+providers merely because an SDK is missing. Scripted discovery, replay,
 operator and routine tests need no model key. Model IDs are provider-specific;
 use an available ID rather than assuming a sample default is always offered.
 

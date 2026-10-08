@@ -4,15 +4,22 @@ build-backend = "hatchling.build"
 
 [project]
 name = "inter-cua"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Goal-driven UI discovery, reviewable capability artifacts, and deterministic replay"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Operating System :: OS Independent",
+]
 dependencies = [
-  "anthropic>=0.40,<1.0",
   "fastapi>=0.115,<1.0",
-  "google-genai>=2.0,<3.0",
   "httpx>=0.27,<1.0",
   "jinja2>=3.1,<4.0",
   "playwright>=1.48,<2.0",
@@ -23,7 +30,17 @@ dependencies = [
   "uvicorn>=0.30,<1.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/aniaisec/inter-cua"
+Repository = "https://github.com/aniaisec/inter-cua"
+Documentation = "https://github.com/aniaisec/inter-cua/tree/main/docs"
+Issues = "https://github.com/aniaisec/inter-cua/issues"
+Changelog = "https://github.com/aniaisec/inter-cua/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
+anthropic = ["anthropic>=0.40,<1.0"]
+gemini = ["google-genai>=2.0,<3.0"]
+discovery = ["inter-cua[anthropic,gemini]"]
 # The Windows UI Automation surface (target.surface: desktop). Windows only;
 # nothing else imports it, so the web adapter and CI elsewhere never need it.
 windows = ["comtypes>=1.4 ; sys_platform == 'win32'"]
@@ -31,7 +48,9 @@ windows = ["comtypes>=1.4 ; sys_platform == 'win32'"]
 # recorded control's picture. Without it replay still runs; --vision is refused.
 vision = ["numpy>=1.26", "pillow>=10.0"]
 dev = [
-  "inter-cua[vision]",
+  "inter-cua[discovery,vision]",
+  "build>=1.2,<2.0",
+  "hatchling>=1.27,<2.0",
   "httpx>=0.27,<1.0",
   "jsonschema>=4.20,<5.0",
   "mypy>=1.11",
@@ -43,6 +62,9 @@ dev = [
 
 [project.scripts]
 cua = "cua.cli:main"
+
+[tool.hatch.version]
+path = "src/cua/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cua", "mockapp"]

@@ -4,6 +4,11 @@
 
 GitHub Actions runs quality and browser gates and uploads fresh benchmark/security
 reports; see [CI gates and artifacts](CI.md) for coverage and reproduction.
+Install `.[dev]` for both provider SDKs, vision and test/build tools. To reproduce
+CI and benchmarks on Python 3.11, use
+`python -m pip install -c constraints/dev-py311.txt -e ".[dev]"` in a fresh
+environment. Other supported Python versions resolve the declared ranges;
+the snapshot is specific to Python 3.11. See [packaging](packaging.md).
 
 The local gate is `make test`; CI separately adds strict browser verification. On Windows without Make, use the equivalent
 commands in the activated environment:

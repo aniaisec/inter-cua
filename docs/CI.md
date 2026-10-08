@@ -2,7 +2,9 @@
 
 `.github/workflows/ci.yml` runs on pushes, pull requests and manual dispatch.
 It uses Python 3.11 (the package minimum), with no provider credentials or paid
-model calls. Jobs have read-only repository permissions and run serial tests
+model calls. Development/build dependencies use `constraints/dev-py311.txt`;
+fresh consumer installations resolve the declared library ranges. Jobs have
+read-only repository permissions and run serial tests
 within each job. New runs cancel older runs for the same ref.
 
 The `quality` job checks Ruff lint and formatting, strict mypy for both its
@@ -14,9 +16,15 @@ then produces fresh benchmark and security reports. Desktop UI Automation
 still requires a separate interactive Windows session.
 
 The browser tests include a real `cua doctor --probe-browser` launch/close and an
-unauthenticated application HEAD probe. The `installed` job checks doctor JSON
-and browser probing in a non-editable wheel outside the checkout, alongside
-template/resource checks and the full demo.
+unauthenticated application HEAD probe. The `installed` matrix builds and inspects
+both wheel and sdist, then uses a fresh non-editable environment outside the
+checkout with `PYTHONPATH` removed. Base wheel and sdist-built wheel entries
+check doctor JSON, browser launch and the complete no-key demo with both provider
+SDKs absent. Separate entries check `anthropic`, `gemini`, `discovery`, `vision`,
+and (on Windows) `windows`; every entry checks CLI help/version, starter projects
+and mock HTML. Provider constructors use synthetic keys with network calls
+forbidden. The Windows entry verifies dependency/adapter imports, not interactive
+UIA execution. See [packaging gates and local commands](packaging.md).
 
 The hosted browser job explicitly sets `CUA_CHROMIUM_NO_SANDBOX=1` for detached
 Chromium: hosted Linux runners can restrict the user namespaces its sandbox
@@ -59,4 +67,5 @@ python -m cua.cli security run --out artifacts/security --runs-root bench/securi
 
 Use a fresh reports directory: the smoke gate intentionally refuses appended
 sessions. Repository administrators must configure branch protection to require
-the `quality` and `browser` checks; a workflow file cannot enforce that setting.
+the `quality`, `browser` and `installed` matrix checks; a workflow file cannot
+enforce that setting.
