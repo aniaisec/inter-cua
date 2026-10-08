@@ -20,6 +20,7 @@ def main() -> None:
     with zipfile.ZipFile(args.wheel) as archive:
         names = set(archive.namelist())
         required = {
+            "cua/doctor.py",
             "cua/resources/templates/demo/cua.toml",
             "cua/resources/templates/demo/.gitignore",
             "cua/resources/templates/demo/.env.example",
@@ -38,7 +39,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="cua installed with spaces ") as temp:
         cwd = Path(temp)
 
-        def run(*args: str) -> str:
+        def run(*args: str, expected: tuple[int, ...] = (0,)) -> str:
             result = subprocess.run(
                 [sys.executable, *args],
                 cwd=cwd,
@@ -48,7 +49,7 @@ def main() -> None:
                 encoding="utf-8",
                 timeout=300,
             )
-            assert result.returncode == 0, result.stdout + result.stderr
+            assert result.returncode in expected, result.stdout + result.stderr
             return result.stdout
 
         origin = run("-c", "import cua; print(cua.__file__)").strip()
@@ -73,7 +74,19 @@ def main() -> None:
             "r=TestClient(app).get('/login'); assert r.status_code==200; "
             "assert 'Password' in r.text",
         )
+        diagnostic = json.loads(
+            run("-m", "cua.cli", "--root", "demo", "doctor", "--json", expected=(0, 1))
+        )
+        assert diagnostic["report_version"] == 1
+        assert "PROJECT_OK" in {f["code"] for f in diagnostic["findings"]}
+        key = (cwd / "demo/.cua/approval-signing.key").read_text().strip()
+        assert key not in json.dumps(diagnostic)
         if args.browser:
+            diagnostic = json.loads(
+                run("-m", "cua.cli", "--root", "demo", "doctor", "--json", "--probe-browser")
+            )
+            assert diagnostic["ready"]
+            assert "BROWSER_LAUNCH_OK" in {f["code"] for f in diagnostic["findings"]}
             run("-m", "cua.cli", "demo", "--out", "session", "--repetitions", "1")
             summary = json.loads((cwd / "session/summary.json").read_text(encoding="utf-8"))
             assert summary["replay_model_calls"] == 0

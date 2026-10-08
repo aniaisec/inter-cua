@@ -1295,3 +1295,45 @@ Implemented October 6, 2026.
   With PYTHONPATH removed and cwd outside the checkout, all three initializer
   templates, mock HTML and the complete seven-stage browser demo passed. Replay
   used zero model calls and the demo made exactly one consented commit.
+
+## Adoption P05 - diagnostics and application preflight
+
+Implemented October 7, 2026.
+
+- Added `cua doctor --tenant local` with text and versioned JSON reports. Findings
+  carry stable codes, severity, explanation, remedy, and a subject. Exit codes are
+  0 for checked prerequisites ready, 1 for failed checks, and 64 for malformed
+  invocation/project selection. JSON errors never include raw validation inputs.
+- Reused project selection, tenant/policy/family validation, catalog/registry
+  scanning, secret binding, and surface compatibility checks. Reports include
+  configuration/schema/package/Python versions, platform/adapter, dependencies,
+  application URL validity, credential source availability, capability credential
+  ownership/fields, and exact-content registry approval. Drafts remain warnings;
+  diagnosing creates no keys, receipts, approvals, or capability changes.
+- Used Playwright's local install dry run to inspect expected Chromium/full and
+  headless-shell executables. Static diagnostics launch no browser or target and
+  make no model/network calls. Runtime write checks remove their temporary files
+  and any empty directories they created, preserving concurrent writers' files.
+- Added explicit `--probe-browser` launch/close in an isolated environment
+  snapshot and `--probe-app` unauthenticated HEAD with network timeouts. The
+  application probe honors allowed origins/paths, follows no redirects, uses no
+  proxy/login credentials, and reports no response body. Missing executables,
+  denied/failed/timed-out launches, missing UIA dependencies, unavailable secrets,
+  HTTP errors and unreachable/timed-out applications have distinct findings.
+  Unsupported HEAD/authentication responses are warnings; desktop probes are
+  refused and interactive desktop readiness remains manually verified.
+- Updated setup/CLI/configuration/troubleshooting/CI guides, documentation
+  navigation, and all packaged starter guides. The browser CI suite now executes
+  a real doctor probe; the installed-wheel gate checks doctor JSON and launch.
+- Verification: full non-browser suite 988 passed, 1 skipped, 119 deselected;
+  final focused doctor regressions 90 passed, including two additional malformed
+  HTTP URL cases checked after the full run started. Real strict browser/HTTP
+  doctor integration passed. Ruff lint/format and strict Linux/Windows mypy pass
+  (150 source files). The existing skip requires Windows symlink privileges.
+- Rebuilt the final wheel and installed it non-editably in a fresh environment.
+  With PYTHONPATH removed and cwd outside the checkout, resource checks, all
+  three templates, doctor JSON/local browser probing, mock HTML and the full
+  seven-stage demo passed. Demo replay used zero model calls and made exactly
+  one consented commit; base-package doctor works without the vision extra.
+- Local HTTP/browser verification needed execution outside the session sandbox;
+  live Windows UIA and hosted Linux CI were not run in this phase.

@@ -5,6 +5,7 @@ Run these commands from this directory after installing `inter-cua` and Chromium
 
 ```sh
 python -m playwright install chromium
+cua doctor --tenant local --probe-browser
 cua demo --out demo/session --repetitions 2
 ```
 

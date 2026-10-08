@@ -13,6 +13,11 @@ using `--require-browser` (launch errors and zero executed browser tests fail),
 then produces fresh benchmark and security reports. Desktop UI Automation
 still requires a separate interactive Windows session.
 
+The browser tests include a real `cua doctor --probe-browser` launch/close and an
+unauthenticated application HEAD probe. The `installed` job checks doctor JSON
+and browser probing in a non-editable wheel outside the checkout, alongside
+template/resource checks and the full demo.
+
 The hosted browser job explicitly sets `CUA_CHROMIUM_NO_SANDBOX=1` for detached
 Chromium: hosted Linux runners can restrict the user namespaces its sandbox
 requires. Detached browsers keep their sandbox enabled outside this opt-in.

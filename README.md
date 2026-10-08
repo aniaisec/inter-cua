@@ -72,7 +72,9 @@ for example `.\.venv\Scripts\python.exe -m cua.cli --help`.
 To create an editable project after installation, run
 `cua init my-project --template demo`, then read `my-project/README.md`.
 The `web` and `windows` templates provide application-specific starting
-configuration. Add `--dry-run` to preview files without writing. Existing files
+configuration. Run `cua --root my-project doctor --tenant local` to check setup;
+add `--probe-browser` to test Chromium launch or `--json` for a machine report.
+Add `--dry-run` to init to preview files without writing. Existing files
 are refused; no capability is automatically approved.
 
 For a non-editable installation, build a wheel in the checkout with
@@ -117,9 +119,10 @@ for result fields, handoff, consent and evidence handling.
 
 Follow [your first application](docs/your-first-application.md) to create a tenant
 binding, restrict the policy, define the product's family template, discover a
-read-only operation, review it and test a second input and failure. Configuration
-is currently manual and relative to the working directory; there is no `init` or
-`doctor` command yet. See [configuration and secret precedence](docs/configuration.md).
+read-only operation, review it and test a second input and failure. Start with
+`cua init PATH --template web`, edit its configuration, then run `cua doctor`.
+See [configuration and secret precedence](docs/configuration.md) and
+[diagnostic findings](docs/troubleshooting.md#doctor-findings).
 
 Live discovery needs an Anthropic or Gemini provider key and incurs charges.
 Scripted discovery needs a target-specific tool-call script. Replay, operator and

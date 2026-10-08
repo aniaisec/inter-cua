@@ -7,6 +7,7 @@ Linux job or a locked/noninteractive Windows session.
 Your next command, from this directory:
 
 ```powershell
+cua doctor --tenant local
 cua discover --llm scripted --script scripts/discovery/deskcalc_compute.yaml --goal "Calculate a quotient" --name deskcalc_compute --entry / --param first:decimal=12.5 --param second:decimal=4 --param operation:string=Divide --output result:decimal
 cua describe deskcalc_compute
 cua approve deskcalc_compute --by YOUR_NAME

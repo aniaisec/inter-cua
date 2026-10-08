@@ -5,6 +5,7 @@ Use `cua --help` and `cua <command> --help` for complete flags. The nearest ance
 | Command | What it does | Exit |
 |---|---|---|
 | `cua init PATH --template demo\|web\|windows [--dry-run]` | create an editable project from packaged resources; refuse existing files; generate a private per-project signing key | 0 created/planned, 64 invalid/conflict |
+| `cua doctor [--tenant local] [--json] [--probe-browser] [--probe-app]` | local setup checks; opt in to Chromium launch or an unauthenticated application HEAD request | 0 ready for checked prerequisites, 1 failed checks, 64 malformed invocation/project |
 | `cua demo [--out DIR] [--repetitions N]` | packaged seven-stage synthetic demo with no provider key; default two independent replays | 0 complete, 1 failed, 64 invalid project |
 | `cua discover --goal ... --param name:type=value --output name:type` | LLM observe → decide → act loop until the goal is met, or a step limit, time limit, dead end or `stuck`; records a draft capability | 0 done, 3 escalated, 1 stopped |
 | `cua discover ... --llm scripted --script <file>` | same loop, no key | as above |
@@ -56,5 +57,16 @@ unknown flag exit 2; that is not a replay business result. Decimal outputs are
 strings to preserve precision. Non-finite decimal inputs and budgets are refused.
 An unknown side effect requires reconciliation before another write. Keep the
 original idempotency key when retrying a request whose answer was lost.
+
+Doctor's argument errors use exit 64. With `--json`, stdout contains one JSON
+object, including on invocation/configuration failures, and no status text is
+interleaved. Report version 1 contains `report_version`, `ready`, `project`, and
+`findings`. Each finding has a stable `code`, `severity` (`info`, `warning`,
+`error`), `explanation`, `remedy`, and an optional identifying `subject` string.
+Warnings do not fail readiness: drafts still need approval and optional provider
+or vision dependencies matter only when using those features. Readiness does not
+certify application behavior, authentication, or an interactive desktop session.
+`--policy`, `--families-dir`, and `--capabilities-dir` follow explicit CLI path
+rules. Probe details and remedies are in [troubleshooting](troubleshooting.md#doctor-findings).
 
 [Documentation index](index.md) · [Project README](../README.md)
