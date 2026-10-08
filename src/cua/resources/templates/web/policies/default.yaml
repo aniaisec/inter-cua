@@ -1,0 +1,15 @@
+allowed_origins: ["{tenant.base_url}"]
+# Replace these exact paths; never authorize an entire application by default.
+allowed_paths: ["^/login$", "^/lookup$"]
+allowed_actions: [click, type, press, read, select]
+blocked_actions: [download, external_navigation]
+credential_paths: ["^/login$"]
+# Treat all buttons as risky until you review the actual controls.
+risky_rules:
+  - id: unreviewed_button
+    role: button
+    name: ".*"
+    reason: unreviewed button may commit a change
+screenshot_masks:
+  - [{strategy: near_text, text: Password, role: textbox}]
+vision: {allowed: false}

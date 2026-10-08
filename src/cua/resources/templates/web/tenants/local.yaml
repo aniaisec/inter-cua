@@ -1,0 +1,13 @@
+id: local
+app_family: my-web-app
+# Replace this reserved, non-routable example origin with your application.
+base_url: https://replace-me.invalid
+policy: policies/default.yaml
+secrets:
+  app/login:
+    provider: env
+    var: CUA_APP_LOGIN
+    format: username:password
+  cua/approval-signing-key:
+    provider: file
+    path: .cua/approval-signing.key

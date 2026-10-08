@@ -13,6 +13,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  installed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CUA_CHROMIUM_NO_SANDBOX: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: python -m pip wheel --no-deps --wheel-dir dist .
+      - run: python -m venv /tmp/cua-wheel-env
+      - run: /tmp/cua-wheel-env/bin/python -m pip install dist/*.whl
+      - run: /tmp/cua-wheel-env/bin/python -m playwright install --with-deps chromium
+      - run: /tmp/cua-wheel-env/bin/python scripts/ci/check_installed.py dist/*.whl --browser
+
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15

@@ -1,0 +1,34 @@
+# Tenant binding: the per-deployment facts a capability artifact must not carry.
+# A capability is keyed by target.app_family; this file says where that app
+# lives for one tenant and where its credentials come from.
+id: local
+app_family: legacy-core
+base_url: http://127.0.0.1:8000
+
+# The policy this tenant's runs are held to, unless a caller names another.
+policy: policies/default.yaml
+
+# The capabilities this tenant runs. Left out: every capability of its app
+# family. A list narrows it, by name.
+# capabilities: [member_savings_balance, open_subaccount]
+
+# secret:// refs are resolved at invoke time by cua.secrets.resolver.
+# Values live only in process memory and are never written to an artifact,
+# a log, or an intervention request. A binding reads an environment variable
+# (provider: env) or a file (provider: file).
+secrets:
+  mockcore/operator:
+    provider: env
+    var: CUA_SECRET_MOCKCORE_OPERATOR
+    format: "username:password"
+  # Signs approval tokens (`cua approval-token`). Whoever can read it can
+  # consent on this tenant's behalf. Locally a file under the gitignored .cua/,
+  # created by init; a real tenant would mount it from its secret manager.
+  cua/approval-signing-key:
+    provider: file
+    path: .cua/approval-signing.key
+
+# Overlay that adapts a shared capability to this tenant's wording and layout.
+# None needed locally: the mock app is the reference deployment. This runtime
+# applies no overlays, and refuses a tenant that names one.
+overlay: null

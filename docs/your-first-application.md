@@ -2,9 +2,10 @@
 
 Complete the [no-key demo](getting-started.md) first. Create your own project
 directory and a `cua.toml` containing `version = 1`, then create the files below
-inside it. Commands find that project from nested directories; use
-`cua --root /absolute/project/path <command>` from elsewhere. There is no
-initialization wizard yet. See [project configuration](configuration.md) for
+inside it. Alternatively, run `cua init my-project --template web` and edit its
+starter files and generated guide. Commands find that project from nested
+directories; use `cua --root /absolute/project/path <command>` from elsewhere.
+See [project configuration](configuration.md) for
 custom directories and explicit CLI path behavior. Start with a read-only
 operation on a test deployment you can inspect and reset.
 

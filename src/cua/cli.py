@@ -28,6 +28,15 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--root", type=Path, dest="project_root", help="Select a project directory")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    from cua.initialize import add_parser as _add_init
+
+    _add_init(sub)
+    demo = sub.add_parser("demo", help="Run the packaged seven-stage synthetic demo")
+    demo.add_argument("--out", type=Path, help="New session directory; existing paths refused")
+    demo.add_argument("--repetitions", type=int, default=2)
+    demo.add_argument("--llm", choices=("scripted", "gemini", "anthropic"), default="scripted")
+    demo.add_argument("--model")
+
     mockapp = sub.add_parser("mockapp", help="Run the mock legacy target app")
     mockapp.add_argument("--host", default="127.0.0.1")
     mockapp.add_argument("--port", type=int, default=8000)
@@ -405,6 +414,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     arguments = list(sys.argv[1:] if argv is None else argv)
     args = parser.parse_args(arguments)
+    if args.command == "init":
+        from cua.initialize import main as initialize
+
+        # Initialization must also work beside a malformed existing cua.toml.
+        args.path = args.path.absolute()
+        return initialize(args)
     from cua.project import ProjectContext, bind_cli
 
     try:
@@ -424,6 +439,23 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         uvicorn.run("mockapp.app:app", host=args.host, port=args.port)
         return 0
+
+    if args.command == "demo":
+        from cua.demo.runner import main as demo_runner
+
+        demo_args = [
+            "--root",
+            str(args.project.root),
+            "--repetitions",
+            str(args.repetitions),
+            "--llm",
+            args.llm,
+        ]
+        if args.out is not None:
+            demo_args += ["--out", str(args.out)]
+        if args.model:
+            demo_args += ["--model", args.model]
+        return demo_runner(demo_args)
 
     if args.command == "discover":
         return _discover(args)

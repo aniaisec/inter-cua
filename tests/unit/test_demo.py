@@ -10,7 +10,6 @@ import pytest
 
 from cua.demo.report import STAGES, generate, main
 from cua.demo.runner import Demo, prepare
-from tests.conftest import REPO_ROOT
 
 
 def write(path: Path, value: object) -> None:
@@ -151,12 +150,13 @@ def test_report_refuses_incomplete_or_contradictory_evidence(session, change):
 def test_prepare_isolates_runtime_state_and_refuses_overwrite(tmp_path):
     out = tmp_path / "demo"
     work, env = prepare(out, "http://127.0.0.1:12345")
-    assert (work / "capabilities/open_subaccount.json").read_bytes() == (
-        REPO_ROOT / "capabilities/open_subaccount.json"
-    ).read_bytes()
+    assert (
+        json.loads((work / "capabilities/open_subaccount.json").read_text())["approval_state"]
+        == "draft"
+    )
     assert "12345" in (work / "tenants/local.yaml").read_text()
     assert len(env["CUA_DEMO_SIGNING_KEY"]) == 64
-    assert not (work / ".env").exists()
+    assert (work / ".env").is_file()
     (out / "sentinel").write_text("keep")
     with pytest.raises(FileExistsError):
         prepare(out, "http://127.0.0.1:1")

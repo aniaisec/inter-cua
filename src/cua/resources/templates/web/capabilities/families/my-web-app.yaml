@@ -1,0 +1,9 @@
+# Replace vendor/version, and add tested business outcomes and recovery rules.
+# One successful discovery cannot infer rejection or session-expiry behavior.
+target:
+  vendor: REPLACE_ME
+  version_hint: REPLACE_ME
+  surface: web
+outcomes: {}
+outcome_detectors: []
+recoverers: {}

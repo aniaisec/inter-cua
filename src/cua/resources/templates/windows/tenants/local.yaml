@@ -1,0 +1,18 @@
+id: local
+app_family: deskcalc
+base_url: uia://deskcalc
+desktop:
+  launch:
+  - powershell.exe
+  - -NoProfile
+  - -ExecutionPolicy
+  - Bypass
+  - -File
+  - deskapp/deskcalc.ps1
+  inject_flag: -Inject
+policy: policies/deskcalc.yaml
+secrets:
+  cua/approval-signing-key:
+    provider: file
+    path: .cua/approval-signing.key
+overlay: null

@@ -2,9 +2,15 @@
 
 Follow the separate [PowerShell and POSIX first-run blocks](../README.md#installation-and-no-key-demo)
 in the README. Those are the canonical installation and short-demo commands.
-Run them from a checkout: the demo currently copies repository resources and is
-not an installed-wheel demonstration. Python 3.11 or newer and a Playwright Chromium
+The demo uses packaged resources and works outside a checkout after installing
+a wheel. Python 3.11 or newer and a Playwright Chromium
 installation are required. The runner starts its own services on free ports.
+
+Use `cua init my-project --template demo` to create an editable no-key sample;
+read its generated `README.md` for the next command. Choose `--template web` or
+`--template windows` for application setup. `--dry-run` previews the file list;
+existing files are refused. The starter capabilities are drafts and require
+`cua describe` followed by `cua approve` before manual replay.
 
 ## What to expect
 

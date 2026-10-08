@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import secrets
 import shutil
 import subprocess
@@ -26,9 +25,8 @@ from ulid import ULID
 
 from cua.benchmark.environment import free_port
 from cua.evidence.build import BuildError, Call, Person, click_find, expect
+from cua.initialize import initialize
 from cua.project import ProjectContext
-
-ROOT = Path(__file__).resolve().parents[3]
 
 
 @contextmanager
@@ -67,23 +65,16 @@ def prepare(
     out: Path, base_url: str, *, project: ProjectContext | None = None
 ) -> tuple[Path, dict[str, str]]:
     """Refuse overwrites; keep all runtime state and approval receipts local."""
-    project = project or ProjectContext.resolve(ROOT)
+    project = project or ProjectContext.resolve()
     out.mkdir(parents=True, exist_ok=False)
     work = out / "workspace"
-    work.mkdir()
-    for folder in ("capabilities", "policies", "tenants"):
+    initialize(work, "demo")
+    # An explicitly configured project may supply reviewed family definitions;
+    # demo artifacts and runtime state always start from the packaged resources.
+    if project.configured:
         shutil.copytree(
-            project.path(folder) if folder != "policies" else project.relative(folder),
-            work / folder,
-            ignore=shutil.ignore_patterns("candidates", "__pycache__"),
+            project.path("families"), work / "capabilities/families", dirs_exist_ok=True
         )
-    shutil.copytree(project.path("families"), work / "capabilities/families", dirs_exist_ok=True)
-    shutil.copytree(project.relative("scripts/discovery"), work / "scripts" / "discovery")
-    shutil.copytree(
-        project.relative("bench/security"),
-        work / "bench" / "security",
-        ignore=shutil.ignore_patterns("runs", "reports", "__pycache__"),
-    )
     tenant_path = work / "tenants" / "local.yaml"
     tenant = yaml.safe_load(tenant_path.read_text(encoding="utf-8"))
     tenant["base_url"] = base_url
@@ -95,7 +86,6 @@ def prepare(
     env = {
         **project.environ,
         "PYTHONUTF8": "1",
-        "PYTHONPATH": os.pathsep.join((str(ROOT / "src"), str(ROOT))),
         "CUA_SECRET_MOCKCORE_OPERATOR": "operator:operator",
         "MOCKAPP_OPERATOR_PASSWORD": "operator",
         "CUA_DEMO_SIGNING_KEY": secrets.token_hex(32),
@@ -279,6 +269,9 @@ class Demo:
             "evidence-bot took control, clicked Find, and resumed the same session",
         )
         risky = "capabilities/open_subaccount.json"
+        for command in ("describe", "approve"):
+            extra = ["--by", "demo-reviewer"] if command == "approve" else []
+            expect(self.call(f"{command}-risky", command, risky, *extra), 0)
         inputs = ["--input", "member_id=10003", "--input", "initial_deposit=250.00"]
         before = self.commits(base_url)
         denied = self.replay("no-consent", risky, *inputs)
@@ -362,7 +355,9 @@ class Demo:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, help="Source demo project (default: checkout)")
+    parser.add_argument(
+        "--root", type=Path, help="Project environment and optional family overrides"
+    )
     parser.add_argument("--out", type=Path, help="New session directory; existing paths refused")
     parser.add_argument("--repetitions", type=int, default=100)
     parser.add_argument("--llm", choices=("scripted", "gemini", "anthropic"), default="scripted")
@@ -373,7 +368,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.model and args.llm == "scripted":
         parser.error("--model requires a live provider")
     try:
-        project = ProjectContext.resolve(args.root or ROOT)
+        project = ProjectContext.resolve(args.root)
     except (OSError, ValueError) as exc:
         print(f"demo: {exc}", file=sys.stderr)
         return 64
