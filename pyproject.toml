@@ -108,7 +108,7 @@ ignore = ["ANN401"]
 
 [tool.mypy]
 python_version = "3.11"
-files = ["src", "mockapp", "examples/inventory/app"]
+files = ["src", "mockapp", "examples"]
 strict = true
 warn_unreachable = true
 

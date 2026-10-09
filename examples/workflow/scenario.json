@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "name": "workflow",
+  "purpose": "Bind the first lookup's typed item code output into the second lookup, then stop before that second step when the first returns a business rejection.",
+  "template": "inventory",
+  "capabilities": [
+    "item_lookup"
+  ],
+  "inputs": {
+    "item_code": "SKU-002"
+  },
+  "rejected_inputs": {
+    "item_code": "SKU-999"
+  },
+  "outputs": {
+    "quantity_first": 4,
+    "quantity_second": 4,
+    "item_name": "Desk lamp"
+  },
+  "expected": {
+    "binding_validated": true,
+    "rejected_step": "first",
+    "later_step": "not_run",
+    "replay_model_calls": 0
+  }
+}

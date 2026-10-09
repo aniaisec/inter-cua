@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "name": "windows_uia",
+  "purpose": "Discover, review and replay DeskCalc in an interactive Windows session; refuse explicitly requested screenshots before starting the application.",
+  "template": "windows",
+  "capabilities": [
+    "deskcalc_compute"
+  ],
+  "inputs": {
+    "first": "20",
+    "second": "4",
+    "operation": "Divide"
+  },
+  "outputs": {
+    "result": "5"
+  },
+  "discovery": {
+    "deskcalc_compute": {
+      "entry": "/",
+      "goal": "Calculate a quotient",
+      "params": [
+        "first:decimal=12.5",
+        "second:decimal=4",
+        "operation:string=Divide"
+      ],
+      "outputs": [
+        "result:decimal"
+      ]
+    }
+  },
+  "expected": {
+    "kind": "success",
+    "unsupported_refused": true,
+    "replay_model_calls": 0
+  }
+}

@@ -1,0 +1,20 @@
+name: example
+description: Evaluate a lookup repair against the unchanged and renamed screens.
+tasks:
+  - id: lookup-success
+    name: Original control
+    capability: capabilities/member_savings_balance.json
+    goal: {goal: Look up member savings}
+    inputs: {member_id: "10003"}
+    truth: {kind: answer, outputs: {savings_balance: "1411.21", member_name: Test Member 03}}
+    strategies: [inter_cua_replay]
+    tags: [success]
+  - id: lookup-renamed-button
+    name: Renamed control
+    capability: capabilities/member_savings_balance.json
+    goal: {goal: Look up member savings}
+    inputs: {member_id: "10003"}
+    inject: renamed_button
+    truth: {kind: answer, outputs: {savings_balance: "1411.21", member_name: Test Member 03}}
+    strategies: [inter_cua_replay]
+    tags: [drift]

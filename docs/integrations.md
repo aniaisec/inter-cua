@@ -4,6 +4,11 @@ Choose CLI for a shell or subprocess caller, HTTP for a shared local service,
 and MCP for a client that launches a stdio tool server. All use approved artifacts
 and the same replay gates. [Workflows](architecture.md#workflows) compose capabilities.
 
+The [runnable examples](../examples/README.md) exercise these contracts through
+isolated, no-key scenarios. Each example's documented command and expected JSON
+are checked against its `scenario.json`. Start with [typed CLI lookup](../examples/lookup/README.md),
+the [HTTP client](../examples/http_client/README.md), or [MCP setup](../examples/mcp_setup/README.md).
+
 ## CLI callers
 
 `cua catalog` is the surface an agent sees. It is a view of the capability
@@ -96,6 +101,14 @@ these states:
 - `error`: the request could not be made at all, as `cua replay` exits 64;
 - `lost`: the server stopped mid-run and the run directory holds no result.
 
+`running` currently also includes work waiting for a worker. The reusable
+[HTTP client](../examples/http_client/client.py) accepts future `queued` responses
+as active states; the server will distinguish them in PR14. It stops polling at
+`escalated`, `finished`, `error` or `lost`, leaving the caller to inspect the result
+and decide. A `finished` business outcome is an answer, not a transport error.
+`lost`, or a result with `side_effect: unknown`, requires reconciliation and must
+never trigger an automatic replacement write. An unknown response state fails closed.
+
 ```bash
 KEY=$(cat .cua/api-keys/local-agent.key)
 curl -s -X POST "http://127.0.0.1:8200/runs?wait=60" \
@@ -119,6 +132,15 @@ HTTP:
 
 Approving over HTTP takes a signed token, never a name: there is no person at
 a console to vouch for who is consenting.
+
+Persist the key and exact request before sending. A transport retry must carry
+the same payload, key and request identity; a 409 must stop the caller, without
+inventing a new key. Exhausted retries retain that identity for reconciliation.
+The [tested client example](../examples/http_client/README.md) checks these cases
+and observes the target's independent commit count. 428 means the required key
+is missing; 429/503 are surfaced for caller-directed backoff. Current sequential
+retry examples do not establish crash-safe ownership; see the planned persistence
+and admission work in the adoption plan.
 
 ## MCP
 

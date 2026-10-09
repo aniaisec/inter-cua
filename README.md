@@ -148,6 +148,10 @@ outcomes or recovery conditions.
 | Workflows | Compose approved operations with typed bindings | [Workflow semantics](docs/architecture.md#workflows) |
 | Operator / resume | Consent and takeover of the same browser session | [Operations](docs/operations.md) |
 
+Try the [runnable integration examples](examples/README.md) for CLI, HTTP, MCP,
+workflows, business rejection, consent, drift, handoff and Windows UIA. Each has
+a tested scenario, expected results and cleanup instructions.
+
 ## Reference and evaluation
 
 The [documentation index](docs/index.md) links configuration, troubleshooting,
