@@ -1,0 +1,16 @@
+{
+  "item_lookup": {
+    "goal": "Look up an item and return its available quantity and name",
+    "params": ["item_code:string=SKU-001"],
+    "outputs": ["quantity:integer", "item_name:string"],
+    "second_inputs": {"item_code": "SKU-002"},
+    "second_outputs": {"quantity": 4, "item_name": "Desk lamp"}
+  },
+  "adjust_stock": {
+    "goal": "Adjust stock for an item and return the receipt and new available quantity",
+    "params": ["item_code:string=SKU-001", "quantity_change:integer=-2"],
+    "outputs": ["receipt:string", "quantity:integer"],
+    "replay_inputs": {"item_code": "SKU-001", "quantity_change": "-3"},
+    "insufficient_inputs": {"item_code": "SKU-001", "quantity_change": "-100"}
+  }
+}

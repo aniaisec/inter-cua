@@ -53,7 +53,22 @@ def server(args: list[str], url: str, cwd: Path, env: dict[str, str]) -> Iterato
             time.sleep(0.1)
         yield
     finally:
-        proc.terminate()
+        if sys.platform == "win32" and proc.poll() is None:
+            # A virtualenv's python.exe can launch another Python process.
+            # Stop the owned tree before deleting the project's working directory.
+            stopped = subprocess.run(
+                ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=10,
+            )
+            if stopped.returncode != 0 and proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=10)
+                raise BuildError("could not stop the demo server's process tree")
+        elif proc.poll() is None:
+            proc.terminate()
         try:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:

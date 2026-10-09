@@ -7,6 +7,28 @@ fresh consumer installations resolve the declared library ranges. Jobs have
 read-only repository permissions and run serial tests
 within each job. New runs cancel older runs for the same ref.
 
+On Windows, run every PR 07 check with one command from the checkout:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/test_pr07.ps1
+```
+
+The script selects `.venv/Scripts/python.exe`, checks development tools, runs
+lint/format and both mypy targets, the full non-browser/non-desktop suite, and
+the inventory browser suite with strict launch checks. It then builds and
+checks fresh archives and runs both installed base wheel/source gates, including
+the existing demo and inventory discovery/consent/retry scenarios. Tests manage
+their own servers, operator sessions and temporary projects; no manual takeover
+or model key is needed. Logs, JUnit and `summary.json` go into a unique directory
+under `artifacts/pr07-tests/`. The script stops on failure and exits 1; all
+selected checks passing exits 0. Use `-SkipInstalled` for a shorter local run,
+`-AllBrowser` to include every non-desktop browser test, or `-PythonPath PATH` to
+select another development environment. Live Windows UIA remains a separate gate.
+
+Installed browser checks stop their owned server process trees on Windows before
+removing temporary projects. Cleanup retries Windows sharing/access locks for at
+most five seconds; persistent locks and failed test assertions still fail the gate.
+
 The `quality` job checks Ruff lint and formatting, strict mypy for both its
 native Linux platform and Windows, and every
 non-browser, non-desktop test. The `browser` job installs Chromium and its
@@ -19,10 +41,12 @@ The browser tests include a real `cua doctor --probe-browser` launch/close and a
 unauthenticated application HEAD probe. The `installed` matrix builds and inspects
 both wheel and sdist, then uses a fresh non-editable environment outside the
 checkout with `PYTHONPATH` removed. Base wheel and sdist-built wheel entries
-check doctor JSON, browser launch and the complete no-key demo with both provider
+check doctor JSON, browser launch, the complete no-key demo and the inventory
+discovery/review/consent/retry walkthrough with both provider
 SDKs absent. Separate entries check `anthropic`, `gemini`, `discovery`, `vision`,
 and (on Windows) `windows`; every entry checks CLI help/version, starter projects
-and mock HTML. Provider constructors use synthetic keys with network calls
+and both targets' HTML. Inventory browser tests also cover business outcomes,
+preflight refusal, session expiry, ambiguity and human recovery. Provider constructors use synthetic keys with network calls
 forbidden. The Windows entry verifies dependency/adapter imports, not interactive
 UIA execution. See [packaging gates and local commands](packaging.md).
 

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Stockroom demo</title>
+<style>body{font:18px system-ui;max-width:760px;margin:48px auto;color:#173247}label{display:block;margin:18px 0}input{display:block;padding:8px;font:inherit}button,a{font:inherit}button{padding:8px 16px}table{border-collapse:collapse;margin:24px 0}th,td{padding:12px;border:1px solid #a6bac7;text-align:left}[role=alert]{padding:16px;background:#ffede2}</style></head>
+<body><main>
+{% if error %}<div role="alert">{{ error }}</div>{% endif %}
+{% if view == 'login' %}
+<h1>Inventory sign in</h1>
+<form method="post" action="/login">
+<label>Username<input name="username" autocomplete="username"></label>
+<label>Password<input name="password" type="password" autocomplete="current-password"></label>
+<button type="submit">Sign in</button></form>
+{% elif view == 'lookup' %}
+<h1>Stock lookup</h1>
+<form method="post" action="/lookup">
+<label>Item code<input name="item_code"></label>
+<button type="submit">{{ 'Find item' if fault == 'renamed_control' else 'Look up item' }}</button>
+{% if fault == 'ambiguous_control' %}<button type="submit">Look up item</button>{% endif %}
+</form>
+{% elif view == 'item' %}
+<h1>{{ 'Stock count under review' if changed else 'Item details' }}</h1>
+<h2>Stock levels</h2>
+<table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>
+<tr><th>Item code</th><td>{{ code }}</td></tr>
+<tr><th>Item name</th><td>{{ title }}</td></tr>
+<tr><th>Available quantity</th><td>{{ quantity }}</td></tr></tbody></table>
+{% if changed %}<a href="/items/{{ code }}?verified=true">Show item details</a>
+{% else %}<a href="/adjust/{{ code }}">Adjust stock</a>{% endif %}
+{% elif view == 'adjust' %}
+<h1>Stock adjustment</h1><p>Item code: {{ code }}</p>
+<form method="post" action="/adjust/{{ code }}">
+<label>Quantity change<input name="quantity_change" inputmode="numeric"></label>
+<button type="submit">Review adjustment</button></form>
+{% elif view == 'review' %}
+<h1>Review stock adjustment</h1>
+<p>Item code: {{ code }}</p><p>Quantity change: {{ delta }}</p>
+<form method="post" action="/review/{{ code }}"><button type="submit">Apply adjustment</button></form>
+{% elif view == 'committed' %}
+<h1>Adjustment saved</h1>
+<table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>
+<tr><th>Adjustment receipt</th><td>{{ receipt }}</td></tr>
+<tr><th>Available quantity</th><td>{{ quantity }}</td></tr></tbody></table>
+{% endif %}
+</main></body></html>

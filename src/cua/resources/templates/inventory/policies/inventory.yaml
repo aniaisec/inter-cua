@@ -1,0 +1,17 @@
+allowed_origins: ["{tenant.base_url}"]
+allowed_paths:
+  - "^/(login|lookup)$"
+  - "^/(items|adjust|review)/SKU-[0-9]{3}$"
+allowed_actions: [click, type, press, read, select]
+blocked_actions: [download, external_navigation]
+credential_paths: ["^/login$"]
+sensitive_labels: "(?i)password"
+screenshot_masks:
+  - [{strategy: role_name, role: textbox, name: Password}]
+risky_rules:
+  - id: apply_stock_adjustment
+    role: button
+    name: "^Apply adjustment$"
+    location: "/review/"
+    reason: changes the stored stock count
+vision: {allowed: false}

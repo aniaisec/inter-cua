@@ -11,7 +11,8 @@ corresponding `anthropic` or `gemini` extra and set its key; see
 
 Use `cua init my-project --template demo` to create an editable no-key sample;
 read its generated `README.md` for the next command. Choose `--template web` or
-`--template windows` for application setup. `--dry-run` previews the file list;
+`--template windows` for application setup. Choose `--template inventory` for
+the [runnable own-app tutorial](your-first-application.md). `--dry-run` previews the file list;
 existing files are refused. The starter capabilities are drafts and require
 `cua describe` followed by `cua approve` before manual replay.
 

@@ -16,7 +16,7 @@ from cua import __version__
 from cua.agent.llm import NoProviderError, select_client
 from cua.cli import main
 from cua.initialize import initialize
-from scripts.ci.check_distribution import RESOURCES, check, check_metadata
+from scripts.ci.check_distribution import RESOURCES, check, check_metadata, source_path
 
 ROOT = Path(__file__).resolve().parents[2]
 METADATA = """Metadata-Version: 2.4
@@ -151,9 +151,7 @@ def test_archive_gate_checks_resources_version_and_private_files(tmp_path, fault
     sdist = tmp_path / "inter_cua-0.1.0.tar.gz"
     wheel_files = dict.fromkeys(RESOURCES, b"fixture")
     wheel_files["inter_cua-0.1.0.dist-info/METADATA"] = METADATA.encode()
-    sdist_files = {
-        "src/" + name if name.startswith("cua/") else name: b"fixture" for name in RESOURCES
-    }
+    sdist_files = {source_path(name): b"fixture" for name in RESOURCES}
     sdist_files.update(
         {
             "pyproject.toml": (ROOT / "pyproject.toml").read_bytes(),
