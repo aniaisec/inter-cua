@@ -14,8 +14,35 @@ concurrency:
 
 jobs:
   installed:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            extra: base
+            source: wheel
+            browser: true
+          - os: ubuntu-latest
+            extra: base
+            source: sdist
+            browser: true
+          - os: ubuntu-latest
+            extra: anthropic
+            source: wheel
+          - os: ubuntu-latest
+            extra: gemini
+            source: wheel
+          - os: ubuntu-latest
+            extra: discovery
+            source: wheel
+          - os: ubuntu-latest
+            extra: vision
+            source: wheel
+          - os: windows-latest
+            extra: windows
+            source: wheel
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     env:
       CUA_CHROMIUM_NO_SANDBOX: '1'
     steps:
@@ -24,11 +51,18 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-      - run: python -m pip wheel --no-deps --wheel-dir dist .
-      - run: python -m venv /tmp/cua-wheel-env
-      - run: /tmp/cua-wheel-env/bin/python -m pip install dist/*.whl
-      - run: /tmp/cua-wheel-env/bin/python -m playwright install --with-deps chromium
-      - run: /tmp/cua-wheel-env/bin/python scripts/ci/check_installed.py dist/*.whl --browser
+      - run: python -m pip install -c constraints/dev-py311.txt build hatchling playwright
+      - run: python -m build --no-isolation --outdir dist
+      - name: Check wheel and sdist contents
+        shell: bash
+        run: python scripts/ci/check_distribution.py dist/*.whl dist/*.tar.gz
+      - if: matrix.browser
+        run: python -m playwright install --with-deps chromium
+      - name: Test fresh non-editable installation
+        run: >-
+          python scripts/ci/verify_installed.py dist --extra ${{ matrix.extra }}
+          ${{ matrix.source == 'sdist' && '--from-sdist' || '' }}
+          ${{ matrix.browser && '--browser' || '' }}
 
   quality:
     runs-on: ubuntu-latest
@@ -39,7 +73,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-      - run: python -m pip install -e '.[dev]'
+      - run: python -m pip install -c constraints/dev-py311.txt -e '.[dev]'
       - run: python -m ruff check .
       - run: python -m ruff format --check .
       - run: python -m mypy
@@ -62,7 +96,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-      - run: python -m pip install -e '.[dev]'
+      - run: python -m pip install -c constraints/dev-py311.txt -e '.[dev]'
       - run: python -m playwright install --with-deps chromium
       - run: python -m pytest --require-browser -m 'browser and not desktop' --junitxml=artifacts/browser.xml
       - name: Deterministic benchmark smoke

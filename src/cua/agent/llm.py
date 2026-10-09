@@ -157,7 +157,7 @@ class LLMClient(Protocol):
 
 
 class NoProviderError(RuntimeError):
-    """No key for any provider, and no script to play instead."""
+    """The selected provider lacks its SDK/key, or no provider can be chosen."""
 
 
 def select_client(
@@ -223,7 +223,13 @@ class AnthropicMessagesClient:
         client: Any | None = None,
         environ: Mapping[str, str] | None = None,
     ) -> None:
-        import anthropic  # only discovery needs a model SDK; replay must never import one
+        try:
+            import anthropic  # only discovery needs a model SDK
+        except ImportError as exc:
+            raise NoProviderError(
+                "--llm anthropic needs its optional SDK: "
+                'run python -m pip install "inter-cua[anthropic]"'
+            ) from exc
 
         self._model = model
         self._max_tokens = max_tokens
@@ -342,8 +348,13 @@ class GeminiClient:
         environ: Mapping[str, str] | None = None,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
-        from google import genai  # only discovery needs a model SDK
-        from google.genai import types
+        try:
+            from google import genai  # only discovery needs a model SDK
+            from google.genai import types
+        except ImportError as exc:
+            raise NoProviderError(
+                '--llm gemini needs its optional SDK: run python -m pip install "inter-cua[gemini]"'
+            ) from exc
 
         self._model = model
         self._max_tokens = max_tokens

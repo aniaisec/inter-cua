@@ -16,6 +16,7 @@ Start with the [README first-run sequence](../README.md) and [getting started](g
 | [Operations](operations.md) | Service, consent, handoff and retention limits |
 | [Extending](extending.md) | Families, adapters, providers and recoverers |
 | [Testing](testing.md) / [CI](CI.md) | Regression coverage and required gates |
+| [Packaging](packaging.md) / [Changelog](../CHANGELOG.md) | Extras, pinned development setup and distribution checks |
 | [Mock target](mock-target.md) | Fixture screens and injected failures |
 | [Evaluation](evaluation.md) / [benchmarks](../bench/README.md) | Measured results and reproduction |
 | [Threat model](THREAT_MODEL.md) / [security policy](../SECURITY.md) | Boundaries and reporting |

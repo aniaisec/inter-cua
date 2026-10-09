@@ -15,6 +15,7 @@ Before any discovery:
 Your next command, after those edits (replace the goal and output with your app):
 
 ```sh
+python -m pip install "inter-cua[discovery]"
 python -m playwright install chromium
 cua doctor --tenant local --probe-browser
 cua discover --goal "Look up an item" --name lookup --entry /login --output result:string
@@ -23,7 +24,10 @@ cua approve lookup --by YOUR_NAME
 cua replay lookup
 ```
 
-Use a test account and synthetic input. A live provider needs your own key;
+Use a test account and synthetic input. The `discovery` extra supplies both
+provider SDKs; choose just `anthropic` or `gemini` if preferred. When using a
+local wheel, install that same wheel with the extra rather than another version.
+A live provider needs your own key;
 discovery with `--llm scripted --script YOUR_SCRIPT.yaml` needs none. Malformed
 family data fails recording preflight before model work or a UI launch. A valid
 but incomplete template still needs application-specific review and negative

@@ -1,5 +1,8 @@
 # CLI reference
 
+`cua --version` prints the version shared by the installed package metadata and
+`cua.__version__`. Live discovery requires its [provider extra](packaging.md).
+
 Use `cua --help` and `cua <command> --help` for complete flags. The nearest ancestor `cua.toml` selects the project; global `cua --root DIR <command>` selects it explicitly. MCP also supports `cua mcp --root DIR`. Explicit CLI file paths remain relative to the invocation directory. See [path resolution](configuration.md).
 
 | Command | What it does | Exit |

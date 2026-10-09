@@ -251,8 +251,13 @@ def diagnose(
                 "A browser probe does not check this desktop target.",
                 "Omit --probe-browser for a Windows UIA tenant.",
             )
-    for package in ("anthropic", "google-genai", "numpy", "pillow"):
-        _dependency(report, package, required=False)
+    for package, extra in (
+        ("anthropic", "anthropic"),
+        ("google-genai", "gemini"),
+        ("numpy", "vision"),
+        ("pillow", "vision"),
+    ):
+        _dependency(report, package, required=False, install=f"inter-cua[{extra}]")
     if probe_app:
         if target == "desktop":
             report.add(
