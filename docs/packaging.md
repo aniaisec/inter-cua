@@ -101,11 +101,14 @@ and remove their own isolated virtual environment and scratch project, clear
 its wheel outside the checkout before installing it. SDK presence/absence and
 lazy imports are asserted, and constructors cannot connect to a network.
 
-Every combination runs CLI help/version, all three initializer templates,
+Every combination runs CLI help/version, all four initializer templates,
 static doctor JSON and the mock HTML endpoint. Base gates additionally launch
 Chromium and run all seven demo stages: scripted discovery, describe/approve,
 deterministic replay, drift, takeover, consent and security. Replay must record
-zero model calls and the demo exactly one consented commit. Provider translation
+zero model calls and the demo exactly one consented commit. Base gates also run
+the packaged inventory target from a fresh project: draft discovery, review,
+second-input lookup, shortage, consent and a cached retry, with independent
+stock/commit-count assertions. Provider translation
 is covered by deterministic unit tests; installed gates make no paid model calls.
 
 [CI gates](CI.md) · [Documentation index](index.md) · [Changelog](../CHANGELOG.md)

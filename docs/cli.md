@@ -7,7 +7,7 @@ Use `cua --help` and `cua <command> --help` for complete flags. The nearest ance
 
 | Command | What it does | Exit |
 |---|---|---|
-| `cua init PATH --template demo\|web\|windows [--dry-run]` | create an editable project from packaged resources; refuse existing files; generate a private per-project signing key | 0 created/planned, 64 invalid/conflict |
+| `cua init PATH --template demo\|web\|windows\|inventory [--dry-run]` | create an editable project from packaged resources; refuse existing files; generate a private per-project signing key | 0 created/planned, 64 invalid/conflict |
 | `cua doctor [--tenant local] [--json] [--probe-browser] [--probe-app]` | local setup checks; opt in to Chromium launch or an unauthenticated application HEAD request | 0 ready for checked prerequisites, 1 failed checks, 64 malformed invocation/project |
 | `cua demo [--out DIR] [--repetitions N]` | packaged seven-stage synthetic demo with no provider key; default two independent replays | 0 complete, 1 failed, 64 invalid project |
 | `cua discover --goal ... --param name:type=value --output name:type` | LLM observe → decide → act loop until the goal is met, or a step limit, time limit, dead end or `stuck`; records a draft capability | 0 done, 3 escalated, 1 stopped |

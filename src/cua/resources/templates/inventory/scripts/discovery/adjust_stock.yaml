@@ -1,0 +1,28 @@
+goal: Adjust stock for an item and return the receipt and new available quantity
+steps:
+  - tool: type
+    target: [{strategy: role_name, role: textbox, name: Username}]
+    text: ${credentials.app_login.username}
+  - tool: type
+    target: [{strategy: role_name, role: textbox, name: Password}]
+    text: ${credentials.app_login.password}
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Sign in}]
+  - tool: type
+    target: [{strategy: role_name, role: textbox, name: Item code}]
+    text: SKU-001
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Look up item}]
+  - tool: click
+    target: [{strategy: role_name, role: link, name: Adjust stock}]
+  - tool: type
+    target: [{strategy: role_name, role: textbox, name: Quantity change}]
+    text: "-2"
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Review adjustment}]
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Apply adjustment}]
+  - tool: done
+    outputs:
+      receipt: [{strategy: table_cell, row_contains: Adjustment receipt, column_header: Value}]
+      quantity: [{strategy: table_cell, row_contains: Available quantity, column_header: Value}]

@@ -1,0 +1,12 @@
+id: local
+app_family: stockroom
+base_url: http://127.0.0.1:8001
+policy: policies/inventory.yaml
+secrets:
+  inventory/clerk:
+    provider: env
+    var: CUA_INVENTORY_LOGIN
+    format: "username:password"
+  cua/approval-signing-key:
+    provider: file
+    path: .cua/approval-signing.key

@@ -75,6 +75,7 @@ exclude = ["src/cua/resources/templates"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "src/cua/resources/templates" = "cua/resources/templates"
+"examples/inventory/app" = "inventoryapp"
 
 [tool.hatch.build.targets.sdist.force-include]
 "src/cua/resources/templates" = "src/cua/resources/templates"
@@ -107,7 +108,7 @@ ignore = ["ANN401"]
 
 [tool.mypy]
 python_version = "3.11"
-files = ["src", "mockapp"]
+files = ["src", "mockapp", "examples/inventory/app"]
 strict = true
 warn_unreachable = true
 

@@ -1378,3 +1378,50 @@ Implemented October 8, 2026.
   requests. Local server/browser checks required access outside the sandbox.
 - Interactive Windows UIA, paid live providers and hosted Linux CI remain
   outside local verification. Distribution building/testing publishes no release.
+
+## Adoption P07 - second application and own-app tutorial
+
+Implemented October 8, 2026.
+
+- Added the independent Stockroom inventory target under `examples/inventory/app`,
+  packaged as `inventoryapp`, with semantic controls, two seeded items, lookup,
+  validation/insufficient-stock outcomes and a stock adjustment. Its independent
+  HTTP oracle reports final quantities, receipts, commit count and commit POSTs.
+  State is synthetic and process-local; bind to loopback and restart to reset.
+- Added `cua init PATH --template inventory` with tenant, narrowly scoped policy,
+  Stockroom family, scripted discovery inputs and a shared scenario definition.
+  Projects start with no capabilities or approvals and receive their own signing
+  key through the existing initializer. Discovery records drafts through the
+  ordinary loop; review, approval, input-bound consent and replay use existing gates.
+- Added an own-app walkthrough with PowerShell/POSIX commands, expected JSON/exit
+  behavior, second-input testing, oracle checks and explanations of configuration,
+  locators, checkpoints, outcomes, credentials, irreversible actions and retries.
+  Missing families are documented as a pre-discovery refusal. Live-provider
+  discovery is optional and remains outside routine CI.
+- Exercised renamed and ambiguous controls, session expiry, validation faults and
+  changed-screen takeover/resume through existing runtime controls. An ambiguous
+  semantic locator that resolves only by coordinates is refused as pixels-only.
+  Invalid input and tenant denial start no session; denied origins start no action.
+  Consent mismatch/reuse and cached sequential retry cannot add a second commit.
+- Extended archive/resource checks and installed base wheel/sdist gates to cover
+  all four templates and the packaged inventory target. Both base flows exercise
+  draft refusal, discovery/review/approval, typed lookup, business outcomes, consent
+  and cached retry; oracle checks distinguish discovery and replay commits.
+- Added `scripts/ci/test_pr07.ps1` to run quality, unit, inventory browser and fresh
+  wheel/sdist checks with one command, isolated servers/projects, per-gate logs,
+  JUnit reports and a JSON summary. It stops on failure; all 12 default gates pass.
+- Fixed Windows installed-check cleanup: demo and inventory servers stop their
+  owned process trees before project deletion, and released sharing/access locks
+  are retried for at most five seconds. Five regression tests include a real
+  current-directory lock, a child process and persistent-lock refusal.
+- Verification on October 9, Windows / Python 3.14.5: 1015 non-browser/non-desktop tests passed,
+  1 skipped (Windows symlink privilege), 130 deselected; all 11 inventory browser
+  tests passed. Ruff lint/format, diff checks and strict Linux/Windows mypy pass
+  (152 source files). Both fresh non-editable base wheel and sdist-built environments
+  passed outside the checkout with PYTHONPATH removed and provider SDKs absent.
+  Each ran the existing seven-stage demo and the inventory scenario; replay made
+  zero model calls and the inventory retry made no additional commit POST.
+- Browser/server/build checks required execution outside the session sandbox.
+  Hosted Linux CI, interactive Windows UIA and paid live providers were not run.
+  The walkthrough explicitly limits its retry claim to sequential invocations;
+  concurrent/crash-safe invocation ownership remains subsequent runtime work.

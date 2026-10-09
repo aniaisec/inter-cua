@@ -1,0 +1,42 @@
+target:
+  vendor: Stockroom
+  version_hint: "1.0"
+  surface: web
+outcomes:
+  NOT_FOUND: {payload: {}}
+  INSUFFICIENT_STOCK: {payload: {}}
+  VALIDATION_ERROR: {payload: {}}
+outcome_detectors:
+  - code: AUTH_FAILED
+    class: hard
+    scope: {after_step: login.submit}
+    match: {kind: text_present, text: Invalid inventory credentials}
+  - code: NOT_FOUND
+    class: business
+    scope: {after_step: lookup.submit}
+    match: {kind: text_present, text: Item not found}
+  - code: INSUFFICIENT_STOCK
+    class: business
+    scope: {after_step: adjust.submit}
+    match: {kind: text_present, text: Insufficient stock}
+  # Stock can change between review and commit; the server rechecks it.
+  - code: INSUFFICIENT_STOCK
+    class: business
+    scope: {after_step: review.submit}
+    match: {kind: text_present, text: Insufficient stock}
+  - code: VALIDATION_ERROR
+    class: business
+    scope: {after_step: adjust.submit}
+    match: {kind: text_present, text: Quantity change must be a nonzero integer}
+  - code: SESSION_EXPIRED
+    class: recoverable
+    scope: {after_checkpoint: cp.logged_in}
+    match: {kind: location_matches, pattern: "/login$"}
+    recover: {run: relogin, then: restart_from_last_checkpoint}
+recovery_limits: {per_step: 1, per_run: 2}
+recoverers:
+  relogin:
+    sub_flow: [login.username, login.password, login.submit]
+redaction:
+  screenshot_masks:
+    - [{strategy: role_name, role: textbox, name: Password}]

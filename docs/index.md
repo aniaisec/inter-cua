@@ -6,7 +6,7 @@ Start with the [README first-run sequence](../README.md) and [getting started](g
 |---|---|
 | [Getting started](getting-started.md) | Installation, no-key demo and expected evidence |
 | [Review and replay](review-and-replay.md) | Manual discovery, approval and takeover |
-| [Your first application](your-first-application.md) | Manual tenant/policy/family setup and review |
+| [Your first application](your-first-application.md) | Runnable inventory walkthrough and adapting tenant/policy/family setup |
 | [Configuration](configuration.md) | Current paths, secrets and precedence |
 | [CLI reference](cli.md) | Commands, flags, JSON and exit codes |
 | [Integrations](integrations.md) | CLI callers, HTTP, MCP and response handling |

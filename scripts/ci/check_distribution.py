@@ -20,7 +20,20 @@ RESOURCES = {
     "cua/resources/templates/web/capabilities/families/my-web-app.yaml",
     "cua/resources/templates/windows/deskapp/deskcalc.ps1",
     "mockapp/templates/login.html",
+    "inventoryapp/app.py",
+    "inventoryapp/templates/screen.html",
+    "cua/resources/templates/inventory/.env.example",
+    "cua/resources/templates/inventory/README.md",
+    "cua/resources/templates/inventory/capabilities/families/stockroom.yaml",
+    "cua/resources/templates/inventory/scripts/discovery/adjust_stock.yaml",
+    "cua/resources/templates/inventory/scenario.json",
 }
+
+
+def source_path(name: str) -> str:
+    if name.startswith("inventoryapp/"):
+        return "examples/inventory/app/" + name.removeprefix("inventoryapp/")
+    return "src/" + name if name.startswith("cua/") else name
 
 
 def check_metadata(data: bytes) -> str:
@@ -60,7 +73,7 @@ def check(wheel: Path, sdist: Path) -> None:
         wheel_version = check_metadata(archive.read(metadata[0]))
     with tarfile.open(sdist, "r:gz") as archive:
         members = {member.name.partition("/")[2]: member for member in archive.getmembers()}
-        required = {"src/" + name if name.startswith("cua/") else name for name in RESOURCES}
+        required = {source_path(name) for name in RESOURCES}
         required.update({"pyproject.toml", "src/cua/__init__.py", "CHANGELOG.md", "PKG-INFO"})
         assert required <= members.keys(), f"sdist missing: {required - members.keys()}"
         assert not any(name.endswith(".key") or "/reviews/" in name for name in members)

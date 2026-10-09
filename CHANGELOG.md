@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Independent inventory target and `cua init --template inventory`, starting
+  without approvals. The own-app tutorial covers scripted discovery, review,
+  typed lookup, business outcomes, input-bound consent, sequential retry and
+  human recovery, with an external stock/commit-count oracle and wheel checks.
+- One-command PowerShell checks for PR 07, plus Windows test-server process-tree
+  shutdown and bounded cleanup retries for temporary project directory locks.
+
 - Optional `anthropic`, `gemini`, and combined `discovery` extras for live
   discovery; the base installation supports deterministic replay, scripted
   discovery, HTTP/MCP, and the no-key demo without provider SDKs.

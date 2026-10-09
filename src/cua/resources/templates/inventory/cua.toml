@@ -1,0 +1,10 @@
+version = 1
+default_tenant = "local"
+
+[paths]
+tenants = "tenants"
+capabilities = "capabilities"
+families = "capabilities/families"
+workflows = "workflows"
+runs = "evidence/runs"
+state = ".cua"

@@ -5,11 +5,173 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
 import subprocess
 import sys
 import tempfile
+import time
 import zipfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+
+from cua.demo.runner import server
+
+
+@contextmanager
+def temporary_workspace() -> Iterator[Path]:
+    """Remove our own scratch project after Windows releases process handles."""
+    workspace = tempfile.TemporaryDirectory(prefix="cua installed with spaces ")
+    try:
+        yield Path(workspace.name)
+    finally:
+        deadline = time.monotonic() + 5
+        while True:
+            try:
+                workspace.cleanup()
+                break
+            except PermissionError as exc:
+                if (
+                    sys.platform != "win32"
+                    or getattr(exc, "winerror", None) not in (5, 32)
+                    or time.monotonic() >= deadline
+                ):
+                    raise
+                time.sleep(0.1)
+
+
+def check_inventory(cwd: Path, env: dict[str, str]) -> None:
+    """Use the installed CLI against the packaged second target, outside the repo."""
+    import httpx
+    import yaml
+
+    root = cwd / "inventory"
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+    url = f"http://127.0.0.1:{port}"
+
+    def cli(*args: str, expected: int = 0) -> str:
+        result = subprocess.run(
+            [sys.executable, "-m", "cua.cli", "--root", str(root), *args],
+            cwd=cwd,
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=120,
+        )
+        assert result.returncode == expected, result.stdout + result.stderr
+        return result.stdout
+
+    def oracle() -> dict[str, object]:
+        response = httpx.get(url + "/_test/state", timeout=5)
+        response.raise_for_status()
+        return dict(response.json())
+
+    def replay_result(name: str, *args: str, expected: int = 0) -> dict[str, object]:
+        result = json.loads(cli("replay", name, *args, expected=expected))
+        run_dir = result["evidence"]["run_dir"]
+        if run_dir:
+            assert not (root / run_dir / "model_calls.jsonl").exists()
+        return dict(result)
+
+    with server(
+        [
+            "uvicorn",
+            "inventoryapp.app:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            "--log-level",
+            "warning",
+        ],
+        url + "/login",
+        cwd,
+        env,
+    ):
+        tenant_path = root / "tenants/local.yaml"
+        tenant = yaml.safe_load(tenant_path.read_text())
+        tenant["base_url"] = url
+        tenant_path.write_text(yaml.safe_dump(tenant))
+        (root / ".env").write_bytes((root / ".env.example").read_bytes())
+        assert not list((root / "capabilities").glob("*.json"))
+        scenario = json.loads((root / "scenario.json").read_text())
+        for name, spec in scenario.items():
+            command = [
+                "discover",
+                "--name",
+                name,
+                "--entry",
+                "/login",
+                "--goal",
+                spec["goal"],
+                "--llm",
+                "scripted",
+                "--script",
+                str(root / "scripts/discovery" / f"{name}.yaml"),
+            ]
+            for param in spec["params"]:
+                command.extend(["--param", param])
+            for output in spec["outputs"]:
+                command.extend(["--output", output])
+            if name == "adjust_stock":
+                command.append("--auto-approve-risky")
+            cli(*command)
+            draft = json.loads((root / "capabilities" / f"{name}.json").read_text())
+            assert draft["approval_state"] == "draft" and draft.get("approved_by") is None
+            assert (
+                replay_result(name, "--input", "item_code=SKU-001", expected=1)["code"]
+                == "POLICY_BLOCKED"
+            )
+            cli("describe", name)
+            cli("approve", name, "--by", "installed inventory check")
+        lookup = replay_result("item_lookup", "--input", "item_code=SKU-002")
+        assert lookup["outputs"] == scenario["item_lookup"]["second_outputs"]
+        missing = replay_result("item_lookup", "--input", "item_code=SKU-999", expected=2)
+        assert missing["code"] == "NOT_FOUND"
+        before = oracle()
+        scarce = replay_result(
+            "adjust_stock",
+            "--input",
+            "item_code=SKU-001",
+            "--input",
+            "quantity_change=-100",
+            expected=2,
+        )
+        assert scarce["code"] == "INSUFFICIENT_STOCK"
+        denied = replay_result(
+            "adjust_stock",
+            "--input",
+            "item_code=SKU-001",
+            "--input",
+            "quantity_change=-3",
+            expected=1,
+        )
+        assert denied["escalation_reason"] == "NEEDS_APPROVAL" and oracle() == before
+        inputs = ["--input", "item_code=SKU-001", "--input", "quantity_change=-3"]
+        token = cli(
+            "approval-token", "adjust_stock", *inputs, "--by", "installed inventory check"
+        ).strip()
+        args = [
+            *inputs,
+            "--approval-token",
+            token,
+            "--idempotency-key",
+            "installed-inventory-write",
+        ]
+        write = replay_result("adjust_stock", *args)
+        assert write["side_effect"] == "committed" and write["outputs"] == {
+            "quantity": 7,
+            "receipt": "ADJ-0002",
+        }
+        retry = replay_result("adjust_stock", *args)
+        assert retry["cached"] and retry["run_id"] == write["run_id"]
+        state = oracle()
+        assert state["quantities"] == {"SKU-001": 7, "SKU-002": 4}
+        assert state["commit_count"] == state["commit_posts"] == 2
+        assert len(list((root / "evidence/runs").glob("run_*/model_calls.jsonl"))) == 2
 
 
 def main() -> None:
@@ -35,6 +197,9 @@ def main() -> None:
             "cua/resources/templates/windows/deskapp/deskcalc.ps1",
             "cua/resources/templates/web/capabilities/families/my-web-app.yaml",
             "mockapp/templates/login.html",
+            "inventoryapp/app.py",
+            "inventoryapp/templates/screen.html",
+            "cua/resources/templates/inventory/scenario.json",
         }
         assert required <= names, f"wheel missing resources: {required - names}"
         assert not any("/reviews/" in name or name.endswith(".key") for name in names)
@@ -46,8 +211,7 @@ def main() -> None:
         if key.startswith(("ANTHROPIC_", "GEMINI_", "GOOGLE_")):
             env.pop(key)
     env["PYTHONUTF8"] = "1"
-    with tempfile.TemporaryDirectory(prefix="cua installed with spaces ") as temp:
-        cwd = Path(temp)
+    with temporary_workspace() as cwd:
 
         def run(*args: str, expected: tuple[int, ...] = (0,), console: bool = False) -> str:
             executable = (
@@ -126,7 +290,7 @@ def main() -> None:
                 "from cua.surface.windows.adapter import WindowsSurface; "
                 "assert WindowsSurface.DESCRIPTOR.name == 'windows-uia'",
             )
-        for template in ("demo", "web", "windows"):
+        for template in ("demo", "web", "windows", "inventory"):
             run("-m", "cua.cli", "init", template, "--template", template)
             run("-m", "cua.cli", "--root", template, "surfaces")
             run(
@@ -145,6 +309,12 @@ def main() -> None:
             "r=TestClient(app).get('/login'); assert r.status_code==200; "
             "assert 'Password' in r.text",
         )
+        run(
+            "-c",
+            "from fastapi.testclient import TestClient; from inventoryapp.app import app; "
+            "r=TestClient(app).get('/login'); assert r.status_code==200; "
+            "assert 'Inventory sign in' in r.text",
+        )
         diagnostic = json.loads(
             run("-m", "cua.cli", "--root", "demo", "doctor", "--json", expected=(0, 1))
         )
@@ -162,6 +332,7 @@ def main() -> None:
             summary = json.loads((cwd / "session/summary.json").read_text(encoding="utf-8"))
             assert summary["replay_model_calls"] == 0
             assert summary["commits"] == 1
+            check_inventory(cwd, env)
     print(f"Installed wheel ({args.extra}): version, extras, resources, and requested demo passed")
 
 

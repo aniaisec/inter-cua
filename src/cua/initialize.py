@@ -10,7 +10,7 @@ from importlib.resources import files
 from importlib.resources.abc import Traversable
 from pathlib import Path
 
-TEMPLATES = ("demo", "web", "windows")
+TEMPLATES = ("demo", "web", "windows", "inventory")
 
 
 def template_files(template: str) -> dict[str, bytes]:

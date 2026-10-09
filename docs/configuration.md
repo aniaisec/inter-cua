@@ -6,7 +6,7 @@ MCP also accepts `cua mcp --root DIR`; conflicting global and MCP roots are
 refused. A directory without `cua.toml` retains the existing cwd defaults;
 an explicit root without a config uses those defaults under that root.
 An invalid root or configuration fails before application interaction.
-Create an editable project with `cua init PATH --template demo|web|windows`.
+Create an editable project with `cua init PATH --template demo|web|windows|inventory`.
 `--dry-run` lists files without writing or generating a signing key. Existing
 files and symlink destinations are refused; repeated initialization preserves
 edits and secrets. Each template includes a guide with its next command.

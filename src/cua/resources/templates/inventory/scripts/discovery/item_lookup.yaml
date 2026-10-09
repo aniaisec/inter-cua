@@ -1,0 +1,19 @@
+goal: Look up an item and return its available quantity and name
+steps:
+  - tool: type
+    target: [{strategy: role_name, role: textbox, name: Username}]
+    text: ${credentials.app_login.username}
+  - tool: type
+    target: [{strategy: role_name, role: textbox, name: Password}]
+    text: ${credentials.app_login.password}
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Sign in}]
+  - tool: type
+    target: [{strategy: role_name, role: textbox, name: Item code}]
+    text: SKU-001
+  - tool: click
+    target: [{strategy: role_name, role: button, name: Look up item}]
+  - tool: done
+    outputs:
+      quantity: [{strategy: table_cell, row_contains: Available quantity, column_header: Value}]
+      item_name: [{strategy: table_cell, row_contains: Item name, column_header: Value}]

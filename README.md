@@ -127,7 +127,9 @@ for result fields, handoff, consent and evidence handling.
 Follow [your first application](docs/your-first-application.md) to create a tenant
 binding, restrict the policy, define the product's family template, discover a
 read-only operation, review it and test a second input and failure. Start with
-`cua init PATH --template web`, edit its configuration, then run `cua doctor`.
+`cua init inventory-project --template inventory` for the runnable no-key
+[inventory example](examples/inventory/README.md), or `cua init PATH --template web`
+for a blank application. Edit its configuration, then run `cua doctor`.
 See [configuration and secret precedence](docs/configuration.md) and
 [diagnostic findings](docs/troubleshooting.md#doctor-findings).
 
