@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "name": "drift_repair",
+  "purpose": "Refuse the original after a renamed control, propose and evaluate a draft repair, and prove that evaluation still requires review.",
+  "template": "demo",
+  "capabilities": [
+    "member_savings_balance"
+  ],
+  "inputs": {
+    "member_id": "10003"
+  },
+  "inject": "renamed_button",
+  "expected": {
+    "original_refused": true,
+    "evaluation_passed": true,
+    "candidate_state": "draft",
+    "original_unchanged": true,
+    "review_required": true
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "name": "lookup",
+  "purpose": "Call an approved read-only tool through the CLI and check integer/string outputs with zero replay model calls.",
+  "template": "inventory",
+  "capabilities": [
+    "item_lookup"
+  ],
+  "cases": [
+    {
+      "args": [
+        "catalog",
+        "invoke",
+        "item_lookup",
+        "--args",
+        "{\"item_code\":\"SKU-002\"}"
+      ],
+      "exit_code": 0,
+      "expected": {
+        "kind": "success",
+        "outputs": {
+          "quantity": 4,
+          "item_name": "Desk lamp"
+        },
+        "side_effect": "none"
+      }
+    }
+  ],
+  "expected": {
+    "answers": [
+      {
+        "kind": "success",
+        "outputs": {
+          "quantity": 4,
+          "item_name": "Desk lamp"
+        },
+        "side_effect": "none"
+      }
+    ],
+    "commits": 0,
+    "replay_model_calls": 0
+  }
+}

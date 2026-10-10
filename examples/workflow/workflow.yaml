@@ -1,0 +1,17 @@
+name: lookup_twice
+version: 1
+description: Look up stock twice, binding a typed output to the next step.
+inputs:
+  item_code: {type: string}
+steps:
+  - id: first
+    capability: item_lookup
+    inputs: {item_code: '${item_code}'}
+  - id: second
+    capability: item_lookup
+    inputs:
+      item_code: '${first.output.item_code}'
+outputs:
+  quantity_first: '${first.output.quantity}'
+  quantity_second: '${second.output.quantity}'
+  item_name: '${second.output.item_name}'

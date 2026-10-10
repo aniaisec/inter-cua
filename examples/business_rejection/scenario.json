@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "name": "business_rejection",
+  "purpose": "Receive the declared INSUFFICIENT_STOCK business outcome (CLI exit 2), with no stock change or commit.",
+  "template": "inventory",
+  "capabilities": [
+    "adjust_stock"
+  ],
+  "cases": [
+    {
+      "args": [
+        "replay",
+        "adjust_stock",
+        "--input",
+        "item_code=SKU-001",
+        "--input",
+        "quantity_change=-100"
+      ],
+      "exit_code": 2,
+      "expected": {
+        "kind": "business_outcome",
+        "code": "INSUFFICIENT_STOCK",
+        "side_effect": "none"
+      }
+    }
+  ],
+  "expected": {
+    "answers": [
+      {
+        "kind": "business_outcome",
+        "code": "INSUFFICIENT_STOCK",
+        "side_effect": "none"
+      }
+    ],
+    "commits": 0,
+    "replay_model_calls": 0
+  }
+}

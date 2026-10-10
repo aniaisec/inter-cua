@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "name": "human_takeover",
+  "purpose": "Stop automation at a changed screen, let a scripted operator work on the same page, and validate the final checkpoint on hand-back.",
+  "template": "inventory",
+  "capabilities": [
+    "item_lookup"
+  ],
+  "inputs": {
+    "item_code": "SKU-002"
+  },
+  "inject": "changed_screen",
+  "outputs": {
+    "quantity": 4,
+    "item_name": "Desk lamp"
+  },
+  "checkpoint": "cp.done",
+  "expected": {
+    "automation_paused": true,
+    "checkpoint_validated": true,
+    "completed_steps_repeated": false,
+    "kind": "success"
+  }
+}

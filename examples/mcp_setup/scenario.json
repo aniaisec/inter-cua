@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "name": "mcp_setup",
+  "purpose": "Launch an MCP server from an unrelated directory with a verified absolute executable/project path, list approved tools and call a lookup.",
+  "template": "inventory",
+  "capabilities": [
+    "item_lookup"
+  ],
+  "inputs": {
+    "item_code": "SKU-002"
+  },
+  "outputs": {
+    "quantity": 4,
+    "item_name": "Desk lamp"
+  },
+  "expected": {
+    "unrelated_cwd": true,
+    "approved_tool_listed": true,
+    "kind": "success",
+    "replay_model_calls": 0
+  }
+}

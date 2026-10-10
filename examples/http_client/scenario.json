@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "http_client",
+  "purpose": "Start and poll an HTTP run, reuse its request/key after retry, and refuse conflicting requests without inventing another key.",
+  "template": "inventory",
+  "capabilities": [
+    "adjust_stock"
+  ],
+  "inputs": {
+    "item_code": "SKU-001",
+    "quantity_change": "-3"
+  },
+  "wrong_inputs": {
+    "item_code": "SKU-001",
+    "quantity_change": "-1"
+  },
+  "expected": {
+    "state": "finished",
+    "commits": 1,
+    "same_run_on_retry": true,
+    "conflict_refused": true
+  }
+}

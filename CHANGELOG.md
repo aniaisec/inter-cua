@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Runnable CLI, HTTP, MCP, workflow, drift, handoff and Windows UIA examples
+  with shared machine-readable scenarios, isolated targets, independent commit
+  checks, and text recordings of review, results and evidence. HTTP callers
+  preserve request identity across transport retries and stop for conflict,
+  escalation or reconciliation; queued responses are forward compatible.
+
 - Independent inventory target and `cua init --template inventory`, starting
   without approvals. The own-app tutorial covers scripted discovery, review,
   typed lookup, business outcomes, input-bound consent, sequential retry and

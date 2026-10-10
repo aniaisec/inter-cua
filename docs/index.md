@@ -10,6 +10,7 @@ Start with the [README first-run sequence](../README.md) and [getting started](g
 | [Configuration](configuration.md) | Current paths, secrets and precedence |
 | [CLI reference](cli.md) | Commands, flags, JSON and exit codes |
 | [Integrations](integrations.md) | CLI callers, HTTP, MCP and response handling |
+| [Runnable examples](../examples/README.md) | Isolated CLI/HTTP/MCP, workflow, handoff and desktop scenarios |
 | [Platforms](platforms.md) | Browser/Windows support and limitations |
 | [Troubleshooting](troubleshooting.md) | Failures and actionable diagnostics |
 | [Architecture](architecture.md) | Modules, invariants, registry and workflows |

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "name": "approved_submission",
+  "purpose": "Refuse missing or mismatched consent, submit with input-bound consent, observe one commit, and retry under the same key.",
+  "template": "inventory",
+  "capabilities": [
+    "adjust_stock"
+  ],
+  "inputs": {
+    "item_code": "SKU-001",
+    "quantity_change": "-3"
+  },
+  "wrong_inputs": {
+    "item_code": "SKU-001",
+    "quantity_change": "-1"
+  },
+  "expected": {
+    "kind": "success",
+    "side_effect": "committed",
+    "commits": 1,
+    "wrong_input_consent_refused": true,
+    "retry_cached": true,
+    "replay_model_calls": 0
+  }
+}

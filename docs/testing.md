@@ -23,6 +23,12 @@ python -m pytest
 For a quick check without GUI automation, use
 `python -m pytest -m "not browser and not desktop"`. Browser tests start their
 own mock app; desktop tests require Windows and the `windows` extra.
+The [runnable examples](../examples/README.md) have focused gates:
+`python -m pytest tests/unit/test_example_clients.py tests/unit/test_example_processes.py` for caller state/retry and cleanup
+contracts, `python -m pytest tests/integration/test_examples.py --require-browser`
+for all browser scenarios and repeated writes, and
+`python -m pytest tests/desktop/test_examples.py` for the live Windows example.
+The docs' commands and expected JSON are checked against each scenario source.
 For a small benchmark harness check without a model key:
 
 ```bash
