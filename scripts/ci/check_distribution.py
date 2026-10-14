@@ -41,7 +41,7 @@ def check_metadata(data: bytes) -> str:
     assert message["Name"] == "inter-cua"
     assert message["Requires-Python"] == ">=3.11"
     extras = set(message.get_all("Provides-Extra", []))
-    assert {"anthropic", "gemini", "discovery", "vision", "windows", "dev"} <= extras
+    assert {"anthropic", "gemini", "discovery", "vision", "windows", "test", "dev"} <= extras
     providers = set()
     for requirement in message.get_all("Requires-Dist", []):
         name = re.split(r"[\[<>=!~\s]", requirement, maxsplit=1)[0]

@@ -85,7 +85,7 @@ from cua.replay.handoff import (
     Ticket,
     Unanswered,
 )
-from cua.replay.invocation import Invocation, bind, credential_field, fill
+from cua.replay.invocation import Invocation, bind, credential_field
 from cua.replay.recoverers import RecoveryLedger
 from cua.replay.result import (
     FAILURE_CODES,
@@ -792,10 +792,12 @@ class ReplayEngine:
     def _expand(self, step: Step, value: str) -> str:
         """Inputs now; credentials at the last moment, and only here."""
 
-        def credential(match: re.Match[str]) -> str:
+        # Expand only placeholders declared in the artifact. Substituted values
+        # are literal data, so caller input cannot acquire authority to read secrets.
+        def original(match: re.Match[str]) -> str:
             found = credential_field(match.group(1))
             if found is None:
-                return match.group(0)
+                return self.inputs.get(match.group(1), match.group(0))
             name, field = found
             if name not in self.credentials:
                 self._fail(
@@ -807,7 +809,7 @@ class ReplayEngine:
                 )
             return self.credentials[name].field(field)
 
-        return re.sub(r"\$\{([^}]*)\}", credential, fill(value, self.inputs))
+        return re.sub(r"\$\{([^}]*)\}", original, value)
 
     def _permit(self, step: Step, action: Action, screen: Observation) -> None:
         decision = check(self.policy, action, screen, approval=self.approval)

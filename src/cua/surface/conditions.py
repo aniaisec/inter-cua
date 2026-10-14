@@ -5,8 +5,8 @@ vocabulary rather than in Playwright calls, for two reasons.
 
 **Portability.** ``location_matches`` is a URL on the web and a window title on
 a desktop; ``region_present`` is a heading here and a pane title there. Each
-condition below records its web interpretation and the desktop one it *would*
-have. The desktop adapter is documented, not built — see ``DESKTOP_NOTES``.
+condition below records its web and desktop interpretations. Windows UIA uses
+``windows/conditions.py``; ``DESKTOP_NOTES`` summarizes those meanings.
 
 **Purity.** Every condition is a function of an ``Observation``, never of a
 live browser. A condition can therefore be evaluated against an observation
@@ -84,7 +84,7 @@ class TextPresent(BaseModel):
 
 
 class RegionPresent(BaseModel):
-    """Web: a heading or landmark with this name. Desktop: a pane or group.
+    """Web: a heading or landmark with this name. Desktop: a named group, tab or window.
 
     This is the condition a checkpoint should prefer over ``text_present``: a
     screen title is a claim about where you are, whereas stray text can match
@@ -209,16 +209,16 @@ DESKTOP_NOTES: dict[str, str] = {
     "visible": "control is on screen and not occluded by another window",
     "location_matches": "active window title, or the focused document's path",
     "text_present": "text anywhere in the platform accessibility tree",
-    "region_present": "a pane, group or tab with this name",
+    "region_present": "a named group, tab or application window",
     "error_banner_present": "a modal error dialog, or the app's status bar",
     "validation_message_present": "a field-level error balloon or status text",
     "value_set": "the control's Value pattern reads back what was entered",
     "output_extracted": "unchanged: a property of the run, not of the surface",
     "dialog_raised": "a modal window owned by the app, seen via window events",
 }
-"""How a desktop adapter would read each condition. Recorded here so the claim
+"""How the desktop adapter reads each condition. Recorded here so the claim
 that the vocabulary is surface-neutral can be checked rather than believed;
-no desktop adapter ships in this milestone.
+the live adapter contract tests also exercise these semantics.
 """
 
 

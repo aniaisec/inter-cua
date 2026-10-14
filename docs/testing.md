@@ -21,7 +21,11 @@ python -m pytest
 ```
 
 For a quick check without GUI automation, use
-`python -m pytest -m "not browser and not desktop"`. Browser tests start their
+`python -m pytest -m "not browser and not desktop"` with `.[dev]` installed.
+Provider-free environments install `.[test]` and additionally use
+`--ignore=tests/unit/test_llm_providers.py -m "not browser and not desktop and not provider"`.
+The optional SDK file runs separately with `.[dev]`; its sockets are refused and
+keys are synthetic. Browser tests start their
 own mock app; desktop tests require Windows and the `windows` extra.
 The [runnable examples](../examples/README.md) have focused gates:
 `python -m pytest tests/unit/test_example_clients.py tests/unit/test_example_processes.py` for caller state/retry and cleanup
@@ -65,6 +69,24 @@ The browser tests start their own mock app on a free port, and the desktop
 tests (`-m desktop`, Windows only, skipped elsewhere) their own DeskCalc. No
 test calls a model: the discovery tests use the scripted client and recorded
 fixtures.
+
+## Adapter contracts and the live desktop gate
+
+Both adapters inherit the same contract tests from `tests/contracts/surface.py`.
+The fixtures own real Chromium/DeskCalc targets and check cleanup even after a
+failed assertion. They cover observation-scoped references, ambiguous locators,
+viewport-bound pixel locators, missing frame/location scopes, typed forms,
+condition evaluation, keyboard and dialogs. Optional screenshot masking, guarded
+pointer clicks, egress, document status and session publication are exercised only
+when claimed. Every feature in the closed vocabulary has an explicit probe.
+
+```sh
+python -m pytest tests/integration/test_surface_contract.py --require-browser
+```
+
+The [manual Windows release gate](CI.md#live-windows-release-gate) runs the full
+desktop suite, including these same contracts and the PR08 example. Hosted
+Windows Chromium tests and `mypy --platform win32` do not prove live UIA support.
 
 ## Test matrix
 
@@ -117,7 +139,9 @@ mock app in Chromium; `tests/unit` do not).
 ## Strict browser verification
 
 Use `python -m pytest --require-browser -m "browser and not desktop"` for release
-verification. Every Chromium launch error fails; strict mode also fails when no
+verification with `.[dev]`. With provider-free `.[test]`, add
+`--ignore=tests/unit/test_llm_providers.py`, or select only `tests/integration tests/security`.
+Every Chromium launch error fails; strict mode also fails when no
 browser tests execute. Optional mode skips only the explicit missing-executable
 condition. Tests use scripted models, not paid providers. Live desktop tests need
 interactive Windows and the `windows` extra; skips are not desktop verification.

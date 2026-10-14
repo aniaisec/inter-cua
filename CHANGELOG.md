@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Python 3.11/3.14 Linux compatibility gates, focused Windows Chromium checks,
+  separate example/security/provider jobs, reusable live adapter contracts and
+  a strict manual Windows UIA gate with executed/skipped counts. Routine test
+  environments use the provider-free `test` extra. Critical input, binding and
+  pixel-refusal branches have targeted coverage gates. Replay keeps substituted
+  input/credential text literal; browser action errors use the Surface vocabulary,
+  and UIA groups/tabs/windows satisfy named region conditions.
+
 - Runnable CLI, HTTP, MCP, workflow, drift, handoff and Windows UIA examples
   with shared machine-readable scenarios, isolated targets, independent commit
   checks, and text recordings of review, results and evidence. HTTP callers

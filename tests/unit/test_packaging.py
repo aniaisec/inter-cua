@@ -28,6 +28,7 @@ Provides-Extra: gemini
 Provides-Extra: discovery
 Provides-Extra: vision
 Provides-Extra: windows
+Provides-Extra: test
 Provides-Extra: dev
 Requires-Dist: anthropic<1.0,>=0.40; extra == 'anthropic'
 Requires-Dist: google-genai<3.0,>=2.0; extra == 'gemini'
@@ -130,6 +131,8 @@ import cua.agent.llm
         METADATA.replace("; extra == 'gemini'", "; extra == 'vision'"),
         METADATA.replace("Requires-Dist: anthropic<1.0,>=0.40; extra == 'anthropic'\n", ""),
         METADATA.replace("Provides-Extra: vision\n", ""),
+        METADATA.replace("Provides-Extra: test\n", ""),
+        METADATA.replace("; extra == 'anthropic'", "; extra == 'test'"),
     ],
 )
 def test_metadata_gate_rejects_provider_or_extra_regressions(broken):

@@ -9,6 +9,8 @@ image travelling with the tool result it belongs to.
 
 from __future__ import annotations
 
+import os
+import socket
 from types import SimpleNamespace
 from typing import Any
 
@@ -30,6 +32,55 @@ from cua.agent.llm import (
 )
 from cua.agent.tools import tool_definitions
 from tests.unit import screens
+from tests.unit.test_project import project_files
+
+pytestmark = pytest.mark.provider
+
+
+@pytest.fixture(autouse=True)
+def no_provider_network(monkeypatch):
+    def refused(*args, **kwargs):
+        raise AssertionError("optional provider checks must never contact a provider")
+
+    monkeypatch.setattr(socket.socket, "connect", refused)
+
+
+@pytest.mark.parametrize("provider", ["anthropic", "gemini"])
+def test_selected_provider_receives_project_snapshot_without_environment_mutation(
+    tmp_path, monkeypatch, provider
+):
+    from cua.project import ProjectContext
+
+    root = project_files(tmp_path / "project")
+    variable = "ANTHROPIC_API_KEY" if provider == "anthropic" else "GEMINI_API_KEY"
+    (root / ".env").write_text(f"{variable}=synthetic-project-key\n")
+    project = ProjectContext.resolve(root, environ={})
+    monkeypatch.setenv(variable, "synthetic-other-key")
+    captured = []
+    if provider == "anthropic":
+        import anthropic
+
+        monkeypatch.setattr(anthropic, "Anthropic", lambda **kw: captured.append(kw) or object())
+    else:
+        from google import genai
+
+        monkeypatch.setattr(genai, "Client", lambda **kw: captured.append(kw) or object())
+    assert select_client(provider, environ=project.environ).provider == provider
+    assert captured[0]["api_key"] == "synthetic-project-key"
+    assert os.environ[variable] == "synthetic-other-key"
+
+
+def test_anthropic_snapshot_cannot_inherit_a_later_auth_token(monkeypatch):
+    import anthropic
+
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "synthetic-other-token")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://synthetic-other.invalid")
+    captured = []
+    monkeypatch.setattr(anthropic, "Anthropic", lambda **kw: captured.append(kw) or object())
+    select_client("anthropic", environ={"ANTHROPIC_API_KEY": "synthetic-project-key"})
+    assert captured[0]["auth_token"] == ""
+    assert captured[0]["base_url"] == "https://api.anthropic.com"
+
 
 PNG = b"\x89PNG screen"
 TOOLS = tool_definitions([OutputSpec(name="savings_balance", type="decimal")])

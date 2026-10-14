@@ -12,46 +12,225 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  ANTHROPIC_API_KEY: ''
+  ANTHROPIC_AUTH_TOKEN: ''
+  GEMINI_API_KEY: ''
+  GOOGLE_API_KEY: ''
+  CUA_CHROMIUM_NO_SANDBOX: '1'
+
 jobs:
-  installed:
+  quality:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            extra: base
-            source: wheel
-            browser: true
-          - os: ubuntu-latest
-            extra: base
-            source: sdist
-            browser: true
-          - os: ubuntu-latest
-            extra: anthropic
-            source: wheel
-          - os: ubuntu-latest
-            extra: gemini
-            source: wheel
-          - os: ubuntu-latest
-            extra: discovery
-            source: wheel
-          - os: ubuntu-latest
-            extra: vision
-            source: wheel
-          - os: windows-latest
-            extra: windows
-            source: wheel
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    env:
-      CUA_CHROMIUM_NO_SANDBOX: '1'
+        python: ['3.11', '3.14']
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - if: matrix.python == '3.11'
+        run: python -m pip install -c constraints/dev-py311.txt -e '.[test]'
+      - if: matrix.python != '3.11'
+        run: python -m pip install -e '.[test]'
+      - run: python scripts/ci/check_no_providers.py
+      - run: python -m ruff check .
+      - run: python -m ruff format --check .
+      - run: python -m mypy
+      - run: python -m mypy --platform win32
+      - name: Type-check release gate helpers
+        run: >-
+          python -m mypy --explicit-package-bases scripts/ci/check_coverage.py
+          scripts/ci/check_test_results.py scripts/ci/check_no_providers.py scripts/ci/run_desktop_gate.py
+      - run: >-
+          python -m coverage run -m pytest -m 'not browser and not desktop and not provider'
+          --ignore=tests/unit/test_llm_providers.py --junitxml=artifacts/unit.xml
+      - name: Critical branch coverage
+        if: ${{ !cancelled() }}
+        run: |
+          python -m coverage json -o artifacts/coverage.json
+          python scripts/ci/check_coverage.py artifacts/coverage.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quality-py${{ matrix.python }}
+          path: |
+            artifacts/unit.xml
+            artifacts/coverage.json
+
+  browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.14']
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - if: matrix.python == '3.11'
+        run: python -m pip install -c constraints/dev-py311.txt -e '.[test]'
+      - if: matrix.python != '3.11'
+        run: python -m pip install -e '.[test]'
+      - run: python scripts/ci/check_no_providers.py
+      - run: python -m playwright install --with-deps chromium
+      - run: >-
+          python -m pytest --require-browser -m 'browser and not desktop'
+          --ignore=tests/integration/test_examples.py --ignore=tests/security
+          --ignore=tests/unit/test_llm_providers.py
+          --junitxml=artifacts/browser.xml
+      - run: python scripts/ci/check_test_results.py artifacts/browser.xml
+      - name: Deterministic benchmark smoke
+        run: >-
+          python -m cua.cli benchmark run --suite core --llm scripted
+          --strategy inter_cua_replay --repetitions 2
+          --task lookup-success --task lookup-unknown-member --task open-without-consent
+          --reports-dir artifacts/benchmark
+      - run: python -m cua.cli benchmark report --latest --reports-dir artifacts/benchmark
+      - run: python scripts/ci/check_benchmark.py artifacts/benchmark
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-py${{ matrix.python }}
+          retention-days: 14
+          path: |
+            artifacts/browser.xml
+            artifacts/benchmark/*.jsonl
+            artifacts/benchmark/summary.*
+
+  examples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: pip
-      - run: python -m pip install -c constraints/dev-py311.txt build hatchling playwright
+      - run: python -m pip install -c constraints/dev-py311.txt -e '.[test]'
+      - run: python scripts/ci/check_no_providers.py
+      - run: python -m playwright install --with-deps chromium
+      - run: >-
+          python -m pytest tests/integration/test_examples.py --require-browser
+          --junitxml=artifacts/examples.xml
+      - run: python scripts/ci/check_test_results.py artifacts/examples.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: examples
+          path: artifacts/examples.xml
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: python -m pip install -c constraints/dev-py311.txt -e '.[test]'
+      - run: python scripts/ci/check_no_providers.py
+      - run: python -m playwright install --with-deps chromium
+      - run: python -m pytest tests/security --require-browser --junitxml=artifacts/security.xml
+      - run: python scripts/ci/check_test_results.py artifacts/security.xml
+      - if: ${{ !cancelled() }}
+        run: python -m cua.cli security run --out artifacts/security --runs-root bench/security/runs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security
+          retention-days: 14
+          path: |
+            artifacts/security.xml
+            artifacts/security/summary.*
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+      - run: python -m pip install -e '.[test]'
+      - run: python scripts/ci/check_no_providers.py
+      - name: Windows paths, parsing, packaging and feature contracts
+        run: >-
+          python -m pytest tests/unit/test_project.py tests/unit/test_initialize.py
+          tests/unit/test_packaging.py tests/unit/test_surface_compat.py tests/unit/test_windows_surface.py
+          tests/unit/test_adversarial_contracts.py tests/unit/test_ci_gates.py
+          tests/unit/test_desktop_conditions.py
+          tests/unit/test_example_clients.py tests/unit/test_example_processes.py
+          --junitxml=artifacts/windows-unit.xml
+      - run: python -m playwright install chromium
+      - name: Windows Chromium and common adapter contract
+        run: >-
+          python -m pytest tests/integration/test_browser_smoke.py
+          tests/integration/test_surface_contract.py tests/integration/test_project.py
+          tests/integration/test_inventory.py --require-browser
+          --junitxml=artifacts/windows-browser.xml
+      - run: python scripts/ci/check_test_results.py artifacts/windows-browser.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows
+          path: |
+            artifacts/windows-unit.xml
+            artifacts/windows-browser.xml
+
+  providers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: python -m pip install -c constraints/dev-py311.txt -e '.[dev]'
+      - name: Optional SDK checks with sockets refused and synthetic credentials
+        run: python -m pytest tests/unit/test_llm_providers.py --junitxml=artifacts/providers.xml
+      - run: python scripts/ci/check_test_results.py artifacts/providers.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: providers
+          path: artifacts/providers.xml
+
+  installed:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, python: '3.11', extra: base, source: wheel, browser: true}
+          - {os: ubuntu-latest, python: '3.14', extra: base, source: wheel, browser: true}
+          - {os: ubuntu-latest, python: '3.11', extra: base, source: sdist, browser: true}
+          - {os: ubuntu-latest, python: '3.11', extra: anthropic, source: wheel}
+          - {os: ubuntu-latest, python: '3.11', extra: gemini, source: wheel}
+          - {os: ubuntu-latest, python: '3.11', extra: discovery, source: wheel}
+          - {os: ubuntu-latest, python: '3.11', extra: vision, source: wheel}
+          - {os: windows-latest, python: '3.11', extra: windows, source: wheel}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - if: matrix.python == '3.11'
+        run: python -m pip install -c constraints/dev-py311.txt build hatchling playwright
+      - if: matrix.python != '3.11'
+        run: python -m pip install build hatchling playwright
       - run: python -m build --no-isolation --outdir dist
       - name: Check wheel and sdist contents
         shell: bash
@@ -63,60 +242,3 @@ jobs:
           python scripts/ci/verify_installed.py dist --extra ${{ matrix.extra }}
           ${{ matrix.source == 'sdist' && '--from-sdist' || '' }}
           ${{ matrix.browser && '--browser' || '' }}
-
-  quality:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: pip
-      - run: python -m pip install -c constraints/dev-py311.txt -e '.[dev]'
-      - run: python -m ruff check .
-      - run: python -m ruff format --check .
-      - run: python -m mypy
-      - run: python -m mypy --platform win32
-      - run: python -m pytest -m 'not browser and not desktop' --junitxml=artifacts/unit.xml
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: unit-results
-          path: artifacts/unit.xml
-
-  browser:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      CUA_CHROMIUM_NO_SANDBOX: '1'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: pip
-      - run: python -m pip install -c constraints/dev-py311.txt -e '.[dev]'
-      - run: python -m playwright install --with-deps chromium
-      - run: python -m pytest --require-browser -m 'browser and not desktop' --junitxml=artifacts/browser.xml
-      - name: Deterministic benchmark smoke
-        run: >-
-          python -m cua.cli benchmark run --suite core --llm scripted
-          --strategy inter_cua_replay --repetitions 2
-          --task lookup-success --task lookup-unknown-member --task open-without-consent
-          --reports-dir artifacts/benchmark
-      - run: python -m cua.cli benchmark report --latest --reports-dir artifacts/benchmark
-      - run: python scripts/ci/check_benchmark.py artifacts/benchmark
-      - name: Full security benchmark
-        if: ${{ !cancelled() }}
-        run: python -m cua.cli security run --out artifacts/security --runs-root bench/security/runs
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: browser-benchmark-security
-          retention-days: 14
-          path: |
-            artifacts/browser.xml
-            artifacts/benchmark/*.jsonl
-            artifacts/benchmark/summary.*
-            artifacts/security/summary.*

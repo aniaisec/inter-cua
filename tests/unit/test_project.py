@@ -186,45 +186,6 @@ def test_environment_snapshot_isolated_with_process_precedence(tmp_path, monkeyp
     assert dict(os.environ) == before
 
 
-@pytest.mark.parametrize("provider", ["anthropic", "gemini"])
-def test_selected_provider_receives_project_snapshot_without_environment_mutation(
-    tmp_path, monkeypatch, provider
-):
-    from cua.agent.llm import select_client
-
-    root = project_files(tmp_path / "project")
-    variable = "ANTHROPIC_API_KEY" if provider == "anthropic" else "GEMINI_API_KEY"
-    (root / ".env").write_text(f"{variable}=synthetic-project-key\n")
-    project = ProjectContext.resolve(root, environ={})
-    monkeypatch.setenv(variable, "synthetic-other-key")
-    captured = []
-    if provider == "anthropic":
-        import anthropic
-
-        monkeypatch.setattr(anthropic, "Anthropic", lambda **kw: captured.append(kw) or object())
-    else:
-        from google import genai
-
-        monkeypatch.setattr(genai, "Client", lambda **kw: captured.append(kw) or object())
-    assert select_client(provider, environ=project.environ).provider == provider
-    assert captured[0]["api_key"] == "synthetic-project-key"
-    assert os.environ[variable] == "synthetic-other-key"
-
-
-def test_anthropic_snapshot_cannot_inherit_a_later_auth_token(tmp_path, monkeypatch):
-    import anthropic
-
-    from cua.agent.llm import select_client
-
-    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "synthetic-other-token")
-    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://synthetic-other.invalid")
-    captured = []
-    monkeypatch.setattr(anthropic, "Anthropic", lambda **kw: captured.append(kw) or object())
-    select_client("anthropic", environ={"ANTHROPIC_API_KEY": "synthetic-project-key"})
-    assert captured[0]["auth_token"] == ""
-    assert captured[0]["base_url"] == "https://api.anthropic.com"
-
-
 def test_bound_benchmark_paths_preserve_definition_hashes(tmp_path):
     from cua.benchmark.registry import load_suite
     from cua.benchmark.subject import task_version

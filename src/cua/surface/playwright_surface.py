@@ -686,6 +686,12 @@ class PlaywrightSurface:
         """
         try:
             return self._act(action)
+        except PlaywrightError as exc:
+            # Navigation and unscoped keys have no element-specific error
+            # wrapper. Keep every adapter action in the Surface error vocabulary,
+            # and discard a screen that the failed action may have changed.
+            self._observation = None
+            raise ActionFailed(f"{action.action} failed: {_first_line(exc)}") from exc
         finally:
             self._expected_dialog = None
 
