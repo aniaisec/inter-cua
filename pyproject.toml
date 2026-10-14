@@ -47,9 +47,10 @@ windows = ["comtypes>=1.4 ; sys_platform == 'win32'"]
 # The vision fallback (cua.surface.vision): decoding screenshots and matching a
 # recorded control's picture. Without it replay still runs; --vision is refused.
 vision = ["numpy>=1.26", "pillow>=10.0"]
-dev = [
-  "inter-cua[discovery,vision]",
+test = [
+  "inter-cua[vision]",
   "build>=1.2,<2.0",
+  "coverage>=7.6,<8.0",
   "hatchling>=1.27,<2.0",
   "httpx>=0.27,<1.0",
   "jsonschema>=4.20,<5.0",
@@ -59,6 +60,7 @@ dev = [
   "ruff>=0.6",
   "types-pyyaml>=6.0",
 ]
+dev = ["inter-cua[test,discovery]"]
 
 [project.scripts]
 cua = "cua.cli:main"
@@ -93,6 +95,7 @@ filterwarnings = [
 markers = [
   "browser: requires a Playwright Chromium install",
   "desktop: drives DeskCalc through Windows UI Automation (Windows, the windows extra)",
+  "provider: optional SDK interoperability, synthetic credentials and no network",
 ]
 
 [tool.ruff]
@@ -111,6 +114,23 @@ python_version = "3.11"
 files = ["src", "mockapp", "examples"]
 strict = true
 warn_unreachable = true
+
+[tool.coverage.run]
+branch = true
+relative_files = true
+# Directory discovery avoids coverage pre-importing models while finding modules.
+# Those early imports can break Decimal serialization on Python 3.14.
+source = ["src/cua"]
+
+[tool.coverage.report]
+include = ["src/cua/catalog.py", "src/cua/replay/invocation.py", "src/cua/replay/engine.py", "src/cua/project.py", "src/cua/surface/locators.py"]
+
+[[tool.mypy.overrides]]
+# Optional SDK imports can be absent in the provider-free test environment.
+# When installed, their types are still checked; the provider job exercises the
+# real SDK boundary using synthetic keys and refused sockets.
+module = ["anthropic", "google", "google.genai", "google.genai.*"]
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 # comtypes ships no types, and its UI Automation bindings are generated at

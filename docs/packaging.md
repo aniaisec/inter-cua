@@ -16,6 +16,7 @@ testing archives does not publish them; publication is a separate release action
 | `discovery` | Both provider SDKs |
 | `vision` | NumPy and Pillow for screenshot matching |
 | `windows` | Windows-only comtypes for UI Automation |
+| `test` | Provider-free test, coverage, typing, lint/build tools and vision support |
 | `dev` | Both SDKs, vision, tests, typing, lint and distribution build tools |
 
 Provider SDKs import only when the provider is selected. Selecting one without

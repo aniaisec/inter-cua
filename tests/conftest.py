@@ -99,15 +99,35 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=False,
         help="Fail Chromium launch errors and require at least one executed browser test.",
     )
+    parser.addoption(
+        "--require-desktop",
+        action="store_true",
+        default=False,
+        help="Require Windows, the windows extra and executed live desktop cases.",
+    )
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    if config.getoption("--require-desktop") and sys.platform != "win32":
+        raise pytest.UsageError("--require-desktop needs an unlocked interactive Windows session")
 
 
 _browser_executed = 0
+_desktop_executed = 0
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Repeated pytest.main calls cannot reuse a prior session's execution count."""
+    global _browser_executed, _desktop_executed
+    _browser_executed = _desktop_executed = 0
 
 
 def pytest_runtest_logreport(report: pytest.TestReport) -> None:
-    global _browser_executed
+    global _browser_executed, _desktop_executed
     if report.when == "call" and not report.skipped and "browser" in report.keywords:
         _browser_executed += 1
+    if report.when == "call" and not report.skipped and "desktop" in report.keywords:
+        _desktop_executed += 1
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
@@ -115,6 +135,11 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         reporter = session.config.pluginmanager.get_plugin("terminalreporter")
         if reporter:
             reporter.write_line("--require-browser: no browser tests executed")
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
+    if session.config.getoption("--require-desktop") and _desktop_executed == 0:
+        reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+        if reporter:
+            reporter.write_line("--require-desktop: no live desktop tests executed")
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
 

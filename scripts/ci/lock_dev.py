@@ -26,6 +26,7 @@ def main() -> None:
         "numpy",
         "pillow",
         "build",
+        "coverage",
         "hatchling",
         "pytest",
         "mypy",

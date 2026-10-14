@@ -1,95 +1,159 @@
 # CI gates and artifacts
 
 `.github/workflows/ci.yml` runs on pushes, pull requests and manual dispatch.
-It uses Python 3.11 (the package minimum), with no provider credentials or paid
-model calls. Development/build dependencies use `constraints/dev-py311.txt`;
-fresh consumer installations resolve the declared library ranges. Jobs have
-read-only repository permissions and run serial tests
-within each job. New runs cancel older runs for the same ref.
+Linux compatibility covers Python 3.11 (the minimum) and 3.14. Python 3.11 uses
+`constraints/dev-py311.txt`; the newer version and fresh consumer installations
+resolve declared dependency ranges. Tests run serially inside each job. Jobs
+have read-only repository permissions and newer runs cancel older runs for the
+same ref.
 
-On Windows, run every PR 07 check with one command from the checkout:
+| Job | Acceptance gate |
+|---|---|
+| `quality` (Linux 3.11/3.14) | Ruff, both mypy platforms, provider-free unit tests and critical branch coverage |
+| `browser` (Linux 3.11/3.14) | Strict Chromium regressions, shared Surface contract and deterministic benchmark smoke |
+| `examples` (Linux 3.11) | Every browser example's documented scenario and repeated writes |
+| `security` (Linux 3.11) | Offline/live probes, negative controls and a fresh full security report |
+| `windows` (Windows 3.14) | Focused paths, parsing, packaging and feature tests; real Chromium, inventory and shared Surface contract |
+| `providers` (Linux 3.11) | Optional SDK interoperability with synthetic keys and sockets refused |
+| `installed` | Fresh wheel/sdist, minimum/newer Python, optional extras and packaged resources |
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/test_pr07.ps1
-```
+Routine jobs install `.[test]`, which includes test tools and vision support
+without either paid provider SDK. `check_no_providers.py` fails if one is present.
+Provider tests live in `tests/unit/test_llm_providers.py`; routine unit and browser
+jobs ignore that file during collection. The `providers` job installs `.[dev]` and
+runs it separately. No job receives provider credentials or calls a live model.
+Provider constructor checks in the installed matrix also forbid network calls.
 
-The script selects `.venv/Scripts/python.exe`, checks development tools, runs
-lint/format and both mypy targets, the full non-browser/non-desktop suite, and
-the inventory browser suite with strict launch checks. It then builds and
-checks fresh archives and runs both installed base wheel/source gates, including
-the existing demo and inventory discovery/consent/retry scenarios. Tests manage
-their own servers, operator sessions and temporary projects; no manual takeover
-or model key is needed. Logs, JUnit and `summary.json` go into a unique directory
-under `artifacts/pr07-tests/`. The script stops on failure and exits 1; all
-selected checks passing exits 0. Use `-SkipInstalled` for a shorter local run,
-`-AllBrowser` to include every non-desktop browser test, or `-PythonPath PATH` to
-select another development environment. Live Windows UIA remains a separate gate.
+Release report helpers are type-checked separately from the package. The manual
+desktop gate uses an explicit `--platform win32` target even on Linux runners,
+so mypy checks its Windows execution path rather than rejecting its platform guard
+as an unreachable statement.
 
-Installed browser checks stop their owned server process trees on Windows before
-removing temporary projects. Cleanup retries Windows sharing/access locks for at
-most five seconds; persistent locks and failed test assertions still fail the gate.
+The browser and example gates use `--require-browser`: missing/unusable Chromium
+and zero executed browser cases fail. Examples and security have their own jobs
+and reports. The result checker rejects empty reports, failed/collection-error
+reports and unexpected skips. Raw screenshots, traces, session plumbing,
+generated keys and security canaries are excluded from uploaded artifacts.
 
-The `quality` job checks Ruff lint and formatting, strict mypy for both its
-native Linux platform and Windows, and every
-non-browser, non-desktop test. The `browser` job installs Chromium and its
-Linux dependencies, runs every browser test excluding Windows desktop tests,
-using `--require-browser` (launch errors and zero executed browser tests fail),
-then produces fresh benchmark and security reports. Desktop UI Automation
-still requires a separate interactive Windows session.
+The hosted Linux jobs opt into `CUA_CHROMIUM_NO_SANDBOX=1` for detached Chromium
+because those runners can restrict user namespaces. Local detached browsers
+keep their sandbox enabled without this opt-in. Vision fixtures capture controls
+on the current platform; refusal criteria and match thresholds stay the same.
 
-The browser tests include a real `cua doctor --probe-browser` launch/close and an
-unauthenticated application HEAD probe. The `installed` matrix builds and inspects
-both wheel and sdist, then uses a fresh non-editable environment outside the
-checkout with `PYTHONPATH` removed. Base wheel and sdist-built wheel entries
-check doctor JSON, browser launch, the complete no-key demo and the inventory
-discovery/review/consent/retry walkthrough with both provider
-SDKs absent. Separate entries check `anthropic`, `gemini`, `discovery`, `vision`,
-and (on Windows) `windows`; every entry checks CLI help/version, starter projects
-and both targets' HTML. Inventory browser tests also cover business outcomes,
-preflight refusal, session expiry, ambiguity and human recovery. Provider constructors use synthetic keys with network calls
-forbidden. The Windows entry verifies dependency/adapter imports, not interactive
-UIA execution. See [packaging gates and local commands](packaging.md).
+## Surface conformance
 
-The hosted browser job explicitly sets `CUA_CHROMIUM_NO_SANDBOX=1` for detached
-Chromium: hosted Linux runners can restrict the user namespaces its sandbox
-requires. Detached browsers keep their sandbox enabled outside this opt-in.
-Vision tests capture fixture controls on their current platform because native
-fonts and form controls differ between Windows and Linux; match thresholds
-and refusal assertions remain unchanged.
+`tests/contracts/surface.py` supplies the same inherited suite to real Chromium
+and Windows UIA. Each adapter fixture owns a controlled target and verifies its
+independent browser endpoint/window oracle in `finally`, including assertion failures.
 
-The benchmark smoke runs only deterministic replay: two independent runs each
-of successful lookup, unknown-member lookup and a write without consent.
-`scripts/ci/check_benchmark.py` requires a single completed scripted session,
-all six exact scores, unique run IDs, no cached invocations, no model calls,
-no commits and no duplicate side effects. Missing or malformed evidence fails
-the gate. This small smoke checks runtime correctness; it does not estimate
-live-model quality, latency improvements or statistical significance. The
-browser integration suite separately exercises the scripted baseline,
-discovery, idempotency and duplicate-commit scoring.
-
-The full security benchmark runs even if an earlier browser step fails,
-unless the job was cancelled. Its existing CLI fails if any scenario is not
-blocked, including probe errors, secret exposure and approval/policy bypasses.
-The browser tests also include negative controls with defenses disabled.
-
-Artifacts are uploaded on success or failure: JUnit results, raw benchmark
-metrics/session metadata, and Markdown/JSON benchmark and security reports.
-Browser artifacts expire after 14 days. Raw screenshots, traces, session
-plumbing and security canaries are excluded. Reports write under gitignored
-`artifacts/`, preserving committed benchmark reports. A failure before report
-generation can leave only test results; inspect the job log in that case.
-
-Reproduce the artifact steps from the repository root after installing
-`.[dev]` and Playwright Chromium:
+The suite checks observation-scoped refs, ambiguity and measured fallback,
+viewport mismatch refusal, frame/location scoping, condition evaluation and
+timeouts, typed forms, keyboard and native dialogs. Optional probes cover masked
+screenshots, guarded pointer input after an external page change, document
+status, egress and published sessions. A feature-to-probe map must cover the
+closed feature vocabulary. A claimed feature failing its behavioral probe fails
+the corresponding browser or manual desktop gate.
 
 ```sh
-python -m cua.cli benchmark run --suite core --llm scripted --strategy inter_cua_replay --repetitions 2 --task lookup-success --task lookup-unknown-member --task open-without-consent --reports-dir artifacts/benchmark
-python -m cua.cli benchmark report --latest --reports-dir artifacts/benchmark
-python scripts/ci/check_benchmark.py artifacts/benchmark
-python -m cua.cli security run --out artifacts/security --runs-root bench/security/runs
+python -m pytest tests/integration/test_surface_contract.py --require-browser
 ```
 
-Use a fresh reports directory: the smoke gate intentionally refuses appended
-sessions. Repository administrators must configure branch protection to require
-the `quality`, `browser` and `installed` matrix checks; a workflow file cannot
-enforce that setting.
+## Live Windows release gate
+
+Hosted Windows CI checks Chromium and configuration; it does not run Windows
+UIA. A type check for Windows also cannot establish live desktop support.
+Before releasing desktop support, use a reviewed checkout in a dedicated,
+unlocked interactive Windows session with PowerShell/WinForms:
+
+```powershell
+python -m pip install -e ".[test,windows]"
+python -m scripts.ci.run_desktop_gate --out artifacts/desktop/release1
+```
+
+Choose a new output directory. The gate refuses other platforms or a missing
+Windows extra, runs the complete desktop suite with `--require-desktop`, and
+checks its JUnit execution report. Zero executed tests, test failures and skips
+for missing prerequisites fail. Only explicit "adapter does not claim ..."
+skips for optional features are allowed. `desktop.xml` and `summary.json` report
+executed/skipped counts and skipped case names. Retain those reports as release
+evidence; runtime projects and private keys stay local.
+
+The PR09 local gate executed 29 desktop cases and skipped three optional browser
+features (guarded pointer, HTTP document status and egress). The same tests also
+exercise refusal of screenshots and session handoff on UIA. These counts are
+evidence for that run, not assumptions about a future machine.
+
+No self-hosted desktop runner is exposed by this workflow. If one is introduced,
+keep it isolated from untrusted pull requests and unrelated desktop sessions.
+
+## Critical branch coverage
+
+The unit job collects branch coverage, writes `artifacts/coverage.json` and
+checks five safety functions: JSON input coercion, scalar validation, nested
+placeholder binding, artifact-only credential expansion and pixel-environment
+refusal. Each must have zero missing statements or branches. Missing functions,
+empty evidence and reports without branch collection fail the gate. There is no
+blanket percentage requirement for the whole package.
+
+Coverage discovers source by directory and limits the report to these modules.
+Using importable module names for discovery can pre-import Pydantic models and
+break decimal serialization on Python 3.14. The directory-based configuration
+keeps the same statement and branch requirements without those import side effects.
+
+A unit-only baseline measured on October 13, 2026 with provider-free Python
+3.11 on Windows gives the following combined statement/branch percentages:
+
+| Module | Measured coverage |
+|---|---|
+| `cua.catalog` | 97% |
+| `cua.project` | 100% |
+| `cua.replay.invocation` | 98% |
+| `cua.replay.engine` | 70% |
+| `cua.surface.locators` | 91% |
+
+The five gated functions cover all 36 branches and 51 statements. Other replay
+and adapter paths also have live browser/desktop tests, which this unit-only
+measurement does not include. Generated adversarial cases cover input types,
+regex/template values, path/cwd combinations and malformed capability/ledger
+records. The placeholder regressions prove that supplied input and credential
+contents remain literal instead of becoming another template.
+
+```sh
+python -m coverage run -m pytest -m "not browser and not desktop and not provider" --ignore=tests/unit/test_llm_providers.py
+python -m coverage json -o artifacts/coverage.json
+python scripts/ci/check_coverage.py artifacts/coverage.json
+```
+
+## Installed packages and reports
+
+The installed matrix inspects wheel/sdist metadata and resources, then creates
+a fresh non-editable environment outside the checkout with `PYTHONPATH` removed.
+Base wheel checks cover Linux 3.11/3.14; sdist-built wheel checks cover 3.11.
+They exercise doctor, browser launch, the seven-stage no-key demo and inventory
+discovery/review/consent/retry with provider SDKs absent. Other entries check
+`anthropic`, `gemini`, `discovery`, `vision` and Windows dependency/adapter
+imports. The Windows installed entry does not replace the live desktop gate.
+See [packaging commands](packaging.md).
+
+Artifacts upload on success or failure. Quality stores unit JUnit and coverage
+JSON; browser jobs store JUnit and benchmark metrics/reports; example, Windows
+and provider jobs store their JUnit; security stores JUnit and summary reports.
+Browser/security reports expire after 14 days. A failure before report creation
+can leave only logs or partial artifacts, which cannot certify a passing gate.
+
+The deterministic benchmark smoke checks two independent replays each of a
+lookup, an unknown-member answer and a write without consent. Its existing
+checker requires one completed scripted session, six exact scores, unique run
+IDs, no cache hits, no model calls and no commits. This does not measure live
+model quality or performance. The browser suite separately exercises the
+scripted baseline, discovery and duplicate-commit scoring.
+
+The security CLI fails if an attack is not blocked, including probe errors,
+secret exposure and approval/policy bypass. It runs even after a preceding
+security test fails, unless cancelled. Negative controls prove attacks succeed
+when their defenses are removed.
+
+The existing [PR07 local helper](../scripts/ci/test_pr07.ps1) remains available
+for inventory and installed-package verification. New compatibility and release
+gates are described above. Repository administrators must require each selected
+matrix check in branch protection; a workflow cannot enforce that setting.

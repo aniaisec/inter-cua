@@ -1162,7 +1162,7 @@
       "type": "object"
     },
     "RegionPresent": {
-      "description": "Web: a heading or landmark with this name. Desktop: a pane or group.\n\nThis is the condition a checkpoint should prefer over ``text_present``: a\nscreen title is a claim about where you are, whereas stray text can match\nanywhere.",
+      "description": "Web: a heading or landmark with this name. Desktop: a named group, tab or window.\n\nThis is the condition a checkpoint should prefer over ``text_present``: a\nscreen title is a claim about where you are, whereas stray text can match\nanywhere.",
       "properties": {
         "kind": {
           "const": "region_present",
