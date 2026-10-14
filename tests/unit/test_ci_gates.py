@@ -44,6 +44,13 @@ def test_compatibility_workflow_assigns_every_acceptance_gate():
         "secrets." not in str(job) and "self-hosted" not in str(job) for job in jobs.values()
     )
     assert "coverage.json" in str(jobs["quality"]) and "check_coverage.py" in str(jobs["quality"])
+    desktop_type_checks = [
+        step["run"]
+        for step in jobs["quality"]["steps"]
+        if "scripts/ci/run_desktop_gate.py" in step.get("run", "")
+    ]
+    assert desktop_type_checks
+    assert all("--platform win32" in command for command in desktop_type_checks)
     assert "tests/integration/test_examples.py --require-browser" in str(jobs["examples"])
     assert "tests/security --require-browser" in str(jobs["security"])
 

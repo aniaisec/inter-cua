@@ -169,6 +169,8 @@ def test_several_problems_are_all_reported_at_once() -> None:
 def test_the_committed_json_schema_is_current() -> None:
     committed = json.loads((artifacts.REPO / SCHEMA_PATH).read_text(encoding="utf-8"))
     assert committed == json_schema(), "regenerate with: cua schema"
+    packaged = artifacts.REPO / "src/cua/resources/templates/demo" / SCHEMA_PATH
+    assert json.loads(packaged.read_text(encoding="utf-8")) == committed
 
 
 def test_the_json_schema_is_valid_and_accepts_the_golden_capability() -> None:

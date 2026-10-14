@@ -118,7 +118,12 @@ warn_unreachable = true
 [tool.coverage.run]
 branch = true
 relative_files = true
-source = ["cua.catalog", "cua.replay.invocation", "cua.replay.engine", "cua.project", "cua.surface.locators"]
+# Directory discovery avoids coverage pre-importing models while finding modules.
+# Those early imports can break Decimal serialization on Python 3.14.
+source = ["src/cua"]
+
+[tool.coverage.report]
+include = ["src/cua/catalog.py", "src/cua/replay/invocation.py", "src/cua/replay/engine.py", "src/cua/project.py", "src/cua/surface/locators.py"]
 
 [[tool.mypy.overrides]]
 # Optional SDK imports can be absent in the provider-free test environment.

@@ -45,7 +45,10 @@ jobs:
       - name: Type-check release gate helpers
         run: >-
           python -m mypy --explicit-package-bases scripts/ci/check_coverage.py
-          scripts/ci/check_test_results.py scripts/ci/check_no_providers.py scripts/ci/run_desktop_gate.py
+          scripts/ci/check_test_results.py scripts/ci/check_no_providers.py
+      - name: Type-check Windows desktop gate
+        run: >-
+          python -m mypy --platform win32 --explicit-package-bases scripts/ci/run_desktop_gate.py
       - run: >-
           python -m coverage run -m pytest -m 'not browser and not desktop and not provider'
           --ignore=tests/unit/test_llm_providers.py --junitxml=artifacts/unit.xml

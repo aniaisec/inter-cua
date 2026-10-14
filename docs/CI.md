@@ -24,6 +24,11 @@ jobs ignore that file during collection. The `providers` job installs `.[dev]` a
 runs it separately. No job receives provider credentials or calls a live model.
 Provider constructor checks in the installed matrix also forbid network calls.
 
+Release report helpers are type-checked separately from the package. The manual
+desktop gate uses an explicit `--platform win32` target even on Linux runners,
+so mypy checks its Windows execution path rather than rejecting its platform guard
+as an unreachable statement.
+
 The browser and example gates use `--require-browser`: missing/unusable Chromium
 and zero executed browser cases fail. Examples and security have their own jobs
 and reports. The result checker rejects empty reports, failed/collection-error
@@ -89,6 +94,11 @@ placeholder binding, artifact-only credential expansion and pixel-environment
 refusal. Each must have zero missing statements or branches. Missing functions,
 empty evidence and reports without branch collection fail the gate. There is no
 blanket percentage requirement for the whole package.
+
+Coverage discovers source by directory and limits the report to these modules.
+Using importable module names for discovery can pre-import Pydantic models and
+break decimal serialization on Python 3.14. The directory-based configuration
+keeps the same statement and branch requirements without those import side effects.
 
 A unit-only baseline measured on October 13, 2026 with provider-free Python
 3.11 on Windows gives the following combined statement/branch percentages:
