@@ -75,4 +75,61 @@ use [strict browser verification](testing.md#strict-browser-verification).
 A demo's failed manifest and run result identify where to look; missing evidence
 is not a passing stage. See the [demo output guide](../scripts/demo/README.md#output-and-failure-handling).
 
+## Provider and model selection
+
+Scripted discovery, replay and the no-key demo need no provider SDK or key.
+For live discovery, select the provider explicitly while diagnosing:
+`--llm anthropic` or `--llm gemini`. Install its extra in the same environment as
+`cua`, using the same checkout, wheel or published version as the existing
+installation; see [extra installation commands](packaging.md). From the checkout,
+use `python -m pip install -e ".[anthropic]"`, `python -m pip install -e ".[gemini]"`
+or `python -m pip install -e ".[discovery]"` for both. `cua --version` and
+`python -m pip show inter-cua` help identify an unexpected environment. Doctor
+does not contact a model provider or prove that an account has access to a model.
+
+| Symptom | Next check |
+|---|---|
+| No model API key found | Set a key locally in the selected project's `.env` or process environment; do not paste it into a report. Anthropic accepts `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`; Gemini accepts `GEMINI_API_KEY`/`GOOGLE_API_KEY`. |
+| Selected SDK missing even though another provider is installed | Install the selected extra. `auto` chooses from preference/keys and does not switch merely because that SDK is missing. |
+| Unexpected provider | An explicit `--llm` wins; `auto` consults `CUA_LLM`, then available keys, preferring Anthropic if both are set. Check process environment as well as project `.env`. |
+| Model unavailable, unknown or not authorized | Choose a model offered to your account with `--model MODEL_ID`. Otherwise Anthropic reads `CUA_MODEL`, and Gemini reads `CUA_GEMINI_MODEL`, before their defaults. Model names are provider-specific; defaults/aliases do not guarantee account access or reproducibility. |
+| Authentication or quota/rate-limit error | Check the selected account, key validity and quota privately. A changed model name does not repair an invalid key. Respect the provider response; retries are bounded and cannot resolve authorization failures. |
+| Persistent timeout/service error | Inspect the scrubbed exception and local network/proxy configuration. Record provider, requested model and actual response identity when present; avoid unbounded reruns of discovery. |
+
+Process environment overrides the selected root's `.env`; changing that file
+will not replace an already exported value. See [configuration precedence](configuration.md#environment-precedence).
+Discovery evidence includes provider/model response identity and usage in
+`model_calls.jsonl` when calls occurred. An alias can resolve to a different
+model later; retain the actual version when available. Review evidence locally
+before sharing excerpts. The [provider recipe](extending.md#add-a-discovery-provider)
+describes synthetic interoperability checks.
+
+## Locate the failure safely
+
+1. Confirm the project and invocation: `cua --root DIR doctor --tenant local --json`,
+   then `cua surfaces` and `cua describe CAPABILITY.json` as appropriate. Explicit
+   file paths are relative to the calling directory, even with `--root`; named
+   lookup uses configured project paths. A draft or changed approval needs review.
+2. Read the result's `kind`, `code` when present, `side_effect`, run ID and exit
+   code. `business_outcome` is an application answer, not a transport failure.
+   `escalated` retains the existing session/resume path. Preflight refusals may
+   have no run directory; a missing directory does not establish that UI work ran.
+3. Inspect the selected run's `result.json` and event log locally. Normal runs
+   use the configured runs directory (default `evidence/runs/<run-id>/`); demo
+   runs also have `summary.json` and a masked command manifest. For drift, inspect
+   scoped locators/checkpoints, repair a draft and repeat review rather than
+   weakening ambiguity or approval checks.
+4. For an interrupted write, `side_effect: unknown`, or an API `lost` state,
+   preserve the evidence and original key. Inspect the target's actual state
+   before another action. Current file persistence does not provide durable
+   cross-process ownership; a fresh key or process restart cannot prove a write
+   was absent. Follow [operations](operations.md) for reconciliation and service
+   boundaries. Avoid deleting run/state files as a retry workaround.
+
+If the failure remains, use the [bug-report form](https://github.com/aniaisec/inter-cua/issues/new?template=bug_report.yml)
+with a synthetic reproduction and reviewed diagnostic codes. The
+[support policy](../SUPPORT.md#reporting-a-problem) lists useful fields and private
+material to omit. Send suspected security failures through the
+[private vulnerability channel](../SECURITY.md#reporting-a-vulnerability).
+
 [Documentation index](index.md) · [Project README](../README.md)

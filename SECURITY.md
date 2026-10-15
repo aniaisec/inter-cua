@@ -8,7 +8,10 @@ not in a public issue. Include what you did, what happened, and what you
 expected. A failing scenario for `bench/security/scenarios.yaml` is the most
 useful form a report can take.
 
-Only the latest commit on `main` is supported.
+Only the latest commit on `main` is supported; older snapshots have no backport
+commitment. See the [support policy](SUPPORT.md) for platform verification and
+ordinary bug reports. Keep credentials, tokens and private application data out
+of public issues and attachments.
 
 ## The security model in one paragraph
 

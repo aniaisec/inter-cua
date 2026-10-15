@@ -2,6 +2,10 @@
 
 ## Development
 
+Choose local checks by change type in [CONTRIBUTING.md](../CONTRIBUTING.md#choose-checks-for-the-change).
+Pure prose edits need link/command verification; expensive live scenarios are
+required when they establish behavior affected by the change.
+
 GitHub Actions runs quality and browser gates and uploads fresh benchmark/security
 reports; see [CI gates and artifacts](CI.md) for coverage and reproduction.
 Install `.[dev]` for both provider SDKs, vision and test/build tools. To reproduce
