@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Contributor setup and checks by change type, GitHub issue/PR templates,
+  a support policy and an actionable adoption/service roadmap. Extension recipes
+  cover families, surfaces, providers and recoverers with the closed-contract
+  integration points; troubleshooting explains provider/model selection,
+  diagnostics and uncertain-write reconciliation. The PR11 usability trial and
+  release gates remain planned.
+
 - Python 3.11/3.14 Linux compatibility gates, focused Windows Chromium checks,
   separate example/security/provider jobs, reusable live adapter contracts and
   a strict manual Windows UIA gate with executed/skipped counts. Routine test

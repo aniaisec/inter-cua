@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a reproducible failure using synthetic data and reviewed diagnostics.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For approval bypass, credential exposure, cross-tenant access or unintended commits, use [private vulnerability reporting](https://github.com/aniaisec/inter-cua/security/advisories/new).
+        Check [troubleshooting](https://github.com/aniaisec/inter-cua/blob/main/docs/troubleshooting.md) first. Do not attach secrets, tokens, authorization headers, whole run directories or raw screenshots/traces. Review masked diagnostics for private metadata before sharing.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include cua --version, Python/OS, install method and extras, checkout SHA if applicable, and browser or desktop adapter.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Provide a command or caller request and synthetic setup. Describe root/tenant selection; remove secret values and headers.
+    validations:
+      required: true
+  - type: textarea
+    id: expected_actual
+    attributes:
+      label: Expected and actual behavior
+      description: Include exit/status code, result kind/code/side_effect and whether any write may have occurred. Preserve evidence privately and reconcile uncertain writes before retrying.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Reviewed diagnostic findings
+      description: Relevant doctor/error codes and test executed/skipped counts. State which probes ran. Omit credentials, tokens and identifying paths/URLs.

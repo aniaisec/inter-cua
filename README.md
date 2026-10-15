@@ -171,6 +171,15 @@ idempotency, drift and recovery. See the [threat model](docs/THREAT_MODEL.md) an
 [security reporting policy](SECURITY.md). [REPORT](REPORT.md) and
 [phase history](docs/IMPLEMENTATION_PROGRESS.md) are historical design snapshots.
 
+## Contribute and get help
+
+Follow [CONTRIBUTING.md](CONTRIBUTING.md) for checkout setup, checks by change type
+and pull requests. [Extension recipes](docs/extending.md) cover families, surfaces,
+providers and recoverers. See [troubleshooting](docs/troubleshooting.md) and the
+[support policy](SUPPORT.md) for diagnostics and safe issue reporting, and the
+[roadmap](ROADMAP.md) for adoption and service release gates. Report vulnerabilities
+through the [private security channel](SECURITY.md#reporting-a-vulnerability).
+
 ## License
 
 MIT.

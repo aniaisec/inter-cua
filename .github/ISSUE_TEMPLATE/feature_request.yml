@@ -1,0 +1,29 @@
+name: Feature proposal
+description: Propose a bounded improvement with a use case and acceptance evidence.
+title: "[Proposal]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Review the [roadmap](https://github.com/aniaisec/inter-cua/blob/main/ROADMAP.md), [support policy](https://github.com/aniaisec/inter-cua/blob/main/SUPPORT.md) and [extension recipes](https://github.com/aniaisec/inter-cua/blob/main/docs/extending.md). Use synthetic application details; report security problems privately.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Application and problem
+      description: What task is blocked, on which platform/surface, and what is the current workaround?
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: Describe the user-visible result and scope, including relevant roadmap dependencies or contract changes.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Acceptance evidence
+      description: How could a reviewer verify this with a reproducible target and independent outcome/commit checks? Identify any platform or optional dependency needed.
+    validations:
+      required: true
