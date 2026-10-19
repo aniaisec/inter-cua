@@ -24,7 +24,6 @@ for its caller.
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 import time
@@ -44,6 +43,7 @@ from cua.escalation.requests import (
     new_resume_token,
 )
 from cua.evidence.logger import RunLog, utc_now
+from cua.persistence import atomic_write_json, corrupt, read_json, read_jsonl, read_model
 from cua.replay.handoff import (
     Abort,
     Decision,
@@ -228,10 +228,9 @@ class OperatorChannel:
 
     def _heartbeat(self, request_id: str) -> None:
         try:
-            (self.log.dir / WAITER_FILE).write_text(
-                json.dumps({"pid": os.getpid(), "request_id": request_id, "beat": utc_now()})
-                + "\n",
-                encoding="utf-8",
+            atomic_write_json(
+                self.log.dir / WAITER_FILE,
+                {"pid": os.getpid(), "request_id": request_id, "beat": utc_now()},
             )
         except OSError:
             pass  # the console is reading it this instant; the next beat lands
@@ -266,11 +265,7 @@ def count_human_actions(run_dir: Path, request_id: str) -> int:
     if not path.is_file():
         return 0
     count = 0
-    for line in path.read_text(encoding="utf-8").splitlines():
-        try:
-            record = json.loads(line)
-        except ValueError:
-            continue
+    for record in read_jsonl(path):
         if record.get("request_id") == request_id and record.get("source") == "browser":
             count += 1
     return count
@@ -280,10 +275,14 @@ def waiter_alive(run_dir: Path) -> bool:
     """Is a process still waiting on this run's current request?"""
     path = run_dir / WAITER_FILE
     try:
-        beat = json.loads(path.read_text(encoding="utf-8"))["beat"]
-    except (OSError, ValueError, KeyError):
+        data = read_json(path)
+    except FileNotFoundError:
         return False
-    age = datetime.now(UTC) - datetime.fromisoformat(str(beat).replace("Z", "+00:00"))
+    try:
+        stamp = datetime.fromisoformat(str(data["beat"]).replace("Z", "+00:00"))
+        age = datetime.now(UTC) - stamp
+    except (ValueError, TypeError, KeyError):
+        raise corrupt(path) from None
     return age.total_seconds() < WAITER_FRESH_S
 
 
@@ -296,11 +295,12 @@ def devtools_url(session: SessionHandle) -> str | None:
 
 
 def _expiry(run_dir: Path, request_id: str) -> datetime | None:
+    path = run_dir / "interventions" / f"{request_id}.json"
+    request = read_model(path, InterventionRequest)
     try:
-        data = json.loads((run_dir / "interventions" / f"{request_id}.json").read_text("utf-8"))
-        return datetime.fromisoformat(str(data["expires_at"]).replace("Z", "+00:00"))
-    except (OSError, ValueError, KeyError):
-        return None
+        return datetime.fromisoformat(request.expires_at.replace("Z", "+00:00"))
+    except ValueError:
+        raise corrupt(path) from None
 
 
 def _iso(when: datetime) -> str:

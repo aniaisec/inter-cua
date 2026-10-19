@@ -365,7 +365,7 @@ def test_a_record_from_before_tenants_whose_tenant_is_unknown_is_not_guessed(
         side_effect="unknown", run_id="run_gone",
     )  # fmt: skip
     legacy(runs, KEY, cut, ran_on=None)
-    with pytest.raises(IdempotencyConflict, match="use a new key"):
+    with pytest.raises(IdempotencyConflict, match="reconcile the earlier run"):
         IdempotencyCache(runs, BETA.id).get(KEY, request)
 
 

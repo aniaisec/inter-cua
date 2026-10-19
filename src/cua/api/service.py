@@ -11,8 +11,8 @@ What is recorded, under ``<runs dir>/.api/``:
 * ``runs/<run id>.json`` — the ``ApiRun``: who asked, for which tenant, under
   which request id, and the ``ReplayResult`` once there is one;
 * ``idempotency/<hash>.json`` — which run an idempotency key started, and for
-  what request. Claimed with an exclusive create, so two requests racing with
-  one key start one run between them;
+  what request. Checked/published under a file lock with atomic replacement,
+  so a competing reader cannot see a half-written claim;
 * ``requests.jsonl`` — every request the API answered (``cua.api.app``).
 
 Idempotency keys are the caller's, scoped to the client and tenant: the key
@@ -61,6 +61,7 @@ from cua.escalation.channel import HandoffSettings
 from cua.escalation.requests import Queue
 from cua.evidence.logger import append_jsonl, new_run_id, utc_now
 from cua.observability.recorder import is_run_dir, read_run
+from cua.persistence import atomic_write_json, corrupt, file_lock, read_json, read_jsonl, read_model
 from cua.project import ProjectContext
 from cua.replay import runner
 from cua.replay.engine import ReplayConfig
@@ -183,6 +184,7 @@ class RunService:
             requests=[caller.request_id],
         )
         with self._lock:
+            self.check_audit()
             if idempotency_key is not None:
                 earlier = self._claim(caller, idempotency_key, _fingerprint(body), record.run_id)
                 if earlier is not None:
@@ -461,10 +463,7 @@ class RunService:
         entry = queue.entry(request_id) if isinstance(request_id, str) else None
         if entry is None:
             return
-        try:
-            expires_at = queue.request(entry).expires_at
-        except (OSError, ValueError):
-            return
+        expires_at = queue.request(entry).expires_at
         if expires_at <= utc_now():
             Console(self.settings.runs_dir).sweep()
 
@@ -477,25 +476,36 @@ class RunService:
 
     def _load(self, run_id: str) -> ApiRun | None:
         path = self._path(run_id)
-        if not path.is_file():
+        if not path.exists():
             return None
-        return ApiRun.model_validate_json(path.read_text(encoding="utf-8"))
+        record = read_model(path, ApiRun)
+        try:
+            result = RESULT.validate_python(record.result) if record.result is not None else None
+        except ValueError:
+            raise corrupt(path) from None
+        if (
+            record.run_id != run_id
+            or (record.state in ("finished", "escalated") and result is None)
+            or (record.state == "escalated" and result is not None and result.kind != "escalated")
+        ):
+            raise corrupt(path)
+        return record
 
     def _save(self, record: ApiRun) -> None:
         path = self._path(record.run_id)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(record.model_dump_json(indent=2) + "\n", encoding="utf-8", newline="\n")
-        tmp.replace(path)
+        with file_lock(path):
+            if path.exists():
+                self._load(record.run_id)  # preserve corrupt originals for reconciliation
+            atomic_write_json(path, record.model_dump(mode="json"))
 
     def _stored(self, run_id: str) -> ReplayResult | None:
         path = self.settings.runs_dir / run_id / "result.json"
-        if not path.is_file():
+        if not path.exists():
             return None
         try:
-            return RESULT.validate_json(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return None
+            return RESULT.validate_python(read_json(path))
+        except ValueError:
+            raise corrupt(path) from None
 
     def _claim(self, caller: Caller, key: str, fingerprint: str, run_id: str) -> str | None:
         """Record that ``key`` starts ``run_id``; or the run it already started."""
@@ -505,12 +515,17 @@ class RunService:
         )
         path.parent.mkdir(parents=True, exist_ok=True)
         record = {"run_id": run_id, "fingerprint": fingerprint, "at": utc_now()}
-        try:
-            with path.open("x", encoding="utf-8", newline="\n") as f:
-                f.write(json.dumps(record) + "\n")
-            return None
-        except FileExistsError:
-            earlier = json.loads(path.read_text(encoding="utf-8"))
+        with file_lock(path):
+            if not path.exists():
+                atomic_write_json(path, record)
+                return None
+            earlier = read_json(path)
+        if (
+            not isinstance(earlier.get("fingerprint"), str)
+            or not isinstance(earlier.get("run_id"), str)
+            or not earlier["run_id"]
+        ):
+            raise corrupt(path)
         if earlier["fingerprint"] != fingerprint:
             raise ApiError(
                 409,
@@ -524,6 +539,11 @@ class RunService:
         with self._lock:
             self.root.mkdir(parents=True, exist_ok=True)
             append_jsonl(self.root / "requests.jsonl", {"ts": utc_now(), **record})
+
+    def check_audit(self) -> None:
+        path = self.root / "requests.jsonl"
+        with file_lock(path):
+            read_jsonl(path)
 
 
 def _answer(record: ApiRun, result: ReplayResult) -> dict[str, Any]:

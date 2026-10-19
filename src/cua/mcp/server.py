@@ -43,6 +43,7 @@ from cua.api.models import (
 from cua.api.service import MAX_WAIT_S, RunService
 from cua.artifact.schema import Capability
 from cua.mcp import tools
+from cua.persistence import PersistenceError
 from cua.replay.invocation import ApprovalGrant
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -198,6 +199,13 @@ class McpServer:
         ]
 
     def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        try:
+            self.service.check_audit()
+            return self._call(name, arguments)
+        except PersistenceError as exc:
+            return _refused("state_corrupt", str(exc))
+
+    def _call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         caller = self._caller(_request_id())
         status = "error"
         try:

@@ -25,6 +25,7 @@ from cua import __version__
 from cua.api.access import Caller, Gate
 from cua.api.models import ApiError, ApiRun, error_body
 from cua.api.service import RunService
+from cua.persistence import PersistenceError
 
 M = TypeVar("M", bound=BaseModel)
 REQUEST_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
@@ -55,6 +56,13 @@ def create_app(gate: Gate, service: RunService) -> FastAPI:
             status_code=exc.status,
         )
 
+    @app.exception_handler(PersistenceError)
+    async def state_error(request: Request, exc: PersistenceError) -> JSONResponse:
+        return JSONResponse(
+            error_body("state_corrupt", str(exc), getattr(request.state, "request_id", None)),
+            status_code=409,
+        )
+
     @app.middleware("http")
     async def identify(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
@@ -73,18 +81,28 @@ def create_app(gate: Gate, service: RunService) -> FastAPI:
                 error_body("request_id_invalid", problem, request_id), status_code=400
             )
         else:
+            try:
+                service.check_audit()
+            except PersistenceError as exc:
+                response = await state_error(request, exc)
+                response.headers["X-Request-Id"] = request_id
+                return response
             response = await call_next(request)
         response.headers["X-Request-Id"] = request_id
-        service.audit(
-            {
-                "request_id": request_id,
-                "method": request.method,
-                "path": request.url.path,
-                "status": response.status_code,
-                "client": getattr(request.state, "client_id", None),
-                "tenant": getattr(request.state, "tenant_id", None),
-            }
-        )
+        try:
+            service.audit(
+                {
+                    "request_id": request_id,
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status": response.status_code,
+                    "client": getattr(request.state, "client_id", None),
+                    "tenant": getattr(request.state, "tenant_id", None),
+                }
+            )
+        except PersistenceError as exc:
+            response = await state_error(request, exc)
+            response.headers["X-Request-Id"] = request_id
         return response
 
     app.include_router(health.router)

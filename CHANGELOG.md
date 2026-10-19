@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- PR12 atomic runtime JSON publication, serialized file updates and durable
+  JSONL appends. Workflow journals reject stale saves; completed replay answers
+  retain their first result. Corrupt authoritative records and torn log tails
+  fail closed with a reconciliation procedure; HTTP/MCP expose `state_corrupt`.
+  OS-held locks replace age-based control lock stealing. Durable invocation
+  ownership and multi-file/commit recovery remain PR13 work.
+
 - PR11 adoption candidate procedure, anonymized developer-trial templates and
   an evidence readiness checker. Missing/failing gates, changed evidence,
   incomplete trials and unresolved blockers prevent readiness; usability timing

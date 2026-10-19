@@ -22,7 +22,6 @@ token.
 from __future__ import annotations
 
 import hashlib
-import json
 import secrets
 from pathlib import Path
 from typing import Literal
@@ -30,6 +29,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from ulid import ULID
 
+from cua.persistence import atomic_write_json, read_model
 from cua.replay.handoff import Option, ResumeChoice
 from cua.replay.result import EscalationReason, SideEffect
 
@@ -109,26 +109,21 @@ class Queue:
             token_sha256=token_sha256(resume_token),
             created_at=request.created_at,
         )
-        (self.dir / f"{request.id}.json").write_text(
-            entry.model_dump_json(indent=2) + "\n", encoding="utf-8", newline="\n"
-        )
+        atomic_write_json(self.dir / f"{request.id}.json", entry.model_dump(mode="json"))
 
     def entries(self) -> list[QueueEntry]:
         if not self.dir.is_dir():
             return []
         out = []
         for path in sorted(self.dir.glob("req_*.json"), reverse=True):
-            try:
-                out.append(QueueEntry.model_validate_json(path.read_text(encoding="utf-8")))
-            except (OSError, ValueError):
-                continue
+            out.append(read_model(path, QueueEntry))
         return out
 
     def entry(self, request_id: str) -> QueueEntry | None:
         path = self.dir / f"{Path(request_id).name}.json"
-        if not path.is_file():
+        if not path.exists():
             return None
-        return QueueEntry.model_validate_json(path.read_text(encoding="utf-8"))
+        return read_model(path, QueueEntry)
 
     def by_token(self, token: str) -> QueueEntry | None:
         wanted = token_sha256(token)
@@ -140,4 +135,4 @@ class Queue:
 
     def request(self, entry: QueueEntry) -> InterventionRequest:
         path = self.run_dir(entry) / "interventions" / f"{entry.request_id}.json"
-        return InterventionRequest.model_validate(json.loads(path.read_text(encoding="utf-8")))
+        return read_model(path, InterventionRequest)

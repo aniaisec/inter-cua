@@ -26,18 +26,24 @@ why a run can be handed back after the process that started it has exited.
 
 from __future__ import annotations
 
-import json
-import os
-import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from itertools import pairwise
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from cua.escalation.lease import ControlLease, Holder
 from cua.evidence.logger import utc_now
+from cua.persistence import (
+    append_jsonl,
+    atomic_write_json,
+    corrupt,
+    file_lock,
+    read_jsonl,
+    read_model,
+)
 
 State = Literal["AUTOMATION", "PAUSED", "HUMAN_IN_CONTROL", "RESUMING", "ABORTED"]
 
@@ -61,8 +67,6 @@ CONTROL_FILE = "control.json"
 TRANSITIONS_FILE = "state_transitions.jsonl"
 LOCK_FILE = "control.lock"
 LOCK_TIMEOUT_S = 10.0
-LOCK_STALE_S = 30.0
-"""A lock file older than this belongs to a process that died holding it."""
 
 
 class IllegalTransition(Exception):
@@ -107,6 +111,16 @@ class ControlRecord(BaseModel):
     """How the run ended (its result kind), once it has."""
 
 
+class _Transition(BaseModel):
+    seq: int = Field(ge=0)
+    ts: str
+    before: State | None = Field(alias="from")
+    to: State
+    holder: Holder
+    by: str
+    request_id: str | None
+
+
 class ControlStore:
     def __init__(self, run_dir: Path) -> None:
         self.dir = run_dir
@@ -125,17 +139,43 @@ class ControlStore:
             run_id=run_id, state="AUTOMATION", lease=ControlLease(holder="automation", since=now)
         )
         with self._locked():
+            if self.path.exists():
+                raise IllegalTransition(
+                    "control state already exists; resume or reconcile this run"
+                )
+            if read_jsonl(self.log_path):
+                raise corrupt(self.log_path)
             self._write(record)
             self._append(None, record, by="automation", note="run started")
         return record
 
     def read(self) -> ControlRecord:
-        for _ in range(50):
+        with self._locked():
+            history = read_jsonl(self.log_path)
+            record = read_model(self.path, ControlRecord)
+            if not history:
+                raise corrupt(self.log_path)
             try:
-                return ControlRecord.model_validate_json(self.path.read_text(encoding="utf-8"))
-            except (PermissionError, json.JSONDecodeError, ValueError):
-                time.sleep(0.02)  # mid-replace on Windows; the next look sees it whole
-        return ControlRecord.model_validate_json(self.path.read_text(encoding="utf-8"))
+                transitions = [_Transition.model_validate(row) for row in history]
+            except ValidationError:
+                raise corrupt(self.log_path) from None
+            # Legacy end() calls left gaps even in otherwise complete histories.
+            # Require ordered, connected transitions rather than invent missing rows.
+            if transitions[0].seq != 0 or any(
+                after.seq <= before.seq or after.before != before.to
+                for before, after in pairwise(transitions)
+            ):
+                raise corrupt(self.log_path)
+            latest = transitions[-1]
+            # Old end() records incremented the snapshot without appending a row.
+            legacy_end = record.ended is not None and record.seq == latest.seq + 1
+            if (
+                (latest.seq != record.seq and not legacy_end)
+                or latest.to != record.state
+                or latest.holder != record.lease.holder
+            ):
+                raise corrupt(self.path)
+            return record
 
     def lease(self) -> ControlLease:
         return self.read().lease
@@ -154,6 +194,7 @@ class ControlStore:
         is answering; an answer to an older one is ``StaleRequest``."""
         with self._locked():
             current = self.read()
+            self._complete_legacy_end(current)
             if expect_request is not None and current.request_id != expect_request:
                 raise StaleRequest(
                     f"request {expect_request} is not the open request of {current.run_id}"
@@ -188,26 +229,24 @@ class ControlStore:
         """Note how the run ended; the state stays what it was."""
         with self._locked():
             current = self.read()
-            self._write(current.model_copy(update={"ended": kind, "seq": current.seq + 1}))
+            self._complete_legacy_end(current)
+            record = current.model_copy(update={"ended": kind, "seq": current.seq + 1})
+            self._write(record)
+            self._append(current.state, record, by="automation", note=f"run ended: {kind}")
 
     def transitions(self) -> list[dict[str, object]]:
-        if not self.log_path.is_file():
-            return []
-        lines = self.log_path.read_text(encoding="utf-8").splitlines()
-        return [json.loads(line) for line in lines if line.strip()]
+        with self._locked():
+            return read_jsonl(self.log_path)
 
     # -- files ---------------------------------------------------------------
 
+    def _complete_legacy_end(self, record: ControlRecord) -> None:
+        latest = read_jsonl(self.log_path)[-1]
+        if record.ended is not None and record.seq == latest["seq"] + 1:
+            self._append(record.state, record, by="migration", note="recorded legacy end marker")
+
     def _write(self, record: ControlRecord) -> None:
-        tmp = self.path.with_suffix(f".{os.getpid()}.tmp")
-        tmp.write_text(record.model_dump_json(indent=2) + "\n", encoding="utf-8", newline="\n")
-        for _ in range(50):
-            try:
-                os.replace(tmp, self.path)
-                return
-            except PermissionError:  # a reader has it open (Windows)
-                time.sleep(0.02)
-        os.replace(tmp, self.path)
+        atomic_write_json(self.path, record.model_dump(mode="json"))
 
     def _append(
         self,
@@ -231,29 +270,9 @@ class ControlStore:
             line["decision"] = decision.model_dump(exclude_defaults=True)
         if note:
             line["note"] = note
-        with self.log_path.open("a", encoding="utf-8", newline="\n") as f:
-            f.write(json.dumps(line) + "\n")
+        append_jsonl(self.log_path, line)
 
     @contextmanager
     def _locked(self) -> Iterator[None]:
-        deadline = time.monotonic() + LOCK_TIMEOUT_S
-        while True:
-            try:
-                fd = os.open(self._lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-                break
-            except FileExistsError:
-                try:
-                    if time.time() - self._lock_path.stat().st_mtime > LOCK_STALE_S:
-                        self._lock_path.unlink(missing_ok=True)
-                        continue
-                except FileNotFoundError:
-                    continue
-                if time.monotonic() > deadline:
-                    raise TimeoutError(f"{self._lock_path} is held by another process") from None
-                time.sleep(0.02)
-        try:
-            os.write(fd, str(os.getpid()).encode())
-            os.close(fd)
+        with file_lock(self._lock_path, timeout=LOCK_TIMEOUT_S):
             yield
-        finally:
-            self._lock_path.unlink(missing_ok=True)

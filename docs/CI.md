@@ -43,6 +43,13 @@ because those runners can restrict user namespaces. Local detached browsers
 keep their sandbox enabled without this opt-in. Vision fixtures capture controls
 on the current platform; refusal criteria and match thresholds stay the same.
 
+Atomic-persistence fault and subprocess-lock tests run in both Linux quality
+jobs and the focused Windows job. They cover interrupted publication, corrupt
+authority, competing thread/process updates, lock release on process death and
+HTTP/MCP refusal before dispatch. These checks establish file integrity, not
+durable ownership of an invocation or exactly-once application effects; see
+[operations and reconciliation](operations.md#corrupt-or-interrupted-state).
+
 ## Surface conformance
 
 `tests/contracts/surface.py` supplies the same inherited suite to real Chromium

@@ -44,7 +44,7 @@ pre-action feature refusal and explicit uncertainty after a possible commit.
 
 | Increment | Depends on | Deliverable and acceptance evidence |
 |---|---|---|
-| PR12: atomic persistence | Project paths (PR03) | Shared same-directory atomic JSON replacement, serialized updates and corruption handling. Inject partial writes and malformed authoritative records; fail closed and document recovery. |
+| PR12: atomic persistence (implemented) | Project paths (PR03) | Shared same-directory atomic JSON replacement, OS-held locks, stale workflow-save refusal and corrupt-state handling. Fault/concurrency regressions and [reconciliation instructions](docs/operations.md#corrupt-or-interrupted-state); durable invocation ownership is still PR13. |
 | PR13: durable invocation ownership | PR12 | Transactional local SQLite claims shared by CLI, workflow, HTTP and MCP; pinned content and result identity. Race processes and interrupt at commit boundaries; show one observed commit or explicit uncertainty, never automatic repetition of an unknown write. Include migration/rollback rules. |
 | PR14: bounded admission | PR13 | Bounded workers/pending runs/MCP dispatch, truthful persisted `queued` state and overload responses. Saturation starts no extra UI sessions and preserves accepted retry identities; verify shutdown and queue expiry. |
 | PR15: cleanup and retention | PR13, PR14 | Scoped inspect/cleanup plans with dry-run default, ownership checks, retention policies and operations metrics. Prove cleanup preserves active sessions, unresolved commits, provenance and retry-safety tombstones. |

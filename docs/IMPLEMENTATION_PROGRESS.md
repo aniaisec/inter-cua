@@ -1449,3 +1449,52 @@ remain pending; this entry does not claim a release candidate has passed.
 - Not performed: a newly qualified distribution/complete candidate CI run,
   fresh live desktop gate, or independent developer usability trials. Version,
   publication and release approval remain separate maintainer actions.
+
+## Adoption P12 - atomic file persistence and corruption handling
+
+Implemented October 19, 2026.
+
+- Added shared UTF-8/LF atomic JSON/text publication with unique same-directory
+  staging, flush/fsync where supported, atomic replace, bounded Windows sharing
+  retries and cleanup on ordinary failure. Crash-left staging files stay inert.
+- Applied publication to run evidence/results/resume context through RunLog,
+  replay answers, workflow records/journals, API records/claims, intervention
+  pointers, control state, spent consent and waiter heartbeats. Registered
+  snapshots keep their exact sealed serialization while publishing atomically.
+- Added reentrant thread and OS-held sidecar locks for cooperating local writers.
+  Registry/control read-check-write operations, API claim creation, replay-answer
+  and spent-consent publication, and JSONL appends serialize. No lock is stolen
+  by age; process termination releases OS ownership. Workflow journals compare
+  snapshots and refuse stale saves instead of losing another attempt.
+- Strict authority readers reject malformed/duplicate-field/non-finite JSON,
+  invalid typed results and partial JSONL tails. Corrupt retry/queue/workflow
+  records cannot become misses; control state/log inconsistencies fail closed.
+  Completed cached answers remain immutable, including uncertain failures.
+  HTTP/MCP expose state_corrupt; operator views no longer hide corrupt records.
+- Kept valid legacy records and approval seals compatible. Before a new control
+  change, a legacy unlogged end marker receives an explicit migration row.
+  Unknown legacy retry ownership requires reconciliation rather than a new key.
+- Added fault, subprocess-death, multi-process/thread concurrency, stale-journal
+  and pre-dispatch corruption regressions. CI runs the focused persistence and
+  HTTP/MCP tests on Windows as well as the Linux quality suites. Starter and
+  repository ignore rules exclude persistent lock sidecars.
+- Documented quiescent upgrades, local-filesystem/durability limits and a private
+  preservation/reconciliation procedure. No automatic repair, invocation-store
+  migration or multi-file/UI transaction is claimed; durable ownership and the
+  consent-consumption window remain PR13 work.
+- Verification on Windows / Python 3.14.5: 1,236 non-browser/non-desktop/provider
+  tests passed; two skips require POSIX process groups or Windows symlink
+  privileges. The final logging/recorder/discovery/persistence focus passed 69
+  tests after review. Ruff lint/format, Linux/Windows strict mypy over 177 source
+  files and changed-guide relative links/anchors passed. Local socket/browser
+  tests require execution outside the sandbox. Hosted Linux CI and live UIA
+  remain outside this local verification.
+- All 18 selected strict browser integrations passed: API, MCP, workflow, the
+  seven-stage demo and inventory, including consent/retry and independent commit
+  checks. The dedicated security suite passed 38 tests, including negative
+  controls; the fresh security CLI report blocked all 22 attacks with zero unsafe
+  actions, secret exposures, policy/approval bypasses or tenant-isolation failures.
+- Final compatibility review preserves older connected control histories with
+  sequence gaps from unlogged end markers, while refusing reordered/disconnected
+  transitions and snapshot mismatches. The final persistence/escalation/HTTP/MCP
+  focus passed 85 tests, including that legacy-history regression.

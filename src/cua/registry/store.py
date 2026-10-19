@@ -34,6 +34,13 @@ from pydantic import ValidationError
 
 from cua.artifact.schema import Capability
 from cua.artifact.store import CAPABILITIES_DIR, ArtifactError, Loaded, open_capability
+from cua.persistence import (
+    PersistenceError,
+    append_jsonl,
+    atomic_write_text,
+    file_lock,
+    read_jsonl,
+)
 from cua.policy.approval import STATE_DIR, last_review
 from cua.project import ProjectContext
 from cua.registry import lifecycle
@@ -92,25 +99,18 @@ class Registry:
     def ledger(self) -> list[LedgerEntry]:
         if not self.ledger_path.is_file():
             return []
-        entries: list[LedgerEntry] = []
-        for n, line in enumerate(self.ledger_path.read_text(encoding="utf-8").splitlines(), 1):
-            if not line.strip():
-                continue
+        with file_lock(self.ledger_path):
             try:
-                entries.append(LedgerEntry.model_validate_json(line))
-            except ValidationError as exc:
-                # A ledger that cannot be read cannot be trusted to hold no
-                # revocation: refuse to answer rather than answer "approved".
+                return [LedgerEntry.model_validate(row) for row in read_jsonl(self.ledger_path)]
+            except (PersistenceError, ValidationError):
                 raise RegistryError(
-                    f"{self.ledger_path.as_posix()} line {n} is not a ledger entry: "
-                    f"{exc.errors()[0]['msg']}"
+                    f"{self.ledger_path.as_posix()} is not a readable ledger; stop and reconcile; "
+                    "see docs/operations.md#corrupt-or-interrupted-state"
                 ) from None
-        return entries
 
     def _append(self, entry: LedgerEntry) -> None:
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
-        with self.ledger_path.open("a", encoding="utf-8", newline="\n") as f:
-            f.write(entry.model_dump_json() + "\n")
+        append_jsonl(self.ledger_path, entry.model_dump(mode="json"))
 
     def approval_on_record(self, capability: Capability) -> bool:
         """Does the ledger record the approval of exactly this content?
@@ -267,6 +267,11 @@ class Registry:
     # -- changes -------------------------------------------------------------
 
     def register(self, capability: Capability, *, note: str = "") -> Path:
+        with file_lock(self.ledger_path):
+            self.ledger()  # refuse corruption before changing a snapshot
+            return self._register(capability, note=note)
+
+    def _register(self, capability: Capability, *, note: str = "") -> Path:
         """Keep a sealed copy of an approved version and record its approval.
         Doing it again for the same content changes nothing."""
         if capability.approval_state != "approved" or not capability.approved_by:
@@ -293,7 +298,7 @@ class Registry:
                     f"{capability.name} v{capability.version} is not sealed; approve it "
                     "with `cua approve` so it is saved first"
                 )
-            path.write_text(sealed.to_json(), encoding="utf-8", newline="\n")
+            atomic_write_text(path, sealed.to_json())
         if not any(
             e.name == capability.name and e.version == capability.version for e in self.ledger()
         ):
@@ -322,6 +327,12 @@ class Registry:
         return written
 
     def transition(
+        self, name: str, version: int, change: lifecycle.Change, *, by: str, reason: str = ""
+    ) -> Record:
+        with file_lock(self.ledger_path):
+            return self._transition(name, version, change, by=by, reason=reason)
+
+    def _transition(
         self, name: str, version: int, change: lifecycle.Change, *, by: str, reason: str = ""
     ) -> Record:
         by = by.strip()

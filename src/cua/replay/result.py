@@ -35,6 +35,8 @@ from typing import Annotated, Any, Literal, TypeAlias, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
+from cua.persistence import atomic_write_json, corrupt, file_lock, read_json
+
 SideEffect = Literal["none", "committed", "unknown"]
 
 BusinessCode = str
@@ -278,9 +280,8 @@ class IdempotencyCache:
 
     def get(self, key: str, request: str) -> ReplayResult | None:
         path = self._path(key)
-        stored = (
-            json.loads(path.read_text(encoding="utf-8")) if path.is_file() else self._legacy(key)
-        )
+        with file_lock(path):
+            stored = self._read(path) if path.exists() else self._legacy(key)
         if stored is None:
             return None
         if stored["fingerprint"] != request:
@@ -288,7 +289,10 @@ class IdempotencyCache:
                 f"idempotency key {key!r} was already used for a different request "
                 "(another capability, version or inputs)"
             )
-        result = RESULT.validate_python(stored["result"])
+        try:
+            result = RESULT.validate_python(stored["result"])
+        except ValueError:
+            raise corrupt(path) from None
         return result.model_copy(update={"cached": True})
 
     def put(self, key: str, request: str, result: ReplayResult) -> None:
@@ -303,9 +307,25 @@ class IdempotencyCache:
             "fingerprint": request,
             "result": result.model_dump(mode="json"),
         }
-        self._path(key).write_text(
-            json.dumps(record, indent=2) + "\n", encoding="utf-8", newline="\n"
-        )
+        path = self._path(key)
+        with file_lock(path):
+            if path.exists():
+                # Completed answers, including uncertain failures, are immutable.
+                self.get(key, request)
+                return
+            atomic_write_json(path, record)
+
+    def _read(self, path: Path) -> dict[str, Any]:
+        stored = read_json(path)
+        try:
+            if not isinstance(stored["fingerprint"], str):
+                raise ValueError
+            RESULT.validate_python(stored["result"])
+            if "tenant" in stored and stored["tenant"] != self.tenant:
+                raise ValueError
+        except (KeyError, ValueError):
+            raise corrupt(path) from None
+        return stored
 
     def _legacy(self, key: str) -> dict[str, Any] | None:
         """A record kept under the key alone, before records were per tenant.
@@ -316,9 +336,9 @@ class IdempotencyCache:
         One with a side effect whose tenant cannot be told is a conflict:
         either answer might be another tenant's, or a second commit."""
         path = self.dir / (_digest(key) + ".json")
-        if not path.is_file():
+        if not path.exists():
             return None
-        stored: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+        stored = self._read(path)
         result = stored.get("result") or {}
         run_id = result.get("run_id")
         owner = run_tenant(self.root / run_id) if isinstance(run_id, str) else None
@@ -328,7 +348,7 @@ class IdempotencyCache:
             return None
         raise IdempotencyConflict(
             f"idempotency key {key!r} answered a request before results were kept per tenant, "
-            "and which tenant that was cannot be told; use a new key"
+            "and which tenant that was cannot be told; stop and reconcile the earlier run"
         )
 
 
@@ -339,8 +359,8 @@ def _digest(text: str) -> str:
 def run_tenant(run_dir: Path) -> str | None:
     """The tenant a run directory's ``run.json`` says it ran on."""
     try:
-        data = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        data = read_json(run_dir / "run.json")
+    except FileNotFoundError:
         return None
     tenant = data.get("tenant") if isinstance(data, dict) else None
     owner = tenant.get("id") if isinstance(tenant, dict) else None
