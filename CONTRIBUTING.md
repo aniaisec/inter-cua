@@ -149,5 +149,6 @@ Review `git diff --check`, the diff and untracked files before submitting. Keep
 directories out of the PR. Use a minimal synthetic reproduction for public reports;
 the [support guide](SUPPORT.md#reporting-a-problem) lists safe diagnostic fields.
 
-Building a distribution does not publish a release. The [adoption release trial](ROADMAP.md#adoption-release-pr11)
-and applicable platform gates remain separate release work.
+Building a distribution does not publish a release. Follow the
+[adoption release procedure](docs/release/adoption.md) to collect candidate gate
+evidence and two independent developer trials before release review.

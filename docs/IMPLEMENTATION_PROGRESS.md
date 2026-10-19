@@ -1425,3 +1425,27 @@ Implemented October 8, 2026.
   Hosted Linux CI, interactive Windows UIA and paid live providers were not run.
   The walkthrough explicitly limits its retry claim to sequential invocations;
   concurrent/crash-safe invocation ownership remains subsequent runtime work.
+
+## Adoption P11 - release preparation and usability trial protocol
+
+Started October 18, 2026. Candidate qualification and independent human trials
+remain pending; this entry does not claim a release candidate has passed.
+
+- Added a candidate procedure covering all compatibility jobs, clean wheel/sdist
+  installation, inventory and integration examples, live Windows UIA evidence,
+  documentation review and two developers unfamiliar with the code.
+- Added anonymized trial and evidence-manifest templates, including elapsed and
+  excluded times, failed commands, undocumented decisions, blockers and retests.
+- Added a readiness checker requiring all nine gates, matching wheel metadata,
+  SHA-256 evidence, distinct eligible completed participants and no open blockers.
+  It refuses missing, changed and out-of-bundle evidence. Timing goals are
+  reported for review; maintainers must inspect report truth and provenance.
+- Linked release preparation from contributor, roadmap, packaging and CI guides;
+  CI type-checks the helper and runs its regression tests in the unit gate.
+- Verification: 98 focused adoption/CI/packaging tests passed. Repository Ruff
+  lint/format, strict Linux/Windows helper typing, changed-document relative
+  links/anchors and diff whitespace checks passed. Pytest used a workspace-local
+  temporary directory because the sandbox's default temp directory was unwritable.
+- Not performed: a newly qualified distribution/complete candidate CI run,
+  fresh live desktop gate, or independent developer usability trials. Version,
+  publication and release approval remain separate maintainer actions.

@@ -5,6 +5,8 @@ Python 3.11 or newer is required. The package version comes from
 `cua --version` and `cua.__version__` use the same value. Update that file and
 [CHANGELOG.md](../CHANGELOG.md) together when preparing a release. Building and
 testing archives does not publish them; publication is a separate release action.
+The [adoption release procedure](release/adoption.md) collects candidate gates
+and two independent usability trials before release review.
 
 ## Installation combinations
 

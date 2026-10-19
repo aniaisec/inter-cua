@@ -25,6 +25,9 @@ runs it separately. No job receives provider credentials or calls a live model.
 Provider constructor checks in the installed matrix also forbid network calls.
 
 Release report helpers are type-checked separately from the package. The manual
+adoption [readiness checker](release/adoption.md) is included in that type check;
+its rejection tests run in the quality unit suite. Human trial records remain a
+manual release requirement and are not manufactured by CI. The manual
 desktop gate uses an explicit `--platform win32` target even on Linux runners,
 so mypy checks its Windows execution path rather than rejecting its platform guard
 as an unreachable statement.
