@@ -1,4 +1,7 @@
 .env
+*.json.lock
+*.jsonl.lock
+*.lock.lock
 .cua/
 evidence/
 __pycache__/

@@ -29,6 +29,8 @@ from typing import Any
 from pydantic import BaseModel
 from ulid import ULID
 
+from cua.persistence import append_jsonl as durable_append
+from cua.persistence import atomic_write_text, corrupt, file_lock, read_jsonl
 from cua.surface.protocol import Observation
 
 RUNS_DIR = Path("evidence/runs")
@@ -50,7 +52,7 @@ class RunLog:
         (self.dir / "screenshots").mkdir(exist_ok=True)
         log = self.dir / "log.jsonl"
         # A run carried on by another process (``cua resume``) keeps counting.
-        self._seq = len(log.read_text(encoding="utf-8").splitlines()) if log.is_file() else 0
+        self._seq = _sequence(log)
         self._scrub: Callable[[str], str] | None = None
 
     def scrub_with(self, scrub: Callable[[str], str]) -> None:
@@ -66,9 +68,11 @@ class RunLog:
         return self.dir.name
 
     def event(self, kind: str, /, **fields: Any) -> None:
-        self._seq += 1
-        record = {"seq": self._seq, "ts": utc_now(), "event": kind, **fields}
-        _append(self.dir / "log.jsonl", self._clean(record))
+        path = self.dir / "log.jsonl"
+        with file_lock(path):
+            self._seq = _sequence(path) + 1
+            record = {"seq": self._seq, "ts": utc_now(), "event": kind, **fields}
+            _append(path, self._clean(record))
 
     def append(self, name: str, record: dict[str, Any]) -> None:
         """One line of some other JSONL file in the run directory."""
@@ -126,7 +130,16 @@ class RunLog:
 
 
 def _write(path: Path, text: str) -> None:
-    path.write_text(text, encoding="utf-8", newline="\n")
+    atomic_write_text(path, text)
+
+
+def _sequence(path: Path) -> int:
+    records = read_jsonl(path)
+    for number, record in enumerate(records, 1):
+        seq = record.get("seq")
+        if type(seq) is not int or seq != number:
+            raise corrupt(path, line=number)
+    return len(records)
 
 
 def append_jsonl(path: Path, record: dict[str, Any]) -> None:
@@ -136,8 +149,7 @@ def append_jsonl(path: Path, record: dict[str, Any]) -> None:
 
 
 def _append(path: Path, record: dict[str, Any]) -> None:
-    with path.open("a", encoding="utf-8", newline="\n") as f:
-        f.write(json.dumps(record, default=_default) + "\n")
+    durable_append(path, record, default=_default)
 
 
 def _default(value: Any) -> Any:

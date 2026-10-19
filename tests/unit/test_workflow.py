@@ -19,6 +19,7 @@ from typing import Any
 import pytest
 
 from cua.cli import main
+from cua.persistence import PersistenceError
 from cua.policy import tokens
 from cua.policy.allowlist import Policy, load_policy
 from cua.registry.store import Registry
@@ -722,6 +723,17 @@ def test_a_commit_cut_off_mid_run_is_never_started_again(
     result = go(caps, tenant, policy, retry)
     assert (result.code, result.side_effect) == ("INTERRUPTED", "committed")
     assert retry.executed == []
+
+
+def test_a_corrupt_journal_refuses_before_any_step(caps, tenant, policy, tmp_path):
+    fake = FakeReplay(tmp_path / "runs")
+    book = Journal(fake.runs, tenant.id)
+    path = book._path("req-1")
+    path.parent.mkdir(parents=True)
+    path.write_text('{"steps":')
+    with pytest.raises(PersistenceError):
+        go(caps, tenant, policy, fake)
+    assert fake.executed == []
 
 
 def test_a_step_that_could_not_start_is_not_left_looking_interrupted(

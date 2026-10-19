@@ -38,7 +38,6 @@ carries on from its answer.
 
 from __future__ import annotations
 
-import json
 import time
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -51,6 +50,7 @@ from ulid import ULID
 from cua.artifact.store import CAPABILITIES_DIR
 from cua.escalation.channel import HandoffSettings
 from cua.evidence.logger import RUNS_DIR, append_jsonl, utc_now
+from cua.persistence import atomic_write_json, corrupt, read_json
 from cua.policy import tokens
 from cua.policy.allowlist import Policy
 from cua.policy.tokens import SpentTokens, TokenRefused
@@ -525,9 +525,12 @@ def _find_step_run(runs_dir: Path, step_key: str | None, tenant: str) -> Path | 
 
 def _stored(run_dir: Path) -> ReplayResult | None:
     path = run_dir / "result.json"
-    if not path.is_file():
+    if not path.exists():
         return None
-    return RESULT.validate_json(path.read_text(encoding="utf-8"))
+    try:
+        return RESULT.validate_python(read_json(path))
+    except ValueError:
+        raise corrupt(path) from None
 
 
 def _step_result(step: PlannedStep, result: ReplayResult, key: str | None) -> StepResult:
@@ -592,8 +595,4 @@ def _refused(
 
 
 def _write_json(path: Path, data: dict[str, Any]) -> None:
-    path.write_text(
-        json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    atomic_write_json(path, data, default=str)

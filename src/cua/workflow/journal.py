@@ -28,6 +28,17 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from cua.persistence import (
+    PersistenceConflict,
+    atomic_write_json,
+    corrupt,
+    file_lock,
+    read_json,
+    read_model,
+)
+from cua.replay.result import RESULT
+from cua.workflow.models import WorkflowResult
+
 StepState = Literal["started", "success", "business_outcome", "failure", "escalated"]
 
 
@@ -63,37 +74,59 @@ class Journal:
         self.runs_dir = runs_dir
         self.dir = runs_dir / ".workflows"
         self.tenant = tenant
+        self._seen: dict[str, Entry | None] = {}
 
     def _path(self, key: str) -> Path:
         return self.dir / (_digest(f"{self.tenant}\n{key}") + ".json")
 
     def get(self, key: str) -> Entry | None:
         path = self._path(key)
-        if path.is_file():
-            return Entry.model_validate_json(path.read_text(encoding="utf-8"))
-        return self._legacy(key)
+        with file_lock(path):
+            entry = self._read(path) if path.exists() else None
+            self._seen[key] = entry.model_copy(deep=True) if entry is not None else None
+            return entry if entry is not None else self._legacy(key)
 
     def _legacy(self, key: str) -> Entry | None:
         """An entry kept under the key alone, before entries were per tenant:
-        this tenant's if its first attempt ran on this tenant. One whose
-        attempts say nothing is not taken for anyone's."""
+        this tenant's if its first attempt ran on this tenant. Unknown
+        ownership is refused for reconciliation, never treated as a miss."""
         path = self.dir / (_digest(key) + ".json")
-        if not path.is_file():
+        if not path.exists():
             return None
-        entry = Entry.model_validate_json(path.read_text(encoding="utf-8"))
+        entry = self._read(path)
         first = entry.attempts[0] if entry.attempts else None
         record = self.runs_dir / "workflows" / first / "workflow.json" if first else None
-        if record is None or _tenant_of(record) != self.tenant:
+        if record is None:
+            raise corrupt(path)
+        owner = _tenant_of(record)
+        if owner is None:
+            raise corrupt(record)
+        if owner != self.tenant:
             return None
         return entry
 
     def put(self, key: str, entry: Entry) -> None:
-        self.dir.mkdir(parents=True, exist_ok=True)
-        self._path(key).write_text(
-            json.dumps(entry.model_dump(mode="json"), indent=2) + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
+        path = self._path(key)
+        with file_lock(path):
+            current = self._read(path) if path.exists() else None
+            if current != self._seen.get(key):
+                raise PersistenceConflict(
+                    "workflow journal changed; stop and reconcile before retry"
+                )
+            atomic_write_json(path, entry.model_dump(mode="json"))
+            self._seen[key] = entry.model_copy(deep=True)
+
+    def _read(self, path: Path) -> Entry:
+        entry = read_model(path, Entry)
+        try:
+            if entry.result is not None:
+                WorkflowResult.model_validate(entry.result)
+            for step in entry.steps.values():
+                if step.result is not None:
+                    RESULT.validate_python(step.result)
+        except ValueError:
+            raise corrupt(path) from None
+        return entry
 
 
 def fingerprint(workflow: str, version: int, content_sha256: str, inputs: dict[str, str]) -> str:
@@ -116,13 +149,14 @@ def find_run(runs_dir: Path, idempotency_key: str, tenant: str) -> Path | None:
     """The newest run directory that ran under this key on this tenant, if any."""
     found: list[Path] = []
     for run_json in runs_dir.glob("*/run.json"):
-        try:
-            data = json.loads(run_json.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        data = read_json(run_json)
+        request = data.get("request")
+        owner = data.get("tenant")
+        if not isinstance(request, dict) or not isinstance(owner, dict):
+            raise corrupt(run_json)
+        if request.get("idempotency_key") != idempotency_key:
             continue
-        if (data.get("request") or {}).get("idempotency_key") != idempotency_key:
-            continue
-        if (data.get("tenant") or {}).get("id") == tenant:
+        if owner.get("id") == tenant:
             found.append(run_json.parent)
     return max(found, key=lambda p: p.name) if found else None
 
@@ -133,8 +167,11 @@ def _digest(text: str) -> str:
 
 def _tenant_of(record: Path) -> str | None:
     try:
-        data = json.loads(record.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        data = read_json(record)
+    except FileNotFoundError:
         return None
-    owner = (data.get("tenant") or {}).get("id") if isinstance(data, dict) else None
+    tenant = data.get("tenant")
+    if not isinstance(tenant, dict):
+        raise corrupt(record)
+    owner = tenant.get("id")
     return owner if isinstance(owner, str) else None

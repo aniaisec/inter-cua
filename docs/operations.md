@@ -49,6 +49,85 @@ processes after interruptions; there is no general retention or cleanup guarante
 Preserve signing keys and registry lifecycle files; backups must keep artifacts
 and approval records together.
 
+## Atomic files and serialized updates
+
+Run/evidence JSON, replay answers, workflow journals/results, API run/claim
+records, intervention pointers, control state, spent-consent records and waiter
+heartbeats use a unique temporary file beside their destination, UTF-8/LF,
+flush/fsync where supported, and atomic replacement. A failed write before
+replacement leaves the previous file intact. A killed writer can leave an inert
+`.tmp` sibling; readers never promote it or treat it as the current record.
+File fsync does not provide a portable guarantee against every filesystem or
+power failure. Parent directories are synced on supported POSIX filesystems;
+Windows has no directory-fsync path in this implementation.
+
+Cooperating read/check/write operations use bounded OS file locks and thread
+locks: registry lifecycle changes, control transitions, API claim publication,
+replay answer publication, spent-consent publication and JSONL appends. Workflow
+journal saves compare the last read snapshot and refuse a stale update rather
+than erase another attempt. Completed replay answers retain their first result,
+including uncertain failures. JSONL writes are flushed/synced and serialized;
+each append checks the existing log first. This favors integrity over throughput
+and scans the log; retention/scalable storage remains later work.
+
+Lock sidecars (`*.json.lock`, `*.jsonl.lock`, `*.lock.lock`) remain on disk and
+are ignored by Git in the repository and starter projects. Their existence or
+age does not mean a process holds the lock. The OS releases ownership when the
+holder exits; never delete or steal a live lock because its timestamp is old.
+Locks are for a trusted local filesystem, not a distributed/NFS coordination
+protocol. Stop all old runtime/operator processes before upgrading; old writers
+do not participate in the new lock protocol. An unlogged legacy control end
+marker is recorded as a migration row before the next control update.
+
+These are individual file integrity measures, not a transaction covering several
+files or a browser commit. Control readers refuse snapshot/log sequence or state
+mismatches. Durable invocation ownership and interruption reconciliation are
+still PR13 work: direct replay can still race between cache lookup and result
+publication, and consent is recorded after an observed/possible side effect.
+Keep one server per runs directory and reconcile interrupted writes rather than
+assuming atomic persistence makes UI effects exactly once.
+
+## Corrupt or interrupted state
+
+Authoritative readers refuse malformed JSON, duplicate fields, non-finite JSON
+numbers, invalid typed records and partial JSONL tails, including a final JSON
+row without its terminating newline. Registry/control state, retry answers,
+workflow recovery, intervention pointers and API records must not silently become
+"missing" after corruption. HTTP and MCP report `state_corrupt` for corrupt
+service state; HTTP uses 409. CLI errors identify the file and reconciliation
+procedure. Read-only metrics may still show warnings and partial telemetry;
+those summaries cannot authorize replay or reconstruct an approval.
+
+1. Stop the runtime, operator console, CLI invocations and clients that might
+   retry. Preserve the original idempotency keys and tenant/client scope. Do not
+   choose a new key, obtain fresh consent or restart a write to bypass the error.
+2. Preserve a private copy of the complete affected project/runtime state:
+   run directories, retry caches, workflow journals, API claims, intervention and
+   control files, spent-consent records, registry snapshots/lifecycle and review
+   receipts. Keep signing keys and secret references secured with the backup.
+   Record file hashes and the error path; do not overwrite the originals with a
+   `.tmp` file or trim a torn audit/lifecycle tail to make it parse.
+3. Reconcile every possibly affected write against the application's independent
+   receipt/state/commit history. A complete log prefix cannot prove that a missing
+   final event or commit did not occur. Attribute results to the original run,
+   tenant, key and approval. Uncertainty keeps the invocation disabled.
+4. Restore only a verified, consistent backup that preserves all later retry and
+   spent-consent tombstones and approval/revocation history. A wholesale rollback
+   to an older cache may enable a second commit. If the necessary records cannot
+   be reconstructed and reviewed, isolate that state directory and keep execution
+   stopped; there is no automatic repair or safe generic "delete the cache" step.
+5. After review, verify capability seals and lifecycle history, inspect the run
+   result and control/transition consistency, and run `cua doctor --tenant local`
+   (substitute the affected tenant and project root). Doctor validates static
+   configuration; it does not prove a write was absent. Resume execution only
+   after resolving the application's state and preserving the original retry
+   identity. New approvals still require the normal exact-content review gates.
+
+No artifact schema or approval-seal migration is needed for atomic publication.
+Existing valid files remain readable; ambiguous/corrupt legacy ownership is
+refused instead of guessed. Keep the preserved originals for review and any
+subsequent PR13 migration.
+
 See [platforms](platforms.md), [testing](testing.md), [CI](CI.md) and
 [troubleshooting](troubleshooting.md).
 

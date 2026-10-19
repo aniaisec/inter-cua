@@ -6,6 +6,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+*.json.lock
+*.jsonl.lock
+*.lock.lock
 .coverage
 *.egg-info/
 build/

@@ -36,6 +36,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from cua.artifact.schema import Capability
+from cua.persistence import atomic_write_json, corrupt, file_lock, read_json
 from cua.secrets.resolver import SecretError, binding_for, resolve
 from cua.tenant import Tenant
 
@@ -239,14 +240,23 @@ class SpentTokens:
     def spent_by(self, approval: Approval) -> str | None:
         """The run that used this token, if one did."""
         path = self._path(approval)
-        if not path.is_file():
+        if not path.exists():
             return None
-        return str(json.loads(path.read_text(encoding="utf-8")).get("run_id", "an earlier run"))
+        record = read_json(path)
+        if not isinstance(record.get("run_id"), str) or not record["run_id"]:
+            raise corrupt(path)
+        return str(record["run_id"])
 
     def spend(self, approval: Approval, run_id: str) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
         record = {"run_id": run_id, "capability": approval.capability, "at": int(time.time())}
-        self._path(approval).write_text(json.dumps(record) + "\n", encoding="utf-8")
+        path = self._path(approval)
+        with file_lock(path):
+            if path.exists():
+                if self.spent_by(approval) != run_id:
+                    raise TokenRefused("consent was already consumed by another run; reconcile")
+                return
+            atomic_write_json(path, record)
 
 
 def _mac(key: bytes, body: str) -> bytes:

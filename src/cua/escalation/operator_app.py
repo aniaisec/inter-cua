@@ -60,6 +60,7 @@ from cua.escalation.controller import (
 )
 from cua.escalation.requests import InterventionRequest, Queue, QueueEntry
 from cua.evidence.logger import append_jsonl, utc_now
+from cua.persistence import PersistenceError, read_model
 from cua.policy.allowlist import Policy
 from cua.policy.redaction import Redactor
 from cua.replay.runner import HANDOFF_STATE, ResumeContext, finalize_without_session
@@ -113,7 +114,7 @@ class Console:
             try:
                 if self._mine(entry):
                     out.append(self._view(entry))
-            except (OSError, ValueError):
+            except FileNotFoundError:
                 continue  # a run directory that was removed under the queue
         return out
 
@@ -295,7 +296,7 @@ class Console:
         state = run_dir / HANDOFF_STATE
         if not state.is_file():
             return
-        ctx = ResumeContext.model_validate_json(state.read_text(encoding="utf-8"))
+        ctx = read_model(state, ResumeContext)
         finalize_without_session(run_dir, ctx, why=why, by=by)
 
 
@@ -342,6 +343,10 @@ def create_app(
     @app.exception_handler(ConsoleError)
     async def console_error(request: Request, exc: ConsoleError) -> JSONResponse:
         return JSONResponse({"error": str(exc)}, status_code=exc.status)
+
+    @app.exception_handler(PersistenceError)
+    async def corrupt_state(request: Request, exc: PersistenceError) -> JSONResponse:
+        return JSONResponse({"error": str(exc), "code": "state_corrupt"}, status_code=409)
 
     # -- JSON API (the scripted operator in the tests uses this) --------------
 

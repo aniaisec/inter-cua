@@ -53,7 +53,7 @@ from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 from urllib.parse import quote, quote_plus
 
 from pydantic import BaseModel, ConfigDict
@@ -72,6 +72,7 @@ from cua.escalation.lease import LeasedSurface
 from cua.escalation.requests import Queue, QueueEntry
 from cua.evidence import trace
 from cua.evidence.logger import RUNS_DIR, RunLog, utc_now
+from cua.persistence import corrupt, read_json, read_model
 from cua.policy import tokens
 from cua.policy.allowlist import Policy
 from cua.policy.redaction import Redactor
@@ -663,9 +664,7 @@ def _prepare_resume(
         raise InvocationError("no escalated run has this resume token")
     run_dir = queue.run_dir(entry)
     try:
-        ctx = ResumeContext.model_validate_json(
-            (run_dir / HANDOFF_STATE).read_text(encoding="utf-8")
-        )
+        ctx = read_model(run_dir / HANDOFF_STATE, ResumeContext)
     except (OSError, ValueError) as exc:
         raise InvocationError(f"{run_dir.as_posix()} cannot be resumed: {exc}") from None
 
@@ -852,10 +851,12 @@ def _hash_input(value: str) -> str:
 
 def _stored_result(run_dir: Path) -> ReplayResult | None:
     path = run_dir / "result.json"
-    if not path.is_file():
+    if not path.exists():
         return None
-    data: Any = json.loads(path.read_text(encoding="utf-8"))
-    return RESULT.validate_python(data)
+    try:
+        return RESULT.validate_python(read_json(path))
+    except ValueError:
+        raise corrupt(path) from None
 
 
 def _session_record(live: PlaywrightSurface) -> SessionRecord:

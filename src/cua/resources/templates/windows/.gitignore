@@ -1,4 +1,7 @@
 .env
+*.json.lock
+*.jsonl.lock
+*.lock.lock
 .cua/
 evidence/
 demo/
