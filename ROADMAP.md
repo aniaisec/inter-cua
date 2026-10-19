@@ -16,7 +16,9 @@ they do not establish its usability results.
 
 ## Adoption release (PR11)
 
-Status: planned, after PR01–PR10.
+Status: preparation implemented after PR01–PR10; candidate qualification and
+independent developer trials pending. The [release procedure](docs/release/adoption.md)
+includes trial templates and a checker for the candidate evidence bundle.
 
 - Have at least two developers unfamiliar with the code follow the guides on
   supported platforms. Record platform, installation method, time to first demo,

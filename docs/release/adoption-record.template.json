@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "version": "0.1.0",
+  "commit": "0000000000000000000000000000000000000000",
+  "wheel": {
+    "path": "dist/inter_cua-0.1.0-py3-none-any.whl",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "gates": {
+    "quality": {"status": "pending"},
+    "browser": {"status": "pending"},
+    "examples": {"status": "pending"},
+    "security": {"status": "pending"},
+    "windows": {"status": "pending"},
+    "providers": {"status": "pending"},
+    "installed": {"status": "pending"},
+    "desktop": {"status": "pending"},
+    "documentation": {"status": "pending"}
+  },
+  "trials": [],
+  "open_blockers": ["Candidate gates and two independent developer trials remain pending."]
+}

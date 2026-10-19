@@ -2,12 +2,17 @@
 
 ## Unreleased
 
+- PR11 adoption candidate procedure, anonymized developer-trial templates and
+  an evidence readiness checker. Missing/failing gates, changed evidence,
+  incomplete trials and unresolved blockers prevent readiness; usability timing
+  goals remain measurements. Candidate qualification and human trials are pending.
+
 - Contributor setup and checks by change type, GitHub issue/PR templates,
   a support policy and an actionable adoption/service roadmap. Extension recipes
   cover families, surfaces, providers and recoverers with the closed-contract
   integration points; troubleshooting explains provider/model selection,
   diagnostics and uncertain-write reconciliation. The PR11 usability trial and
-  release gates remain planned.
+  release gates require the candidate evidence and independent developer trials.
 
 - Python 3.11/3.14 Linux compatibility gates, focused Windows Chromium checks,
   separate example/security/provider jobs, reusable live adapter contracts and

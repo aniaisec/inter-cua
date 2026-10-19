@@ -46,6 +46,7 @@ jobs:
         run: >-
           python -m mypy --explicit-package-bases scripts/ci/check_coverage.py
           scripts/ci/check_test_results.py scripts/ci/check_no_providers.py
+          scripts/ci/check_adoption_release.py
       - name: Type-check Windows desktop gate
         run: >-
           python -m mypy --platform win32 --explicit-package-bases scripts/ci/run_desktop_gate.py
