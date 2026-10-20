@@ -222,7 +222,13 @@ class HandoffHarness(Harness):
         return Path(result.evidence.run_dir)
 
     def transitions(self, result: ReplayResult) -> list[tuple[str | None, str]]:
-        return [(e["from"], e["to"]) for e in ControlStore(self.run_dir(result)).transitions()]  # type: ignore[misc]
+        # Terminal bookkeeping is a durable same-state row since PR12; callers
+        # of this helper assert changes of control, not that bookkeeping row.
+        return [
+            (e["from"], e["to"])  # type: ignore[misc]
+            for e in ControlStore(self.run_dir(result)).transitions()
+            if e["from"] != e["to"]
+        ]
 
     def human_actions(self, result: ReplayResult) -> list[dict[str, Any]]:
         path = self.run_dir(result) / "human_actions.jsonl"
@@ -311,6 +317,10 @@ def test_row16_the_person_finishes_and_resume_carries_on_from_cp_done(
     # loses focus under the person's click, which is not the person typing it.
     assert not [a for a in actions if a.get("action") == "type"]
     assert h.transitions(result)[-1] == ("RESUMING", "AUTOMATION")
+    control = ControlStore(h.run_dir(result))
+    terminal = control.transitions()[-1]
+    assert terminal["from"] == terminal["to"] == "AUTOMATION"
+    assert terminal["note"] == "run ended: success" and control.read().ended == "success"
     again = resume(first.resume_token, runs_dir=h.runs, surface=same_page, environ=ENV)
     assert isinstance(again, Success) and again.cached  # the answer, not a second run
 

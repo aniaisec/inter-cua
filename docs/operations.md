@@ -35,8 +35,10 @@ redaction does not turn arbitrary application data into a public dataset.
 
 ## Restart, retention and uncertain outcomes
 
-The runtime does not yet provide the durable ownership, admission queue, retention
-scheduler or authenticated operator console proposed in later adoption work.
+Direct replay and resume now reserve durable invocation ownership as described
+below. Workflow and HTTP/MCP envelope migration remains in progress; keep one
+service per runs directory. The runtime does not yet provide the admission
+queue, retention scheduler or authenticated operator console proposed in later work.
 HTTP can report `lost` when the server stopped without a persisted result.
 Reconcile such runs with application state before another write.
 `side_effect: unknown` also requires reconciliation; changing the key and retrying
@@ -81,11 +83,58 @@ marker is recorded as a migration row before the next control update.
 
 These are individual file integrity measures, not a transaction covering several
 files or a browser commit. Control readers refuse snapshot/log sequence or state
-mismatches. Durable invocation ownership and interruption reconciliation are
-still PR13 work: direct replay can still race between cache lookup and result
-publication, and consent is recorded after an observed/possible side effect.
-Keep one server per runs directory and reconcile interrupted writes rather than
-assuming atomic persistence makes UI effects exactly once.
+mismatches. Invocation ownership adds the execution rules below; it cannot make
+UI effects exactly once.
+
+## Direct invocation ownership (PR13 first increment)
+
+Replay and resume use `<runs>/.invocations/invocations.sqlite3` with a versioned
+`format.json` marker. Short SQLite transactions publish tenant/key hashes,
+request fingerprints, pinned capability version/content, run identity, phase,
+side-effect status and the answer/result reference. Input values and approval
+tokens are not stored in this authority; result outputs remain application data.
+Evidence and capability seals keep their existing formats and locations.
+
+An OS-held lock under `.invocations/owners/` spans execution, including resume.
+A competing request receives an invocation-in-progress error; keep its original
+key and retry later. No second UI session starts. Different inputs/content under
+the same key are refused. Completed answers, including uncertain failures, are
+immutable. A retry of an escalated invocation receives the existing resume token.
+Use that token to continue the existing run. Never remove owner lock sidecars.
+
+After a worker exits, a successor can obtain its execution lock; elapsed time
+alone cannot authorize takeover. The successor reads a complete durable result
+or records `INTERRUPTED`. A write dispatched without a result is conservatively
+`side_effect: unknown`; it is never automatically repeated. A stale escalation
+left on disk during an interrupted resume also requires reconciliation. The
+database transaction never spans application interaction. Consent consumption
+is serialized and persisted **before** an approved risky action; an interruption
+can consume consent even when the action did not occur. Obtain replacement
+consent only after reconciling the original invocation.
+
+Before upgrading, stop all services, CLIs and operator processes, and privately
+back up the **complete** runs directory, registry and signing configuration.
+Existing valid cached answers are imported on first use without rewriting their
+original JSON or capability seals. A matching legacy run without a cached answer
+is refused for review, even when its evidence appears complete; this increment
+does not guess at legacy ownership. Corrupt/ambiguous state must be preserved.
+The format marker prevents a missing database from silently becoming an empty
+store. Initialization/import never repairs a corrupt database automatically.
+
+Back up and restore the store only while all writers are stopped, together with
+its marker, SQLite journal if present, evidence, old caches and spent consent.
+Do not downgrade a migrated runs directory: older code cannot see new ownership
+or interruption tombstones, and the retained legacy cache is not a verified
+export. There is no supported downgrade/export command in this increment.
+Never restore an older database over later ownership records. Keep the affected
+directory isolated if a consistent restore cannot preserve those records.
+
+This is a local-filesystem, cooperating single-host protocol. Workflow steps and
+HTTP/MCP workers reach the guarded replay path, but their journals/admission
+envelopes are not yet migrated to this store. Cross-service polling/admission,
+workflow attempt serialization, complete envelope migration and the corresponding
+process-loss exercises remain PR13 work; this increment does not qualify shared
+service operation. See the [implementation progress](IMPLEMENTATION_PROGRESS.md).
 
 ## Corrupt or interrupted state
 
@@ -126,7 +175,7 @@ those summaries cannot authorize replay or reconstruct an approval.
 No artifact schema or approval-seal migration is needed for atomic publication.
 Existing valid files remain readable; ambiguous/corrupt legacy ownership is
 refused instead of guessed. Keep the preserved originals for review and any
-subsequent PR13 migration.
+remaining PR13 envelope migration.
 
 See [platforms](platforms.md), [testing](testing.md), [CI](CI.md) and
 [troubleshooting](troubleshooting.md).

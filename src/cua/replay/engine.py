@@ -72,7 +72,7 @@ from cua.policy.allowlist import (
     origin_allowed,
 )
 from cua.policy.redaction import Redactor
-from cua.policy.tokens import Approval
+from cua.policy.tokens import Approval, TokenRefused
 from cua.replay import detectors as det_rules
 from cua.replay.extract import ParseError, parse
 from cua.replay.handoff import (
@@ -282,6 +282,7 @@ class ReplayEngine:
         config: ReplayConfig | None = None,
         clock: Clock | None = None,
         handoff: Handoff | None = None,
+        before_commit: Callable[[Approval | None], None] | None = None,
     ) -> None:
         """``approval``: consent the runner has already checked against this
         capability, tenant and inputs (``cua.policy.tokens.verify``). It is the
@@ -297,6 +298,7 @@ class ReplayEngine:
         self.policy = policy
         self.invocation = invocation
         self.approval = approval
+        self.before_commit = before_commit
         self.inputs = dict(invocation.inputs)
         self.credentials = dict(credentials)
         self.log = log
@@ -851,9 +853,27 @@ class ReplayEngine:
             token_sha256=grant.token_sha256[:12],
             expires_at=grant.expires_at,
         )
+        self._reserve_commit(step, grant, screen)
+
+    def _reserve_commit(
+        self, step: Step, grant: Approval | None, screen: Observation | None
+    ) -> None:
+        if self.before_commit is None:
+            return
+        try:
+            self.before_commit(grant)
+        except TokenRefused as exc:
+            self._fail(
+                "POLICY_BLOCKED",
+                step,
+                expected="unspent consent",
+                message=str(exc),
+                observation=screen,
+            )
 
     def _act(self, step: Step, action: Action) -> None:
         if step.risk == "irreversible":
+            self._reserve_commit(step, self.approval, None)
             self.log.event("irreversible.act", step=step.id)
             self._in_flight = step.id
         try:

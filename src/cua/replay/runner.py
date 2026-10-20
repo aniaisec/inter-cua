@@ -71,7 +71,7 @@ from cua.escalation.controller import ControlStore, OperatorDecision
 from cua.escalation.lease import LeasedSurface
 from cua.escalation.requests import Queue, QueueEntry
 from cua.evidence import trace
-from cua.evidence.logger import RUNS_DIR, RunLog, utc_now
+from cua.evidence.logger import RUNS_DIR, RunLog, new_run_id, utc_now
 from cua.persistence import corrupt, read_json, read_model
 from cua.policy import tokens
 from cua.policy.allowlist import Policy
@@ -87,6 +87,13 @@ from cua.replay.invocation import (
     Invocation,
     request_summary,
     validate_inputs,
+)
+from cua.replay.ownership import (
+    InvocationBusy,
+    OwnedInvocation,
+    SQLiteInvocationStore,
+    execution_lock,
+    identity,
 )
 from cua.replay.result import (
     RESULT,
@@ -189,21 +196,162 @@ def replay(
     headed: bool | None = None,
     run_id: str | None = None,
 ) -> ReplayResult:
-    """``handoff``: attach the operator channel (``cua replay --handoff``).
-    ``surface``: overrides the adapter ``cap.target.surface`` picks
-    (``surface_for``); ``headed`` is passed to a browser it launches.
-    Without it, a fault that should go to a person is returned as a
-    ``Failure`` naming the escalation it replaced.
-    ``run_id``: the id the run directory gets, if one is started; a caller
-    that answers before the run ends (``cua.api``) names the run up front."""
+    """Reserve before dispatch; retries read the same run, never start another.
+
+    Ownership also applies without a key (a unique run identity), so a later
+    resume uses the same execution lock. Only keyed calls can find earlier runs.
+    """
     try:
         loaded = open_capability(path)
+        cap = loaded.capability
     except ArtifactError as exc:
         raise InvocationError(str(exc)) from None
-    cap = loaded.capability
+    refused = _preflight(
+        cap,
+        path,
+        tenant=tenant,
+        invocation=invocation,
+        allow_draft=allow_draft,
+        config=config,
+        handoff=handoff,
+        edited_outside=loaded.edited_outside,
+    )
+    if refused is not None:
+        return refused
+    key = invocation.idempotency_key
+    chosen_run = run_id or new_run_id()
+    owner = identity(tenant.id, key) if key is not None else identity(tenant.id, chosen_run)
+    if invocation.approval is not None:
+        # A new request's invalid consent must still be a pure preflight refusal.
+        # Existing identities are different: expired consent must not hide the
+        # answer to a write that already happened. Inspection here is advisory;
+        # ownership and identity are checked again under the execution lock.
+        known = False
+        state_dir = runs_dir / ".invocations"
+        if (state_dir / "format.json").exists() or (state_dir / "invocations.sqlite3").exists():
+            known = SQLiteInvocationStore(runs_dir).get(owner) is not None
+        if not known and key is not None and (runs_dir / ".idempotency").is_dir():
+            try:
+                known = (
+                    IdempotencyCache(runs_dir, tenant.id).get(
+                        key, fingerprint(cap.name, cap.version, invocation.inputs)
+                    )
+                    is not None
+                )
+            except IdempotencyConflict as exc:
+                return _refused(cap, invocation, "INPUT_INVALID", str(exc))
+        if not known:
+            try:
+                _verified(cap, tenant, invocation, environ)
+            except TokenRefused as exc:
+                return _refused(cap, invocation, "POLICY_BLOCKED", f"approval refused: {exc}")
+    try:
+        with execution_lock(runs_dir, owner):
+            store = SQLiteInvocationStore(runs_dir)
+            prior = store.get(owner)
+            request = fingerprint(cap.name, cap.version, invocation.inputs)
+            if prior is not None:
+                if prior.tenant != tenant.id:
+                    raise corrupt(store.path)
+                if prior.fingerprint != request or prior.content_sha256 != cap.content_hash():
+                    return _refused(
+                        cap,
+                        invocation,
+                        "INPUT_INVALID",
+                        "idempotency key was already used for a different request "
+                        "or capability content",
+                    )
+                if prior.phase == "finished":
+                    assert prior.result is not None
+                    return RESULT.validate_python(prior.result).model_copy(
+                        update={"cached": True, "idempotency_key": key}
+                    )
+                return store.reconcile(owner, prior, key)
+            record = OwnedInvocation(
+                tenant=tenant.id,
+                key_hash=owner,
+                fingerprint=request,
+                capability=cap.name,
+                version=cap.version,
+                content_sha256=cap.content_hash(),
+                run_id=chosen_run,
+            )
+            if key is not None:
+                try:
+                    legacy = IdempotencyCache(runs_dir, tenant.id).get(key, request)
+                except IdempotencyConflict as exc:
+                    return _refused(cap, invocation, "INPUT_INVALID", str(exc))
+                if legacy is not None:
+                    record = record.model_copy(update={"run_id": legacy.run_id or chosen_run})
+                    store.answer(owner, record, legacy)
+                    return legacy
+                _check_legacy_inflight(runs_dir, tenant.id, key)
+            store.save(owner, record)
+            record = record.model_copy(
+                update={
+                    "phase": "dispatched",
+                    "side_effect": "unknown" if cap.contract.side_effects != "none" else "none",
+                }
+            )
+            store.save(owner, record)
+            answer = _replay(
+                path,
+                tenant=tenant,
+                policy=policy,
+                invocation=invocation,
+                runs_dir=runs_dir,
+                allow_draft=allow_draft,
+                config=config,
+                surface=surface,
+                environ=environ,
+                handoff=handoff,
+                headed=headed,
+                run_id=chosen_run,
+                expected_content=record.content_sha256,
+            )
+            store.answer(owner, record, answer)
+            return answer
+    except InvocationBusy as exc:
+        raise InvocationError(str(exc)) from None
 
+
+def _check_legacy_inflight(root: Path, tenant: str, key: str) -> None:
+    """Legacy caches lack reservations. A matching unanswered run is not a miss.
+
+    Upgrade requires quiescence; these records are preserved for explicit review.
+    """
+    for path in root.glob("*/run.json"):
+        run = read_json(path)
+        if run.get("kind") != "replay":
+            continue
+        owner = run.get("tenant")
+        request = run.get("request")
+        if not isinstance(owner, dict) or not isinstance(owner.get("id"), str):
+            raise corrupt(path)
+        if not isinstance(request, dict):
+            raise corrupt(path)
+        if owner["id"] != tenant:
+            continue
+        if request.get("idempotency_key") == key:
+            raise InvocationError(
+                "legacy invocation has no cached answer; preserve its evidence "
+                "and reconcile before retrying"
+            )
+
+
+def _preflight(
+    cap: Capability,
+    path: Path,
+    *,
+    tenant: Tenant,
+    invocation: Invocation,
+    allow_draft: bool,
+    config: ReplayConfig | None,
+    handoff: HandoffSettings | None,
+    edited_outside: bool,
+) -> Failure | None:
     if cap.approval_state != "approved" and not allow_draft:
-        edited = " (it was edited by hand after it was saved)" if loaded.edited_outside else ""
+        edited = " (it was edited by hand after it was saved)" if edited_outside else ""
         return _refused(
             cap,
             invocation,
@@ -240,6 +388,55 @@ def replay(
     problems = validate_inputs(cap, invocation.inputs)
     if problems:
         return _refused(cap, invocation, "INPUT_INVALID", "; ".join(problems))
+
+    return None
+
+
+def _replay(
+    path: Path,
+    *,
+    tenant: Tenant,
+    policy: Policy,
+    invocation: Invocation,
+    runs_dir: Path = RUNS_DIR,
+    allow_draft: bool = False,
+    config: ReplayConfig | None = None,
+    surface: SurfaceFactory | None = None,
+    environ: dict[str, str] | None = None,
+    handoff: HandoffSettings | None = None,
+    headed: bool | None = None,
+    run_id: str | None = None,
+    expected_content: str | None = None,
+) -> ReplayResult:
+    """``handoff``: attach the operator channel (``cua replay --handoff``).
+    ``surface``: overrides the adapter ``cap.target.surface`` picks
+    (``surface_for``); ``headed`` is passed to a browser it launches.
+    Without it, a fault that should go to a person is returned as a
+    ``Failure`` naming the escalation it replaced.
+    ``run_id``: the id the run directory gets, if one is started; a caller
+    that answers before the run ends (``cua.api``) names the run up front."""
+    try:
+        loaded = open_capability(path)
+    except ArtifactError as exc:
+        raise InvocationError(str(exc)) from None
+    cap = loaded.capability
+    if expected_content is not None and cap.content_hash() != expected_content:
+        raise InvocationError(
+            "capability content changed before dispatch; reconcile the reservation"
+        )
+
+    refused = _preflight(
+        cap,
+        path,
+        tenant=tenant,
+        invocation=invocation,
+        allow_draft=allow_draft,
+        config=config,
+        handoff=handoff,
+        edited_outside=loaded.edited_outside,
+    )
+    if refused is not None:
+        return refused
 
     approval: Approval | None = None
     if invocation.approval is not None:
@@ -423,6 +620,23 @@ def _execute(
     resume_context: Callable[[ReplayEngine, PlaywrightSurface], ResumeContext | None],
 ) -> ReplayResult:
     """One session, one engine: shared by a first run and a resumed one."""
+
+    def before_commit(grant: Approval | None) -> None:
+        # Consume consent before UI dispatch. A crash can waste consent, never
+        # make an accepted write reusable by a different invocation.
+        if grant is not None:
+            spent.spend(grant, log.run_id)
+        store = SQLiteInvocationStore(runs_dir)
+        name = identity(
+            tenant.id,
+            invocation.idempotency_key if invocation.idempotency_key is not None else log.run_id,
+        )
+        owned = store.get(name)
+        if owned is not None:
+            store.save(
+                name, owned.model_copy(update={"phase": "committing", "side_effect": "unknown"})
+            )
+
     secrets = [v for c in credentials.values() for v in c.values()]
     secrets += [v for n, v in invocation.inputs.items() if cap.inputs[n].sensitive]
     with surface() as live:
@@ -470,6 +684,7 @@ def _execute(
             approval=approval,
             config=config,
             handoff=channel,
+            before_commit=before_commit,
         )
         # An interruption (Ctrl+C, a crash) is written by the engine as a
         # ``Failure INTERRUPTED`` with the side effect it can vouch for, and
@@ -533,6 +748,84 @@ def _execute(
 
 
 def resume(
+    resume_token: str,
+    *,
+    runs_dir: Path = RUNS_DIR,
+    by: str = "cua-resume",
+    resume_at: str | None = None,
+    inputs: dict[str, str] | None = None,
+    approval: ApprovalGrant | None = None,
+    environ: dict[str, str] | None = None,
+    surface: Callable[[ResumeContext], AbstractContextManager[PlaywrightSurface]] | None = None,
+    wait_s: float | None = None,
+) -> ReplayResult:
+    queue = Queue(runs_dir)
+    entry = queue.by_token(resume_token)
+    if entry is None:
+        raise InvocationError("no escalated run has this resume token")
+    run_dir = queue.run_dir(entry)
+    ctx = read_model(run_dir / HANDOFF_STATE, ResumeContext)
+    name = identity(
+        ctx.tenant.id, ctx.idempotency_key if ctx.idempotency_key is not None else run_dir.name
+    )
+    try:
+        with execution_lock(runs_dir, name):
+            store = SQLiteInvocationStore(runs_dir)
+            owned = store.get(name)
+            if owned is not None and owned.run_id != run_dir.name:
+                raise InvocationError("resume identity belongs to another run; reconcile")
+            if owned is not None and owned.content_sha256 != ctx.content_sha256:
+                raise InvocationError(
+                    "resume content differs from its durable reservation; reconcile"
+                )
+            if owned is not None and owned.phase != "escalated":
+                if owned.phase == "finished":
+                    assert owned.result is not None
+                    return RESULT.validate_python(owned.result).model_copy(
+                        update={"cached": True, "idempotency_key": ctx.idempotency_key}
+                    )
+                return store.reconcile(name, owned, ctx.idempotency_key)
+            # Validate consent and current lifecycle before changing ownership.
+            prepared = _prepare_resume(
+                resume_token, runs_dir=runs_dir, inputs=inputs, approval=approval, environ=environ
+            )
+            if isinstance(prepared, _Answered):
+                if owned is not None:
+                    store.answer(name, owned, prepared.result)
+                return prepared.result
+            if owned is None:
+                cap = prepared.cap
+                owned = OwnedInvocation(
+                    tenant=ctx.tenant.id,
+                    key_hash=name,
+                    fingerprint=fingerprint(cap.name, cap.version, prepared.invocation.inputs),
+                    capability=cap.name,
+                    version=cap.version,
+                    content_sha256=ctx.content_sha256,
+                    run_id=run_dir.name,
+                )
+            active = owned.model_copy(
+                update={"phase": "dispatched", "result": None, "side_effect": "unknown"}
+            )
+            store.save(name, active)
+            answer = _resume(
+                resume_token,
+                runs_dir=runs_dir,
+                by=by,
+                resume_at=resume_at,
+                inputs=inputs,
+                approval=approval,
+                environ=environ,
+                surface=surface,
+                wait_s=wait_s,
+            )
+            store.answer(name, active, answer)
+            return answer
+    except InvocationBusy as exc:
+        raise InvocationError(str(exc)) from None
+
+
+def _resume(
     resume_token: str,
     *,
     runs_dir: Path = RUNS_DIR,
