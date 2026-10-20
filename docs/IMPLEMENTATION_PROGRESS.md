@@ -1498,3 +1498,53 @@ Implemented October 19, 2026.
   sequence gaps from unlogged end markers, while refusing reordered/disconnected
   transitions and snapshot mismatches. The final persistence/escalation/HTTP/MCP
   focus passed 85 tests, including that legacy-history regression.
+
+## Adoption P13 - direct invocation ownership (first increment)
+
+Started October 20, 2026, on `codex/adoption-pr13`. This increment implements
+direct replay/resume ownership; the complete PR13 acceptance gate remains open.
+
+- Added an invocation-store protocol and versioned standard-library SQLite
+  authority under `.invocations`. Transactions persist tenant/key and input
+  hashes, pinned capability version/content, run id, phase, side-effect status,
+  answer and result reference. They never remain open during UI interaction.
+- Added OS-held execution ownership across threads/processes, shared by replay
+  and resume. Concurrent calls report in-progress; completed answers remain
+  immutable; key/content conflicts and recursive dispatch are refused. No timer
+  permits taking ownership from a live worker.
+- Reconcile only after obtaining the prior worker's execution lock. A complete
+  durable answer is returned; otherwise persist an interruption tombstone and
+  never repeat a possible write. Preserve a stale escalation separately before
+  publishing an interrupted resume's terminal result for file-based readers.
+- Consume consent atomically before risky dispatch, closing the previous
+  post-action consumption window. Competing token users can dispatch only one
+  commit; interrupted reservations can consume consent without an observed write.
+- Preserve legacy cached JSON answers and approval seals, import answers on
+  first use, and refuse unanswered/ambiguous legacy ownership. Check pinned
+  content again at dispatch. Missing/corrupt databases, malformed rows and
+  unsupported format markers cannot authorize a fresh attempt.
+- Documented quiescent backup/upgrade, local-filesystem limits and prohibition
+  on downgrading migrated state without a verified export. Added the ownership
+  regressions to the Windows unit gate; Linux unit discovery includes them.
+- Verification: focused ownership regressions cover process death before
+  dispatch, immediately before the synthetic commit, after acceptance, and
+  before answer publication; process/thread contention, same-token competition,
+  resume interruption, corruption and legacy-answer preservation are covered.
+  Final safety/ownership focus: 70 passed, including all 17 ownership cases.
+  Replay/registry/approval focus: 102 passed. The broader unit run had 1,161
+  passes, two platform skips and two invalid-consent preflight failures; both
+  failures were fixed and pass in the final safety focus. That complete unit
+  suite was not repeated after the fix.
+- Seven selected strict Chromium scenarios passed, including consent, cached
+  retry, invalid-input refusal and live/CLI resume. The first concurrent run
+  had an invocation-budget timeout and an outdated handoff assertion for PR12's
+  same-state terminal audit row; the assertion now verifies both the control
+  transition and terminal record, and both affected scenarios passed serially.
+  Ruff lint/format, diff checks, strict Linux/Windows mypy (178 source files,
+  plus a final changed-source recheck), and changed-document file links pass.
+  Hosted CI, live Windows UIA and the complete browser/security suites were
+  not rerun for this increment.
+- Remaining PR13 work: durable workflow-attempt and HTTP/MCP envelope migration,
+  admission/polling behavior across service instances, complete legacy migration
+  tooling/export, and concurrent workflow/API plus killed-resume process
+  exercises. Shared-service operation is not qualified by this increment.
