@@ -15,9 +15,9 @@ import os
 import subprocess
 import sys
 import threading
-import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +28,7 @@ from cua.api.access import AccessConfig, Gate
 from cua.api.app import create_app
 from cua.api.service import RunService, ServiceSettings
 from cua.artifact.store import open_capability
+from cua.escalation.requests import Queue
 from cua.policy import tokens
 from cua.replay import runner
 from cua.surface.playwright_surface import BrowserProcess
@@ -308,12 +309,13 @@ def test_an_escalated_run_is_aborted_over_http(
 def test_an_escalated_run_nobody_answers_expires_when_it_is_read(
     setup: tuple[TestClient, Path, dict[str, str]],
     queued_resume: bool,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     api, _, _ = setup
     body = {
         "capability": "open_subaccount",
         "inputs": {"member_id": "10003", "initial_deposit": "10.00"},
-        "handoff": {"ttl_s": 1},
+        "handoff": {"ttl_s": 600},
         "screenshots": False,
     }
     run = post(api, "/runs?wait=120", body, **{"Idempotency-Key": "open-expire"}).json()
@@ -321,18 +323,34 @@ def test_an_escalated_run_nobody_answers_expires_when_it_is_read(
     session = json.loads((Path(run["result"]["evidence"]["run_dir"]) / "session.json").read_text())
     browser = BrowserProcess(session["pid"], session["cdp_url"], Path(session["profile"]))
     try:
+        service = api.app.state.service
+        service.wait(run["run_id"], 10)
+        queue = Queue(service.settings.runs_dir)
+        entry = queue.entry(run["result"]["request_id"])
+        assert entry is not None
+        expires_at = queue.request(entry).expires_at
+        # Browser teardown and response serialization may exceed a short TTL.
+        # Advance only the expiry readers, after the worker has finished.
+        now = (
+            (datetime.fromisoformat(expires_at) - timedelta(seconds=1))
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z")
+        )
+        monkeypatch.setattr("cua.api.service.utc_now", lambda: now)
+        monkeypatch.setattr("cua.escalation.operator_app.utc_now", lambda: now)
+        waiting = api.get(f"/runs/{run['run_id']}", headers=HEADERS).json()
+        assert waiting["state"] == "escalated" and browser.alive()
         if queued_resume:
             # Simulate a restart after resume admission but before dispatch.
             # Returning to escalation must still enforce the original handoff TTL.
-            service = api.app.state.service
-            service.wait(run["run_id"], 10)
             record = service._load(run["run_id"])
             service._queue(record)
             service._save(record)
-        time.sleep(1.5)
+        now = expires_at
         expired = api.get(f"/runs/{run['run_id']}", headers=HEADERS).json()
         assert expired["state"] == "finished"
         assert expired["result"]["code"] == "ESCALATION_ABORTED"
+        assert expired["result"]["side_effect"] == "none"
         assert "expired" in expired["result"]["message"]
         assert not browser.alive()
     finally:
