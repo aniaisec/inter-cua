@@ -12,6 +12,30 @@ EX_USAGE = 64
 LOOPBACK = ("127.0.0.1", "localhost", "::1")
 
 
+def add_capacity_arguments(parser: argparse.ArgumentParser, *, mcp: bool = False) -> None:
+    parser.add_argument("--workers", type=int, default=2, help="Runs executing at once (2)")
+    parser.add_argument(
+        "--max-pending-runs",
+        type=int,
+        default=32,
+        help="Additional accepted runs beyond worker slots (32; zero disables waiting capacity)",
+    )
+    parser.add_argument(
+        "--queue-timeout",
+        type=float,
+        default=300.0,
+        metavar="S",
+        help="Independent queue expiry in seconds (300); execution budget starts at dispatch",
+    )
+    if mcp:
+        parser.add_argument(
+            "--max-mcp-calls",
+            type=int,
+            default=8,
+            help="Maximum outstanding MCP calls (8); ping and status remain available",
+        )
+
+
 def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     s = sub.add_parser(
         "serve",
@@ -25,7 +49,7 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
     s.add_argument("--access", type=Path, default=Path("api/access.yaml"))
     s.add_argument("--runs-dir", type=Path, default=Path("evidence/runs"))
     s.add_argument("--capabilities-dir", type=Path, default=Path("capabilities"))
-    s.add_argument("--workers", type=int, default=2, help="Runs executing at once (2)")
+    add_capacity_arguments(s)
     s.add_argument(
         "--operator-url",
         default="http://127.0.0.1:8100",
@@ -46,15 +70,22 @@ def main(args: argparse.Namespace) -> int:
     from cua.api.service import RunService, ServiceSettings
 
     try:
+        settings = ServiceSettings(
+            runs_dir=args.runs_dir,
+            capabilities_dir=args.capabilities_dir,
+            operator_url=args.operator_url,
+            project=args.project,
+            workers=args.workers,
+            max_pending_runs=args.max_pending_runs,
+            queue_timeout_s=args.queue_timeout,
+            allow_inject=args.allow_inject,
+        )
         config = load_access(args.access, project=args.project)
         for path in create_keys(config):
             print(f"cua serve: created an API key at {link(path)}", file=sys.stderr)
         gate = Gate(config, project=args.project, environ=args.project.environ)
     except (OSError, ValueError) as exc:
         print(f"cua serve: {exc}", file=sys.stderr)
-        return EX_USAGE
-    if args.workers < 1:
-        print("cua serve: --workers is at least 1", file=sys.stderr)
         return EX_USAGE
     for name, why in gate.disabled.items():
         print(f"cua serve: client {name!r} is disabled: {why}", file=sys.stderr)
@@ -68,14 +99,7 @@ def main(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
     service = RunService(
-        ServiceSettings(
-            runs_dir=args.runs_dir,
-            capabilities_dir=args.capabilities_dir,
-            operator_url=args.operator_url,
-            project=args.project,
-            workers=args.workers,
-            allow_inject=args.allow_inject,
-        ),
+        settings,
         environ=args.project.environ,
     )
     print(

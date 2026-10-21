@@ -54,6 +54,9 @@ def create_app(gate: Gate, service: RunService) -> FastAPI:
         return JSONResponse(
             error_body(exc.code, exc.message, getattr(request.state, "request_id", None)),
             status_code=exc.status,
+            headers={"Retry-After": str(exc.retry_after_s)}
+            if exc.retry_after_s is not None
+            else None,
         )
 
     @app.exception_handler(PersistenceError)
@@ -168,5 +171,5 @@ def respond(record: ApiRun, *, replayed: bool = False) -> JSONResponse:
     headers = {"Location": f"/runs/{record.run_id}"}
     if replayed:
         headers["Idempotent-Replayed"] = "true"
-    status = 202 if record.state == "running" else 200
+    status = 202 if record.state in ("queued", "running") else 200
     return JSONResponse(record.view(), status_code=status, headers=headers)

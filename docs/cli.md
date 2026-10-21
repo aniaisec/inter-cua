@@ -5,6 +5,12 @@
 
 Use `cua --help` and `cua <command> --help` for complete flags. The nearest ancestor `cua.toml` selects the project; global `cua --root DIR <command>` selects it explicitly. MCP also supports `cua mcp --root DIR`. Explicit CLI file paths remain relative to the invocation directory. See [path resolution](configuration.md).
 
+`cua serve` and `cua mcp` accept `--workers 2`, `--max-pending-runs 32` and
+`--queue-timeout 300`. MCP additionally accepts `--max-mcp-calls 8`. Invalid
+limits exit 64 before key creation or service startup. Execution budgets begin
+at dispatch, with a separate queue expiry; see
+[capacity and shutdown](operations.md#bounded-admission-and-shutdown).
+
 | Command | What it does | Exit |
 |---|---|---|
 | `cua init PATH --template demo\|web\|windows\|inventory [--dry-run]` | create an editable project from packaged resources; refuse existing files; generate a private per-project signing key | 0 created/planned, 64 invalid/conflict |

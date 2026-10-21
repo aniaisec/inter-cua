@@ -19,6 +19,47 @@ a fresh run to replace a pending commit. Consent tokens are input-bound,
 tenant-bound and single-use. Keeping the original idempotency key lets a lost
 response be retrieved without repeating a write.
 
+## Bounded admission and shutdown
+
+Run limits apply to one service process; continue using one server per runs
+directory. Both entry points accept these settings:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `--workers` | 2 | Maximum simultaneous run workers |
+| `--max-pending-runs` | 32 | Extra accepted reservations beyond the worker slots; zero allows only worker capacity |
+| `--queue-timeout` | 300 seconds | Separate queue deadline; valid range 0.001–86400 seconds |
+| `cua mcp --max-mcp-calls` | 8 | Outstanding stdio work calls; ping and immediate status polls use the reader |
+
+For example, `cua serve --workers 2 --max-pending-runs 8 --queue-timeout 60`
+accepts at most ten unfinished worker reservations. `cua mcp --workers 2 --max-pending-runs 8 --max-mcp-calls 4`
+independently limits MCP work calls to four. Excess HTTP work returns `503`
+and `Retry-After: 1`; excess MCP work returns a structured `server_busy` retry
+hint. Preserve the original key and payload. Accepted retry identities still
+resolve while full or shutting down. No per-client quota is introduced.
+
+An accepted run is `queued` until dispatch, then `running`. Its record persists
+`queued_at`, `queue_expires_at`, `started_at` and `queue_duration_ms` (queue
+duration becomes available at dispatch/cancellation). A resumed run records
+these fields for its latest attempt and retains the earlier escalation until
+execution replaces it. The replay budget begins at dispatch, excluding queue
+time. Queue expiry is checked when a run is read and immediately before
+dispatch; there is no background expiry scheduler. Expired fresh work returns
+`TIMEOUT` with `side_effect: none`. Cancelled/expired reservations remain counted
+until their worker drains them, preventing repeated cancellation from filling
+an unbounded executor backlog. A retry of the same key returns its expired
+answer rather than renewing its deadline.
+
+Graceful service shutdown stops new admission, cancels waiting first runs with
+`INTERRUPTED`/no side effect, and lets active work finish under its existing
+budget and ownership rules. A waiting resume that never dispatched returns to
+its existing escalation with an error explanation; it is not a failed new UI
+attempt. A queued record discovered after a restart is never silently
+redispatched. An interrupted active write still requires reconciliation under
+the ownership rules below. Stdio EOF drains the bounded accepted MCP calls;
+service shutdown then cancels any remaining waiting runs and waits for active
+execution. There is no forced termination of an active UI action.
+
 ## Evidence and metrics
 
 A run contains `run.json`, `log.jsonl`, masked observations/screenshots where
@@ -37,8 +78,8 @@ redaction does not turn arbitrary application data into a public dataset.
 
 Direct replay and resume now reserve durable invocation ownership as described
 below. Workflow and HTTP/MCP envelope migration remains in progress; keep one
-service per runs directory. The runtime does not yet provide the admission
-queue, retention scheduler or authenticated operator console proposed in later work.
+service per runs directory. Bounded admission is described above; the runtime
+does not yet provide a retention scheduler or authenticated operator console.
 HTTP can report `lost` when the server stopped without a persisted result.
 Reconcile such runs with application state before another write.
 `side_effect: unknown` also requires reconciliation; changing the key and retrying

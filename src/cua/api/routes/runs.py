@@ -2,7 +2,7 @@
 
 ``?wait=S`` on ``POST /runs``, ``GET /runs/{id}`` and the actions on a run
 holds the answer up to ``S`` seconds (at most 300) for the run to stand
-still. Without it the answer is immediate: ``202`` while the run executes,
+still. Without it the answer is immediate: ``202`` while queued or executing,
 ``200`` once it is ``escalated``, ``finished``, ``error`` or ``lost``.
 """
 

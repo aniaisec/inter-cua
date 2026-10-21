@@ -141,7 +141,21 @@ invoke(root, path=GOAL2, inputs={"member_id":"10003", "initial_deposit":"10"})
     finally:
         process.kill()
         process.wait(timeout=10)
-    result = invoke(tmp_path, path=GOAL2, inputs={"member_id": "10003", "initial_deposit": "10"})
+    # Windows can briefly report the exiting process's OS lock as busy. The
+    # public contract permits retrying that explicit response with the same
+    # key; elapsed time must never authorize stealing or redispatching work.
+    deadline = time.monotonic() + 5
+    while True:
+        try:
+            result = invoke(
+                tmp_path, path=GOAL2, inputs={"member_id": "10003", "initial_deposit": "10"}
+            )
+            break
+        except runner.InvocationError as exc:
+            if "invocation is in progress" not in str(exc):
+                raise
+            assert time.monotonic() < deadline, "dead worker's execution lock was not released"
+            time.sleep(0.02)
     if phase == "result":
         assert result.kind == "success" and result.side_effect == "committed"
     else:

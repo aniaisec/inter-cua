@@ -13,9 +13,9 @@ why), a failure (``isError``, with its side effect), an escalation (what has
 to happen next). Protocol errors are for what the client got wrong: an unknown
 method or tool, a malformed request.
 
-Tool calls run on their own threads, so a client can ``ping`` or call a
-second tool while a replay takes its seconds; answers are written one whole
-line at a time.
+Work calls run in a bounded pool. Overflow receives a structured retry answer;
+ping and nonblocking status polls stay on the transport reader. Answers are
+written one whole line at a time.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import threading
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from typing import IO, Any
 
@@ -61,7 +62,9 @@ INSTRUCTIONS = (
     "success, business_outcome (an answer about the business, not an error), failure (read "
     "side_effect before retrying) or escalated (read required_action). A tool that changes "
     "something needs an idempotency_key: reuse it to retry, never to repeat. A commit needs "
-    "consent from a person; the run tools carry an escalated run on."
+    "consent from a person; the run tools carry an escalated run on. If state is queued or "
+    "running, poll cua_run_status with the same run_id. A server_busy error carries a "
+    "retry_after_s hint: back off and preserve the original arguments and idempotency_key."
 )
 
 Handoff = str
@@ -98,6 +101,7 @@ class McpServer:
         self.wait_s = wait_s
         self.handoff = handoff
         self.handoff_ttl_s = handoff_ttl_s
+        self._transport = threading.local()
 
     # -- the transport --------------------------------------------------------
 
@@ -106,7 +110,7 @@ class McpServer:
         under way finish (a replay stopped mid-step is how a commit ends up
         ``unknown``)."""
         lock = threading.Lock()
-        running: list[threading.Thread] = []
+        slots = threading.BoundedSemaphore(self.service.settings.max_mcp_calls)
 
         def send(message: dict[str, Any]) -> None:
             line = json.dumps(message, ensure_ascii=False, default=str)
@@ -119,6 +123,26 @@ class McpServer:
             if response is not None:
                 send(response)
 
+        def admitted(message: Any) -> None:
+            try:
+                answer(message)
+            finally:
+                slots.release()
+
+        with ThreadPoolExecutor(
+            max_workers=self.service.settings.max_mcp_calls, thread_name_prefix="cua-mcp-call"
+        ) as pool:
+            self._read(stdin, answer, admitted, send, slots, pool)
+
+    def _read(
+        self,
+        stdin: IO[str],
+        answer: Callable[[Any], None],
+        admitted: Callable[[Any], None],
+        send: Callable[[dict[str, Any]], None],
+        slots: threading.BoundedSemaphore,
+        pool: ThreadPoolExecutor,
+    ) -> None:
         for line in stdin:
             if not line.strip():
                 continue
@@ -127,15 +151,46 @@ class McpServer:
             except json.JSONDecodeError as exc:
                 send(_error(None, PARSE_ERROR, f"not JSON: {exc}"))
                 continue
-            if isinstance(message, dict) and message.get("method") == "tools/call":
-                worker = threading.Thread(target=answer, args=(message,), name="cua-mcp-call")
-                worker.start()
-                running.append(worker)
-                running[:] = [t for t in running if t.is_alive()]
+            if (
+                isinstance(message, dict)
+                and message.get("jsonrpc") == "2.0"
+                and "id" in message
+                and message.get("method") == "tools/call"
+            ):
+                params = message.get("params")
+                if isinstance(params, dict) and params.get("name") == tools.STATUS:
+                    # Status never waits on execution in the transport reader.
+                    # Its normal authorization/argument validation still runs.
+                    response = self.handle_status(message)
+                    if response is not None:
+                        send(response)
+                elif slots.acquire(blocking=False):
+                    try:
+                        pool.submit(admitted, message)
+                    except BaseException:
+                        slots.release()
+                        raise
+                else:
+                    send(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": message["id"],
+                            "result": _refused(
+                                "server_busy",
+                                "MCP call capacity is exhausted; retry with the same key",
+                                retry_after_s=1,
+                            ),
+                        }
+                    )
             else:
                 answer(message)
-        for worker in running:
-            worker.join()
+
+    def handle_status(self, message: dict[str, Any]) -> dict[str, Any] | None:
+        self._transport.polling = True
+        try:
+            return self.handle(message)
+        finally:
+            self._transport.polling = False
 
     def handle(self, message: Any) -> dict[str, Any] | None:
         """The response to one message; None for a notification."""
@@ -228,7 +283,7 @@ class McpServer:
                 "isError": failed,
             }
         except ApiError as exc:
-            return _refused(exc.code, exc.message)
+            return _refused(exc.code, exc.message, retry_after_s=exc.retry_after_s)
         except ValidationError as exc:
             problems = "; ".join(
                 f"{'.'.join(str(p) for p in e['loc']) or 'arguments'}: {e['msg']}"
@@ -280,7 +335,9 @@ class McpServer:
                 raise ApiError(400, "invalid_arguments", "wait_s is a number of seconds")
             _no_more(name, args)
             self.service.get(caller, run_id)
-            return self._settled(caller, run_id, float(wait))
+            return self._settled(
+                caller, run_id, 0.0 if getattr(self._transport, "polling", False) else float(wait)
+            )
         if name == tools.APPROVE:
             request = ApproveRequest(
                 token=args.pop("approval_token", ""),
@@ -311,10 +368,13 @@ def _no_more(tool: str, args: dict[str, Any]) -> None:
         raise ApiError(400, "invalid_arguments", f"{tool} takes no {sorted(args)}")
 
 
-def _refused(code: str, message: str) -> dict[str, Any]:
+def _refused(code: str, message: str, *, retry_after_s: int | None = None) -> dict[str, Any]:
+    error: dict[str, Any] = {"code": code, "message": message}
+    if retry_after_s is not None:
+        error["retry_after_s"] = retry_after_s
     return {
         "content": [{"type": "text", "text": f"refused ({code}): {message}"}],
-        "structuredContent": {"error": {"code": code, "message": message}},
+        "structuredContent": {"error": error},
         "isError": True,
     }
 
