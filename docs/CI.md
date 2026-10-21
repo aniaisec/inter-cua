@@ -43,6 +43,12 @@ because those runners can restrict user namespaces. Local detached browsers
 keep their sandbox enabled without this opt-in. Vision fixtures capture controls
 on the current platform; refusal criteria and match thresholds stay the same.
 
+Admission saturation, queue expiry/shutdown and bounded MCP dispatch tests run
+in the Linux unit suites and focused Windows job. They check retry preservation,
+absence of claims for overflow, no dispatch after expiry, and responsive ping
+and status while work-call capacity is exhausted. The HTTP browser integration
+holds a real session open to check that overflow opens no extra browser.
+
 Atomic-persistence fault and subprocess-lock tests run in both Linux quality
 jobs and the focused Windows job. They cover interrupted publication, corrupt
 authority, competing thread/process updates, lock release on process death and

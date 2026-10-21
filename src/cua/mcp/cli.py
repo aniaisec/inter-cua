@@ -7,6 +7,8 @@ import io
 import sys
 from pathlib import Path
 
+from cua.api.cli import add_capacity_arguments
+
 EX_USAGE = 64
 
 
@@ -30,6 +32,7 @@ def add_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> None
     m.add_argument("--access", type=Path, default=Path("api/access.yaml"))
     m.add_argument("--runs-dir", type=Path, default=Path("evidence/runs"))
     m.add_argument("--capabilities-dir", type=Path, default=Path("capabilities"))
+    add_capacity_arguments(m, mcp=True)
     m.add_argument(
         "--handoff",
         choices=("consent", "all", "none"),
@@ -56,6 +59,16 @@ def main(args: argparse.Namespace) -> int:
     from cua.mcp.server import McpServer
 
     try:
+        settings = ServiceSettings(
+            runs_dir=args.runs_dir,
+            capabilities_dir=args.capabilities_dir,
+            operator_url=args.operator_url,
+            project=args.project,
+            workers=args.workers,
+            max_pending_runs=args.max_pending_runs,
+            max_mcp_calls=args.max_mcp_calls,
+            queue_timeout_s=args.queue_timeout,
+        )
         config = load_access(args.access, project=args.project)
         gate = Gate(config, project=args.project, environ=args.project.environ)
     except (OSError, ValueError) as exc:
@@ -83,12 +96,7 @@ def main(args: argparse.Namespace) -> int:
     sys.stdout = sys.stderr
 
     service = RunService(
-        ServiceSettings(
-            runs_dir=args.runs_dir,
-            capabilities_dir=args.capabilities_dir,
-            operator_url=args.operator_url,
-            project=args.project,
-        ),
+        settings,
         environ=args.project.environ,
     )
     server = McpServer(

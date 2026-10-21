@@ -35,12 +35,14 @@ from __future__ import annotations
 import gc
 import hashlib
 import json
+import math
 import platform
 import threading
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import wait as wait_for
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -66,7 +68,7 @@ from cua.project import ProjectContext
 from cua.replay import runner
 from cua.replay.engine import ReplayConfig
 from cua.replay.invocation import ApprovalGrant, Invocation
-from cua.replay.result import RESULT, ReplayResult, to_json
+from cua.replay.result import RESULT, Failure, ReplayResult, to_json
 from cua.replay.runner import InvocationError
 
 API_DIR = ".api"
@@ -80,11 +82,27 @@ class ServiceSettings:
     operator_url: str = "http://127.0.0.1:8100"
     """Where intervention requests say the operator console is."""
     workers: int = 2
-    """Runs executing at once; more wait their turn in state ``running``."""
+    """Maximum simultaneous executions."""
     allow_inject: bool = False
     project: ProjectContext | None = None
+    max_pending_runs: int = 32
+    """Additional accepted runs beyond the worker slots."""
+    max_mcp_calls: int = 8
+    """Outstanding stdio MCP work calls; immediate status polls use the reader."""
+    queue_timeout_s: float = 300.0
+    """Independent queue deadline; the invocation budget begins at dispatch."""
 
     def __post_init__(self) -> None:
+        for name, minimum in (("workers", 1), ("max_pending_runs", 0), ("max_mcp_calls", 1)):
+            value = getattr(self, name)
+            if type(value) is not int or value < minimum:
+                raise ValueError(f"{name} must be an integer at least {minimum}")
+        if (
+            isinstance(self.queue_timeout_s, bool)
+            or not math.isfinite(self.queue_timeout_s)
+            or not 0.001 <= self.queue_timeout_s <= 86400
+        ):
+            raise ValueError("queue_timeout_s must be finite and between 0.001 and 86400 seconds")
         # Workers receive absolute paths even when the library caller used cwd defaults.
         runs = self.project.relative(self.runs_dir) if self.project else self.runs_dir.resolve()
         caps = self.capabilities_dir
@@ -122,16 +140,84 @@ class RunService:
         )
         self._pool = ThreadPoolExecutor(max_workers=settings.workers, thread_name_prefix="cua-run")
         self._active: dict[str, Future[None]] = {}
+        self._running: set[str] = set()
+        self._accepting = True
         self._lock = threading.RLock()
 
     def close(self) -> None:
         """Let executing runs finish: stopping one mid-step is how a commit
         ends up ``unknown``."""
-        self._pool.shutdown(wait=True)
+        try:
+            with self._lock:
+                self._accepting = False
+                for run_id in self._active:
+                    record = self._load(run_id)
+                    if record is not None and record.state == "queued":
+                        self._cancel_queued(record, "service shutdown cancelled waiting work")
+        finally:
+            self._pool.shutdown(wait=True)
 
     def busy(self) -> int:
         with self._lock:
-            return len(self._active)
+            return len(self._running)
+
+    def _admit(self) -> None:
+        if not self._accepting:
+            raise ApiError(503, "service_stopping", "service is shutting down", retry_after_s=1)
+        if len(self._active) >= self.settings.workers + self.settings.max_pending_runs:
+            raise ApiError(
+                503,
+                "server_busy",
+                "run capacity is exhausted; retry with the same key",
+                retry_after_s=1,
+            )
+
+    def _queue(self, record: ApiRun) -> None:
+        now = utc_now()
+        record.state = "queued"
+        record.queued_at = record.updated_at = now
+        record.queue_expires_at = (
+            (datetime.fromisoformat(now) + timedelta(seconds=self.settings.queue_timeout_s))
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z")
+        )
+        record.started_at = None
+        record.queue_duration_ms = None
+
+    def _queue_time(self, record: ApiRun) -> None:
+        if record.queued_at is not None:
+            elapsed = datetime.fromisoformat(utc_now()) - datetime.fromisoformat(record.queued_at)
+            record.queue_duration_ms = max(0, int(elapsed.total_seconds() * 1000))
+
+    def _queue_expired(self, record: ApiRun) -> bool:
+        return record.queue_expires_at is not None and (
+            datetime.fromisoformat(utc_now()) >= datetime.fromisoformat(record.queue_expires_at)
+        )
+
+    def _cancel_queued(self, record: ApiRun, why: str, *, expired: bool = False) -> None:
+        self._queue_time(record)
+        record.error = why
+        if record.result is not None:
+            # A resume has not touched its browser yet. Keep the live escalation
+            # available instead of fabricating a terminal answer for that run.
+            record.state = "escalated"
+            record.updated_at = utc_now()
+            self._save(record)
+        else:
+            if record.version is None:
+                raise corrupt(self._path(record.run_id))
+            self._settle(
+                record,
+                Failure(
+                    code="TIMEOUT" if expired else "INTERRUPTED",
+                    message=why,
+                    capability=record.capability,
+                    capability_version=record.version,
+                    run_id=record.run_id,
+                    idempotency_key=record.idempotency_key,
+                    side_effect="none",
+                ),
+            )
 
     # -- starting a run --------------------------------------------------------
 
@@ -148,6 +234,12 @@ class RunService:
             raise ApiError(
                 400, "inject_not_allowed", "this server was not started with --allow-inject"
             )
+        with self._lock:
+            self.check_audit()
+            if idempotency_key is not None:
+                earlier = self._claim(caller, idempotency_key, _fingerprint(body), "", create=False)
+                if earlier is not None:
+                    return self.get(caller, earlier), True
         try:
             path = catalog.find(
                 self.settings.capabilities_dir,
@@ -186,14 +278,24 @@ class RunService:
         with self._lock:
             self.check_audit()
             if idempotency_key is not None:
+                earlier = self._claim(caller, idempotency_key, _fingerprint(body), "", create=False)
+                if earlier is not None:
+                    return self.get(caller, earlier), True
+            self._admit()
+            if problems:
+                failure = catalog.input_invalid(cap, problems, idempotency_key)
+                self._settle(record, failure)
+            else:
+                self._queue(record)
+                self._save(record)
+            # Publish a complete run before its claim: a crash or failed write
+            # can leave an undispatched record, never a claim pointing at nothing.
+            if idempotency_key is not None:
                 earlier = self._claim(caller, idempotency_key, _fingerprint(body), record.run_id)
                 if earlier is not None:
                     return self.get(caller, earlier), True
             if problems:
-                failure = catalog.input_invalid(cap, problems, idempotency_key)
-                self._settle(record, failure)
                 return record, False
-            self._save(record)
             invocation = Invocation(
                 inputs=inputs,
                 idempotency_key=_scoped(caller, idempotency_key),
@@ -201,9 +303,7 @@ class RunService:
                 budget=body.budget,
                 inject=body.inject,
             )
-            self._start(
-                record.run_id, lambda: self._first_run(record, path, caller, invocation, body)
-            )
+            self._start(record, lambda: self._first_run(record, path, caller, invocation, body))
         return record, False
 
     def _first_run(
@@ -358,11 +458,12 @@ class RunService:
             if answered is not None:
                 self._settle(record, answered)
                 return record
-            record.state = "running"
+            self._admit()
+            self._queue(record)
             record.error = None
             self._save(record)
             self._start(
-                record.run_id,
+                record,
                 lambda: self._carry(
                     record,
                     lambda: self._resume(
@@ -381,17 +482,38 @@ class RunService:
 
     # -- the workers -----------------------------------------------------------
 
-    def _start(self, run_id: str, work: Callable[[], None]) -> None:
+    def _start(self, record: ApiRun, work: Callable[[], None]) -> None:
+        run_id = record.run_id
+
         def run() -> None:
-            com = _com_enter()
+            com = None
             try:
+                with self._lock:
+                    current = self._load(run_id)
+                    if current is None or current.state != "queued":
+                        return
+                    if not self._accepting:
+                        self._cancel_queued(record, "service shutdown cancelled waiting work")
+                        return
+                    if self._queue_expired(record):
+                        self._cancel_queued(record, "queue expired before execution", expired=True)
+                        return
+                    self._queue_time(record)
+                    record.state = "running"
+                    record.started_at = record.updated_at = utc_now()
+                    self._save(record)
+                    self._running.add(run_id)
+                com = _com_enter()
                 work()
             finally:
                 _com_leave(com)
                 with self._lock:
                     self._active.pop(run_id, None)
+                    self._running.discard(run_id)
 
         with self._lock:
+            # _admit ran under this same lock before any durable claim. The
+            # executor therefore holds at most workers + max_pending_runs jobs.
             self._active[run_id] = self._pool.submit(run)
 
     def _carry(self, record: ApiRun, execute: Callable[[], ReplayResult]) -> None:
@@ -434,6 +556,16 @@ class RunService:
     def _refresh(self, record: ApiRun) -> ApiRun:
         """What the run directory says now, for a run no worker holds."""
         with self._lock:
+            if record.state == "queued":
+                if record.run_id not in self._active:
+                    self._cancel_queued(record, "service stopped before queued work dispatched")
+                elif self._queue_expired(record):
+                    self._cancel_queued(record, "queue expired before execution", expired=True)
+                else:
+                    return record
+                # A cancelled resume returns to escalation. Run its normal TTL
+                # and terminal-result checks too, especially after a restart.
+                return self._refresh(record)
             if record.run_id in self._active or record.state in ("finished", "error"):
                 return record
             if record.state == "escalated":
@@ -489,6 +621,22 @@ class RunService:
             or (record.state == "escalated" and result is not None and result.kind != "escalated")
         ):
             raise corrupt(path)
+        if record.state == "queued":
+            try:
+                if record.queued_at is None or record.queue_expires_at is None:
+                    raise ValueError
+                if record.started_at is not None or record.version is None:
+                    raise ValueError
+                queued = datetime.fromisoformat(record.queued_at)
+                expires = datetime.fromisoformat(record.queue_expires_at)
+                if queued.utcoffset() != timedelta(0) or expires.utcoffset() != timedelta(0):
+                    raise ValueError
+                if expires <= queued:
+                    raise ValueError
+                if result is not None and result.kind != "escalated":
+                    raise ValueError
+            except (ValueError, TypeError):
+                raise corrupt(path) from None
         return record
 
     def _save(self, record: ApiRun) -> None:
@@ -507,16 +655,21 @@ class RunService:
         except ValueError:
             raise corrupt(path) from None
 
-    def _claim(self, caller: Caller, key: str, fingerprint: str, run_id: str) -> str | None:
+    def _claim(
+        self, caller: Caller, key: str, fingerprint: str, run_id: str, *, create: bool = True
+    ) -> str | None:
         """Record that ``key`` starts ``run_id``; or the run it already started."""
         scope = f"{caller.client_id}\n{caller.tenant.id}\n{key}"
         path = (
             self.root / "idempotency" / (hashlib.sha256(scope.encode()).hexdigest()[:32] + ".json")
         )
-        path.parent.mkdir(parents=True, exist_ok=True)
+        if not create and not path.exists():
+            return None
         record = {"run_id": run_id, "fingerprint": fingerprint, "at": utc_now()}
         with file_lock(path):
             if not path.exists():
+                if not create:
+                    return None
                 atomic_write_json(path, record)
                 return None
             earlier = read_json(path)
@@ -524,6 +677,7 @@ class RunService:
             not isinstance(earlier.get("fingerprint"), str)
             or not isinstance(earlier.get("run_id"), str)
             or not earlier["run_id"]
+            or not earlier["run_id"].replace("_", "").isalnum()
         ):
             raise corrupt(path)
         if earlier["fingerprint"] != fingerprint:
@@ -533,6 +687,9 @@ class RunService:
                 f"idempotency key {key!r} was already used for a different request "
                 "(another capability, version or inputs)",
             )
+        owned = self._load(earlier["run_id"])
+        if owned is None or owned.tenant != caller.tenant.id or owned.client != caller.client_id:
+            raise corrupt(path)
         return str(earlier["run_id"])
 
     def audit(self, record: dict[str, Any]) -> None:

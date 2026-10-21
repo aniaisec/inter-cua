@@ -90,8 +90,9 @@ run) and `operate` (resume and abort escalated runs).
 | `POST /runs/{id}/resume` | hand an escalated run back to the automation, as `cua resume` does |
 | `POST /runs/{id}/abort` | end an escalated run as `ESCALATION_ABORTED`, as the console's Abort does |
 
-A run gets its id at once and executes on a worker. The POST answers `202`
-while the run executes, or waits for it with `?wait=<seconds>` (up to 300).
+A run gets its id at admission, then moves from `queued` to `running` when a
+worker dispatches it. The POST answers `202` in either state, or waits for it
+with `?wait=<seconds>` (up to 300).
 The run's `result` is the `ReplayResult` that `cua replay` prints: the same
 fields, in the same order. It is `null` until the run stands still in one of
 these states:
@@ -101,9 +102,8 @@ these states:
 - `error`: the request could not be made at all, as `cua replay` exits 64;
 - `lost`: the server stopped mid-run and the run directory holds no result.
 
-`running` currently also includes work waiting for a worker. The reusable
-[HTTP client](../examples/http_client/client.py) accepts future `queued` responses
-as active states; the server will distinguish them in PR14. It stops polling at
+The reusable [HTTP client](../examples/http_client/client.py) polls both `queued`
+and `running` as active states. It stops polling at
 `escalated`, `finished`, `error` or `lost`, leaving the caller to inspect the result
 and decide. A `finished` business outcome is an answer, not a transport error.
 `lost`, or a result with `side_effect: unknown`, requires reconciliation and must
@@ -138,9 +138,18 @@ the same payload, key and request identity; a 409 must stop the caller, without
 inventing a new key. Exhausted retries retain that identity for reconciliation.
 The [tested client example](../examples/http_client/README.md) checks these cases
 and observes the target's independent commit count. 428 means the required key
-is missing; 429/503 are surfaced for caller-directed backoff. Current sequential
-retry examples do not establish crash-safe ownership; see the planned persistence
-and admission work in the adoption plan.
+is missing. Capacity exhaustion returns `503`, error code `server_busy`, and
+`Retry-After: 1`; shutdown returns `503` with `service_stopping`. Back off and
+retain the same payload and key. Existing accepted keys still return their run
+at capacity and during shutdown; rejected new keys reserve no claim. No
+client-specific quota or `429` response is introduced.
+
+Run records add `queued_at`, `queue_expires_at`, `started_at` and
+`queue_duration_ms`. The replay budget starts at dispatch; queue waiting does
+not subtract from it. Fresh queued work that expires finishes with `TIMEOUT`
+and `side_effect: none`. Shutdown or restart before dispatch produces
+`INTERRUPTED` with no side effect. A cancelled waiting resume keeps its prior
+escalation and error explanation. See [capacity and shutdown](operations.md#bounded-admission-and-shutdown).
 
 ## MCP
 
@@ -169,7 +178,7 @@ annotations say which tools are read-only, destructive or idempotent.
 
 A call goes where a `POST /runs` goes: the registry resolves the version, the
 arguments are typed, and the access file's client, tenant and scopes apply.
-Replay then runs with no model, and every call is recorded in
+Replay then runs with no model, and admitted tool calls are recorded in
 `<runs>/.api/requests.jsonl`. The answer is the `ReplayResult`, reduced to what
 an agent acts on: `kind`, the code or reason, `outputs`, `side_effect` and
 `message`. How the GUI was driven stays in the run directory: locator rungs,
@@ -205,11 +214,23 @@ lookup that gets stuck is a plain `failure`.
 
 ## Response handling
 
-HTTP can return `running` with a null result. Poll the returned run ID until
+HTTP can return `queued` or `running` with a null result. A waiting resume can
+still carry its previous escalation result; branch on the run state first.
+Poll the returned run ID until
 `escalated`, `finished`, `error`, or `lost`. Handle result kind separately from HTTP
 status. A business outcome is an answer; an escalation needs human action. A lost
 run or unknown side effect needs reconciliation, not a fresh key and automatic
 repeat of a write. MCP tool failures can set `isError`; inspect kind, code and
 side effect. Protocol errors indicate malformed requests or unsupported methods.
+
+MCP work calls use a bounded dispatcher (default eight outstanding calls).
+Overflow is a tool result with `isError: true` and
+`structuredContent.error.code: "server_busy"`, plus `retry_after_s: 1`.
+Run-capacity refusals use the same shape. Keep the original key on retry.
+`ping` and `cua_run_status` remain available while work calls are saturated;
+stdio status calls poll immediately even when `wait_s` is supplied, so they
+cannot block the protocol reader. Poll again for later changes. EOF drains the
+bounded outstanding MCP calls before service shutdown; shutdown then cancels
+undispatched runs and waits for active execution to finish.
 
 [Documentation index](index.md) · [Project README](../README.md)

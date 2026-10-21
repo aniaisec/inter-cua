@@ -1548,3 +1548,55 @@ direct replay/resume ownership; the complete PR13 acceptance gate remains open.
   admission/polling behavior across service instances, complete legacy migration
   tooling/export, and concurrent workflow/API plus killed-resume process
   exercises. Shared-service operation is not qualified by this increment.
+
+## Adoption P14 - bounded admission and truthful queue state
+
+Implemented October 20, 2026, on `codex/adoption-pr14`.
+
+- Added validated service/CLI limits for worker execution, additional pending
+  runs, outstanding stdio MCP calls and an independent queue deadline. Defaults
+  are 2 workers, 32 additional run reservations, 8 MCP work calls and 300 seconds
+  in the queue. Original positional settings and legacy run records remain valid.
+- Admission checks capacity before publishing new run/claim records. Publish
+  the run before its claim so publication failures cannot leave a claim pointing
+  at a missing record. Existing tenant/client-scoped keys resolve before new
+  admission or catalog lookup, including while full or stopping. Corrupt,
+  dangling and foreign-owner claims refuse execution instead of becoming misses.
+- Added `queued` responses and persisted queue/dispatch timestamps and queue
+  duration. The existing replay budget is passed unchanged at dispatch; waiting
+  consumes only the separate queue deadline. Expired first runs receive a
+  no-side-effect `TIMEOUT`; queued work after restart is never redispatched.
+  Expired/cancelled executor reservations remain bounded until workers drain
+  them, preventing an unbounded cancelled-task backlog.
+- Graceful shutdown rejects new work, cancels waiting first runs with a durable
+  no-side-effect interruption, preserves the escalation of an undispatched
+  resume and waits for active execution. Recovering a queued resume also enforces
+  its original handoff expiry. Active commit uncertainty remains subject to the
+  existing ownership and reconciliation rules.
+- HTTP capacity/shutdown errors use 503 with `Retry-After`, not a client-quota
+  429. MCP uses a bounded dispatcher and structured busy/retry results. Ping and
+  status remain available under saturation; stdio status polls do not wait on
+  execution. EOF drains accepted MCP calls before service shutdown.
+- Added deterministic admission/expiry/fault/concurrency tests and a real-browser
+  saturation check. Updated the Windows test gate, HTTP client guide, CLI,
+  integration/operations/CI guides and changelog for the additive response fields.
+- Verification on Windows / Python 3.14.5: the complete provider-free routine
+  gate passed 1,289 tests with two platform skips and 174 deselected browser/
+  desktop cases. The focused caller/compatibility run passed 169 tests. Seven
+  selected strict Chromium HTTP/MCP scenarios passed, including the real browser
+  limit and queued-resume expiry checks; the complete security gate passed all
+  38 tests, including its live attacks and negative controls.
+- The first routine run exposed a transient in-progress reply immediately after
+  killing a test worker on Windows. The process-death test now briefly retries
+  only that explicit reply with the original key, while retaining the one-commit
+  oracle and immutable-result assertions. All 17 ownership tests and the full
+  routine rerun pass. Runtime ownership, lock stealing and recovery rules did
+  not change.
+- Ruff lint/format, whitespace checks, strict Linux/Windows mypy over 178 source
+  files plus final changed-source rechecks, changed-document links/anchors and
+  both CLI help paths pass. Hosted CI, live Windows UIA and paid-provider calls
+  were not run locally; the complete browser suite was not rerun.
+- Limits apply to one service process. Keep one server per runs directory;
+  complete PR13 envelope migration, paused-session cleanup/retention and shared
+  service release qualification remain separate work. No capability schema or
+  approval-seal format changed.

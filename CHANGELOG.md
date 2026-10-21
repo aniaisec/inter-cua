@@ -2,12 +2,25 @@
 
 ## Unreleased
 
+- PR14 bounded run admission and stdio MCP dispatch. Run records distinguish
+  `queued` from `running` and persist queue/dispatch timing. Saturation returns
+  HTTP 503/Retry-After or a structured MCP retry hint without reserving a new
+  key; accepted keys still resolve. Queue expiry starts no application, replay
+  budgets begin at dispatch, and graceful shutdown cancels waiting work while
+  active runs finish. Ping/status remain available at MCP call capacity.
+
+- PR13's first increment adds SQLite-backed direct replay/resume ownership,
+  OS-held execution locks, interruption tombstones and consent consumption
+  before risky dispatch. Complete workflow/service envelope migration and
+  legacy export tooling remain pending; keep one service per runs directory.
+
 - PR12 atomic runtime JSON publication, serialized file updates and durable
   JSONL appends. Workflow journals reject stale saves; completed replay answers
   retain their first result. Corrupt authoritative records and torn log tails
   fail closed with a reconciliation procedure; HTTP/MCP expose `state_corrupt`.
   OS-held locks replace age-based control lock stealing. Durable invocation
-  ownership and multi-file/commit recovery remain PR13 work.
+  ownership is added by PR13's first increment; broader envelope/commit recovery
+  remains follow-up work.
 
 - PR11 adoption candidate procedure, anonymized developer-trial templates and
   an evidence readiness checker. Missing/failing gates, changed evidence,

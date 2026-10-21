@@ -130,7 +130,7 @@ def run_tools(caller: Caller) -> list[dict[str, Any]]:
         "type": "number",
         "minimum": 0,
         "maximum": 300,
-        "description": "Seconds to wait for the run to stand still (default 0)",
+        "description": "Compatibility wait hint; stdio status polls return immediately",
     }
     inputs = {
         "type": "object",
@@ -143,8 +143,9 @@ def run_tools(caller: Caller) -> list[dict[str, Any]]:
         tools.append(
             _run_tool(
                 STATUS,
-                "Where a run stands, and its result once it has one. A run still executing "
-                "has state 'running'; wait_s holds the answer for it.",
+                "Where a run stands, and its result once it has one. It is 'queued' until "
+                "dispatched, then 'running'. Stdio status polls return immediately even with "
+                "wait_s; poll again rather than resubmitting the invocation.",
                 {"run_id": run_id, "wait_s": wait},
                 read_only=True,
             )
@@ -222,6 +223,9 @@ def _run_tool(
 def agent_view(record: ApiRun) -> dict[str, Any]:
     """A run as an agent is told about it."""
     view: dict[str, Any] = {"run_id": record.run_id, "state": record.state}
+    for name in ("queued_at", "queue_expires_at", "started_at", "queue_duration_ms"):
+        if (value := getattr(record, name)) is not None:
+            view[name] = value
     result = record.result or {}
     view.update((k, result[k]) for k in AGENT_FIELDS if k in result and result[k] not in ([],))
     if record.error is not None:
@@ -234,6 +238,8 @@ def agent_view(record: ApiRun) -> dict[str, Any]:
 
 def required_action(record: ApiRun) -> str | None:
     result = record.result or {}
+    if record.state == "queued":
+        return f"the run is queued; call {STATUS} with its run_id; do not resubmit with a new key"
     if record.state == "running":
         return f"the run is still executing; call {STATUS} with its run_id and wait_s"
     if record.state == "lost":
@@ -261,7 +267,7 @@ def summary(view: dict[str, Any]) -> str:
     kind = view.get("kind")
     if view["state"] == "error":
         return f"The request could not be carried out: {view.get('error', '')}"
-    if view["state"] in ("running", "lost"):
+    if view["state"] in ("queued", "running", "lost"):
         return f"Run {view['run_id']} is {view['state']}: {view.get('required_action', '')}"
     if kind == "success":
         return f"success: {view.get('outputs', {})} (side effect: {view.get('side_effect')})"

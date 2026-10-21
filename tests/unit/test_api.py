@@ -283,7 +283,7 @@ def test_a_run_is_invoked_as_replay_would_be_and_answers_with_its_result(
 def test_without_wait_a_run_is_accepted_and_read_later(api: TestClient, fake: FakeRunner) -> None:
     fake.gate = threading.Event()
     r = post(api, "/runs", BALANCE, AGENT)
-    assert r.status_code == 202 and r.json()["state"] == "running"
+    assert r.status_code == 202 and r.json()["state"] in ("queued", "running")
     assert r.headers["Location"] == f"/runs/{r.json()['run_id']}"
     fake.gate.set()
     done = api.get(f"{r.headers['Location']}?wait=10", headers=AGENT)

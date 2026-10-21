@@ -14,8 +14,10 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +29,7 @@ from cua.api.app import create_app
 from cua.api.service import RunService, ServiceSettings
 from cua.artifact.store import open_capability
 from cua.policy import tokens
+from cua.replay import runner
 from cua.surface.playwright_surface import BrowserProcess
 from cua.tenant import load_tenant
 from tests.conftest import REPO_ROOT
@@ -52,7 +55,9 @@ paths differ between any two runs, CLI or not."""
 
 
 @pytest.fixture
-def setup(mockapp_url: str, tmp_path: Path) -> Iterator[tuple[TestClient, Path, dict[str, str]]]:
+def setup(
+    mockapp_url: str, tmp_path: Path, request: pytest.FixtureRequest
+) -> Iterator[tuple[TestClient, Path, dict[str, str]]]:
     tenant = tmp_path / "tenant.yaml"
     tenant.write_text(
         (REPO_ROOT / "tenants" / "local.yaml")
@@ -78,7 +83,9 @@ def setup(mockapp_url: str, tmp_path: Path) -> Iterator[tuple[TestClient, Path, 
     )
     service = RunService(
         ServiceSettings(
-            runs_dir=tmp_path / "runs", capabilities_dir=REPO_ROOT / "capabilities", workers=2
+            runs_dir=tmp_path / "runs",
+            capabilities_dir=REPO_ROOT / "capabilities",
+            **{"workers": 2, **getattr(request, "param", {})},
         ),
         environ=env,
     )
@@ -99,6 +106,62 @@ def post(api: TestClient, path: str, body: Any, **headers: str) -> Any:
 
 def logical(result: dict[str, Any]) -> dict[str, Any]:
     return {k: result.get(k) for k in LOGICAL}
+
+
+@pytest.mark.parametrize("setup", [{"workers": 1, "max_pending_runs": 1}], indirect=True)
+def test_bounded_queue_opens_no_browser_for_overflow(setup):
+    api, _, _ = setup
+    service = api.app.state.service
+    replay = service._replay
+    opened, release = threading.Event(), threading.Event()
+    launches = []
+    live_count = 0
+    peak_live = 0
+
+    def controlled(path, **kwargs):
+        cap = open_capability(path).capability
+        factory = runner.surface_for(cap, kwargs["tenant"], headed=False, environ=kwargs["environ"])
+
+        @contextmanager
+        def surface():
+            nonlocal live_count, peak_live
+            with factory() as live:
+                launches.append(live)
+                live_count += 1
+                peak_live = max(peak_live, live_count)
+                opened.set()
+                try:
+                    assert release.wait(30), "test did not release its live browser"
+                    yield live
+                finally:
+                    live_count -= 1
+
+        return replay(path, **{**kwargs, "surface": surface})
+
+    service._replay = controlled
+    body = {
+        "capability": "member_savings_balance",
+        "inputs": {"member_id": "10003"},
+        "screenshots": False,
+    }
+    try:
+        first = post(api, "/runs", body, **{"Idempotency-Key": "first"})
+        assert first.status_code == 202 and opened.wait(20)
+        second = post(api, "/runs", body, **{"Idempotency-Key": "second"})
+        assert second.status_code == 202 and second.json()["state"] == "queued"
+        assert second.json()["started_at"] is None
+        overflow = post(api, "/runs", body, **{"Idempotency-Key": "overflow"})
+        assert overflow.status_code == 503 and overflow.headers["Retry-After"] == "1"
+        retry = post(api, "/runs", body, **{"Idempotency-Key": "second"})
+        assert retry.json()["run_id"] == second.json()["run_id"]
+        assert len(launches) == peak_live == 1
+    finally:
+        release.set()
+    for response in (first, second):
+        final = api.get(f"/runs/{response.json()['run_id']}?wait=120", headers=HEADERS).json()
+        assert final["state"] == "finished" and final["result"]["kind"] == "success"
+        assert final["started_at"] >= final["queued_at"]
+    assert len(launches) == 2 and peak_live == 1 and live_count == 0
 
 
 def test_an_api_invocation_answers_what_the_cli_answers(
@@ -241,8 +304,10 @@ def test_an_escalated_run_is_aborted_over_http(
             browser.kill()
 
 
+@pytest.mark.parametrize("queued_resume", [False, True])
 def test_an_escalated_run_nobody_answers_expires_when_it_is_read(
     setup: tuple[TestClient, Path, dict[str, str]],
+    queued_resume: bool,
 ) -> None:
     api, _, _ = setup
     body = {
@@ -256,6 +321,14 @@ def test_an_escalated_run_nobody_answers_expires_when_it_is_read(
     session = json.loads((Path(run["result"]["evidence"]["run_dir"]) / "session.json").read_text())
     browser = BrowserProcess(session["pid"], session["cdp_url"], Path(session["profile"]))
     try:
+        if queued_resume:
+            # Simulate a restart after resume admission but before dispatch.
+            # Returning to escalation must still enforce the original handoff TTL.
+            service = api.app.state.service
+            service.wait(run["run_id"], 10)
+            record = service._load(run["run_id"])
+            service._queue(record)
+            service._save(record)
         time.sleep(1.5)
         expired = api.get(f"/runs/{run['run_id']}", headers=HEADERS).json()
         assert expired["state"] == "finished"

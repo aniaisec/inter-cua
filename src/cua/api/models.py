@@ -15,8 +15,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from cua.replay.invocation import ApprovalGrant, Budget
 
-RunState = Literal["running", "escalated", "finished", "error", "lost"]
-"""``running``: a worker holds it (a first run or a resumed one).
+RunState = Literal["queued", "running", "escalated", "finished", "error", "lost"]
+"""``queued``: accepted, awaiting dispatch; the execution budget has not started.
+``running``: a worker holds it (a first run or a resumed one).
 ``escalated``: it waits on a person or on consent; ``approve``, ``resume`` and
 ``abort`` apply. ``finished``: it has a result that is an answer (success,
 business outcome or failure). ``error``: the request could not be carried
@@ -29,11 +30,14 @@ evidence, and its side effect must be found out, not assumed."""
 class ApiError(Exception):
     """An answer that is not a run: the request itself was refused."""
 
-    def __init__(self, status: int, code: str, message: str) -> None:
+    def __init__(
+        self, status: int, code: str, message: str, *, retry_after_s: int | None = None
+    ) -> None:
         super().__init__(message)
         self.status = status
         self.code = code
         self.message = message
+        self.retry_after_s = retry_after_s
 
 
 class _Body(BaseModel):
@@ -110,6 +114,10 @@ class ApiRun(BaseModel):
     idempotency_key: str | None = None
     created_at: str
     updated_at: str
+    queued_at: str | None = None
+    queue_expires_at: str | None = None
+    started_at: str | None = None
+    queue_duration_ms: int | None = Field(default=None, ge=0)
     result: dict[str, Any] | None = None
     """The ``ReplayResult``, as ``cua replay`` prints it."""
     error: str | None = None

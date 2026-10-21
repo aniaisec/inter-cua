@@ -197,7 +197,17 @@ def test_a_call_answers_with_the_result_an_agent_acts_on(
     assert json.loads(result["content"][1]["text"]) == view
     [invoked] = fake.calls
     assert invoked["handoff"] is None and invoked["run_id"] == view["run_id"]
-    assert set(view) <= {"run_id", "state", "required_action", "error", *tools.AGENT_FIELDS}
+    assert set(view) <= {
+        "run_id",
+        "state",
+        "required_action",
+        "error",
+        *tools.AGENT_FIELDS,
+        "queued_at",
+        "queue_expires_at",
+        "started_at",
+        "queue_duration_ms",
+    }
 
 
 def test_how_the_gui_was_driven_stays_in_the_run_directory() -> None:

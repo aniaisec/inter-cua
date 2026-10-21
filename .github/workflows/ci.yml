@@ -175,6 +175,7 @@ jobs:
           tests/unit/test_desktop_conditions.py
           tests/unit/test_persistence.py tests/unit/test_persistence_service.py
           tests/unit/test_invocation_ownership.py
+          tests/unit/test_admission.py
           tests/unit/test_example_clients.py tests/unit/test_example_processes.py
           --junitxml=artifacts/windows-unit.xml
       - run: python -m playwright install chromium
