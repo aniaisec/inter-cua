@@ -13,6 +13,7 @@ from playwright.sync_api import Page
 
 from cua.benchmark.environment import free_port
 from cua.demo.runner import server
+from cua.evidence.operator import IDENTITY, KEY_ENV, configure
 from examples._session import Session
 from examples._support import ExampleError, check_subset, require
 
@@ -20,12 +21,15 @@ from examples._support import ExampleError, check_subset, require
 def run(s: Session, stack: ExitStack) -> dict[str, Any]:
     port = free_port()
     console = f"http://127.0.0.1:{port}"
+    configure(s.work, s.env)
+    auth = (IDENTITY, s.env[KEY_ENV])
     stack.enter_context(
         server(
             ["cua.cli", "--root", str(s.work), "operator", "--port", str(port)],
             console + "/api/requests",
             s.cwd,
             s.env,
+            auth=auth,
         )
     )
     first = s.cli(
@@ -45,10 +49,10 @@ def run(s: Session, stack: ExitStack) -> dict[str, Any]:
     run_dir = Path(first["evidence"]["run_dir"])
     log = (run_dir / "log.jsonl").read_bytes()
     request_id = first["request_id"]
-    with httpx.Client(base_url=console, timeout=30) as http:
-        http.post(
-            f"/api/requests/{request_id}/take_control", json={"by": "example-operator (scripted)"}
-        ).raise_for_status()
+    with httpx.Client(
+        base_url=console, timeout=30, auth=auth, headers={"X-Cua-Operator-Request": "1"}
+    ) as http:
+        http.post(f"/api/requests/{request_id}/take_control", json={}).raise_for_status()
         time.sleep(0.3)
         require(
             (run_dir / "log.jsonl").read_bytes() == log, "automation acted while a person held it"
@@ -62,8 +66,10 @@ def run(s: Session, stack: ExitStack) -> dict[str, Any]:
 
     from cua.escalation.capture import find_page
 
-    with httpx.Client(base_url=console, timeout=30) as http:
-        request = http.get(f"/api/requests/{request_id}").json()["request"]
+    with httpx.Client(
+        base_url=console, timeout=30, auth=auth, headers={"X-Cua-Operator-Request": "1"}
+    ) as http:
+        request = http.get(f"/api/requests/{request_id}/session").json()
         with sync_playwright() as pw:
             browser = pw.chromium.connect_over_cdp(request["cdp_url"])
             try:
@@ -74,9 +80,7 @@ def run(s: Session, stack: ExitStack) -> dict[str, Any]:
                 page.wait_for_timeout(500)
             finally:
                 browser.close()
-        http.post(
-            f"/api/requests/{request_id}/resume", json={"by": "example-operator (scripted)"}
-        ).raise_for_status()
+        http.post(f"/api/requests/{request_id}/resume", json={}).raise_for_status()
     s.record(
         ["operator", "take control; Show item details; hand back (scripted)"],
         0,

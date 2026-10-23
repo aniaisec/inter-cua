@@ -972,6 +972,15 @@ def _prepare_resume(
             "the run's own process is still waiting on this request; hand back on the "
             "operator console instead"
         )
+    if record.state == "HUMAN_IN_CONTROL":
+        raise InvocationError(
+            "an operator holds this intervention; hand back on the authenticated console "
+            "before resuming"
+        )
+    if queue.request(entry).expires_at <= utc_now():
+        raise InvocationError(
+            "the intervention has expired; preserve its evidence for reconciliation"
+        )
 
     try:
         loaded = open_capability(Path(ctx.capability_path))

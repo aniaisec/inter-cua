@@ -25,12 +25,20 @@ from ulid import ULID
 
 from cua.benchmark.environment import free_port
 from cua.evidence.build import BuildError, Call, Person, click_find, expect
+from cua.evidence.operator import IDENTITY, KEY_ENV, configure
 from cua.initialize import initialize
 from cua.project import ProjectContext
 
 
 @contextmanager
-def server(args: list[str], url: str, cwd: Path, env: dict[str, str]) -> Iterator[None]:
+def server(
+    args: list[str],
+    url: str,
+    cwd: Path,
+    env: dict[str, str],
+    *,
+    auth: tuple[str, str] | None = None,
+) -> Iterator[None]:
     proc = subprocess.Popen(
         [sys.executable, "-m", *args],
         cwd=cwd,
@@ -44,7 +52,7 @@ def server(args: list[str], url: str, cwd: Path, env: dict[str, str]) -> Iterato
             if proc.poll() is not None:
                 raise BuildError("demo server exited during startup")
             try:
-                if httpx.get(url, timeout=1).status_code == 200:
+                if httpx.get(url, timeout=1, auth=auth).status_code == 200:
                     break
             except httpx.TransportError:
                 pass
@@ -105,6 +113,7 @@ def prepare(
         "MOCKAPP_OPERATOR_PASSWORD": "operator",
         "CUA_DEMO_SIGNING_KEY": secrets.token_hex(32),
     }
+    configure(work, env)
     return work, env
 
 
@@ -251,7 +260,12 @@ class Demo:
         self.stage(
             "Repeated replay", f"{repetitions} independent successful replays; zero model calls"
         )
-        seen = {v["request"]["id"] for v in httpx.get(f"{self.console}/api/requests").json()}
+        seen = {
+            v["request"]["id"]
+            for v in httpx.get(
+                f"{self.console}/api/requests", auth=(IDENTITY, self.env[KEY_ENV])
+            ).json()
+        }
         drift = self.replay(
             "drift",
             cap,
@@ -266,7 +280,12 @@ class Demo:
         expect(drift, 3, kind="escalated", reason="STUCK", step_id="search.submit")
         self.stage("Drift", "Search renamed Find; replay escalated at search.submit")
         person = Person(
-            self.console, seen=seen, decide="resume", act=click_find, why="pressed Find"
+            self.console,
+            key=self.env[KEY_ENV],
+            seen=seen,
+            decide="resume",
+            act=click_find,
+            why="pressed Find",
         )
         person.start()
         person.finish()
@@ -355,12 +374,16 @@ class Demo:
     def abort_pending(self) -> None:
         """Close only this demo's orphaned handoffs before stopping its console."""
         try:
-            views = httpx.get(f"{self.console}/api/requests", timeout=5).json()
+            views = httpx.get(
+                f"{self.console}/api/requests", timeout=5, auth=(IDENTITY, self.env[KEY_ENV])
+            ).json()
             for v in views:
                 if v["state"] in ("PAUSED", "HUMAN_IN_CONTROL", "RESUMING"):
                     r = httpx.post(
                         f"{self.console}/api/requests/{v['request']['id']}/abort",
-                        json={"by": "demo-cleanup", "why": "demo ended"},
+                        json={"why": "demo ended"},
+                        auth=(IDENTITY, self.env[KEY_ENV]),
+                        headers={"X-Cua-Operator-Request": "1"},
                         timeout=30,
                     )
                     r.raise_for_status()
@@ -407,6 +430,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 console + "/api/requests",
                 work,
                 env,
+                auth=(IDENTITY, env[KEY_ENV]),
             ),
         ):
             try:

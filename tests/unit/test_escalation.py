@@ -58,6 +58,7 @@ from cua.replay.waits import PausableClock
 from cua.secrets.resolver import Credential
 from cua.surface.locators import RoleName
 from cua.surface.protocol import Click, Observation, SessionHandle, Viewport
+from tests.operator_support import OPERATOR_KEY, operator_gate
 from tests.unit import screens
 from tests.unit.fakes import FakeSurface
 from tests.unit.test_discovery_loop import CREDENTIAL, GOAL, framed
@@ -582,7 +583,9 @@ def test_only_browser_actions_under_the_request_are_counted(tmp_path: Path) -> N
 def test_the_console_lists_requests_and_records_every_decision_by_name(tmp_path: Path) -> None:
     ch = channel(tmp_path)
     ticket = ch.open(REQUEST)
-    client = TestClient(create_app(tmp_path / "runs"))
+    client = TestClient(create_app(tmp_path / "runs", tenant="local", gate=operator_gate(tmp_path)))
+    client.auth = ("ann", OPERATOR_KEY)
+    client.headers["X-Cua-Operator-Request"] = "1"
 
     listed = client.get("/api/requests").json()
     assert [v["request"]["id"] for v in listed] == [ticket.request_id]
@@ -591,11 +594,11 @@ def test_the_console_lists_requests_and_records_every_decision_by_name(tmp_path:
     assert "Approve action" in client.get(f"/requests/{ticket.request_id}").text
 
     nameless = client.post(f"/api/requests/{ticket.request_id}/approve", json={"by": " "})
-    assert nameless.status_code == 400
-    unoffered = client.post(f"/api/requests/{ticket.request_id}/retry_step", json={"by": "ann"})
+    assert nameless.status_code == 422
+    unoffered = client.post(f"/api/requests/{ticket.request_id}/retry_step", json={})
     assert unoffered.status_code == 409
 
-    approved = client.post(f"/api/requests/{ticket.request_id}/approve", json={"by": "ann"})
+    approved = client.post(f"/api/requests/{ticket.request_id}/approve", json={})
     assert approved.status_code == 200, approved.text
     assert approved.json()["state"] == "RESUMING"
     assert ch.wait(ticket) == HandBack(by="ann", approved=True)
@@ -607,7 +610,7 @@ def test_the_console_lists_requests_and_records_every_decision_by_name(tmp_path:
     recorded = (ch.log.dir / HUMAN_ACTIONS_FILE).read_text()
     assert '"source": "console"' in recorded and '"action": "approve"' in recorded
 
-    again = client.post(f"/api/requests/{ticket.request_id}/abort", json={"by": "ann"})
+    again = client.post(f"/api/requests/{ticket.request_id}/abort", json={})
     assert again.status_code == 409  # handed back already
 
 

@@ -309,6 +309,12 @@ def _add_handoff_commands(sub: argparse._SubParsersAction[argparse.ArgumentParse
     )
     o.add_argument("--host", default="127.0.0.1")
     o.add_argument("--port", type=int, default=8100)
+    o.add_argument(
+        "--operator-access",
+        type=Path,
+        default=Path("operator/access.yaml"),
+        help="Operator identities and tenant roles (required; no anonymous mode)",
+    )
     o.add_argument("--runs-dir", type=Path, default=Path("evidence/runs"))
     o.add_argument(
         "--tenant",
@@ -951,6 +957,7 @@ def _resume(args: argparse.Namespace) -> int:
 def _operator(args: argparse.Namespace) -> int:
     import uvicorn
 
+    from cua.escalation.access import OperatorGate
     from cua.escalation.operator_app import create_app
     from cua.policy.allowlist import load_policy
     from cua.tenant import load_tenant
@@ -958,6 +965,11 @@ def _operator(args: argparse.Namespace) -> int:
     try:
         tenant = load_tenant(args.tenant, project=args.project)
         policy = load_policy(args.policy or tenant.policy_file, tenant)
+        gate = OperatorGate.load(
+            args.operator_access, root=args.project.root, environ=args.project.environ
+        )
+        if not any(tenant.id in operator.tenants for operator in gate.config.operators.values()):
+            raise ValueError("operator access config has no grant for the selected tenant")
     except (OSError, ValueError) as exc:
         print(f"cua operator: {exc}", file=sys.stderr)
         return EX_USAGE
@@ -967,7 +979,7 @@ def _operator(args: argparse.Namespace) -> int:
         file=sys.stderr,
     )
     uvicorn.run(
-        create_app(args.runs_dir, policy=policy, tenant=tenant.id),
+        create_app(args.runs_dir, policy=policy, tenant=tenant.id, gate=gate),
         host=args.host,
         port=args.port,
         log_level="warning",

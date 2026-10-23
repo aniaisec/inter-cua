@@ -15,6 +15,7 @@ Start with the [README first-run sequence](../README.md) and [getting started](g
 | [Troubleshooting](troubleshooting.md) | Failures and actionable diagnostics |
 | [Architecture](architecture.md) | Modules, invariants, registry and workflows |
 | [Operations](operations.md) | Service, consent, handoff and retention limits |
+| [Deployment](deployment.md) | Operator identities/roles, TLS, assignment, supervision and recovery |
 | [Extending](extending.md) | Families, adapters, providers and recoverers |
 | [Testing](testing.md) / [CI](CI.md) | Regression coverage and required gates |
 | [Contributing](../CONTRIBUTING.md) | Checkout setup, checks by change type and review expectations |

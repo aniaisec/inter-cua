@@ -23,7 +23,7 @@ The command initializes an isolated inventory project, discovers `item_lookup`, 
 
 Success exits 0 and writes `summary.json`; any violated assertion exits nonzero. Inspect `commands.json` for the actual CLI/client calls and `demonstration.cast` for a text terminal recording of review, results and evidence paths. Replay evidence is under `project with spaces/evidence/runs/`. Discovery can have model-call records from the scripted provider; replay has none.
 
-The operator interaction is explicitly scripted for reproducible tests. The runner uses the ordinary console endpoints to take control, changes the live page via the published CDP session, and hands it back. The hand-back must hold at `cp.done`, and no completed lookup step is replayed. `demonstration.cast`, `commands.json`, the masked intervention screenshot, human-action records and replay evidence form the short recording; the text remains usable without a video player.
+The operator interaction is explicitly scripted for reproducible tests. The runner creates a disposable authenticated operator, uses the ordinary console endpoints to take control, obtains private local session metadata as the assigned operator, changes the live page, and hands it back. The hand-back must hold at `cp.done`, and no completed lookup step is replayed. `demonstration.cast`, `commands.json`, the masked intervention screenshot, human-action records and replay evidence form the short recording; the text remains usable without a video player. For interactive use, configure [operator identities and tenant roles](../../docs/deployment.md).
 
 [Recorded demonstration](demonstration.cast): a 23-second asciicast v2 recording
 from the live October 9, 2026 scenario. It includes review, escalation, the scripted

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime
 from itertools import pairwise
 from pathlib import Path
 from typing import Literal
@@ -109,6 +110,8 @@ class ControlRecord(BaseModel):
     seq: int = 0
     ended: str | None = None
     """How the run ended (its result kind), once it has."""
+    assignee: str | None = None
+    """Verified operator owning the current human-control interval."""
 
 
 class _Transition(BaseModel):
@@ -119,6 +122,7 @@ class _Transition(BaseModel):
     holder: Holder
     by: str
     request_id: str | None
+    assignee: str | None = None
 
 
 class ControlStore:
@@ -173,6 +177,7 @@ class ControlStore:
                 (latest.seq != record.seq and not legacy_end)
                 or latest.to != record.state
                 or latest.holder != record.lease.holder
+                or latest.assignee != record.assignee
             ):
                 raise corrupt(self.path)
             return record
@@ -189,11 +194,21 @@ class ControlStore:
         expect_request: str | None = None,
         decision: OperatorDecision | None = None,
         note: str = "",
+        require_assignee: bool = False,
+        expires_at: str | None = None,
     ) -> ControlRecord:
         """Move to ``to``, or raise. ``expect_request``: the request the caller
         is answering; an answer to an older one is ``StaleRequest``."""
         with self._locked():
             current = self.read()
+            if expires_at is not None and current.ended not in (None, "escalated"):
+                raise IllegalTransition("the run has already ended")
+            if expires_at is not None and datetime.fromisoformat(
+                expires_at
+            ) <= datetime.fromisoformat(utc_now()):
+                raise IllegalTransition("the intervention has expired")
+            if require_assignee and current.state == "HUMAN_IN_CONTROL" and current.assignee != by:
+                raise IllegalTransition("the intervention is assigned to another operator")
             self._complete_legacy_end(current)
             if expect_request is not None and current.request_id != expect_request:
                 raise StaleRequest(
@@ -219,6 +234,9 @@ class ControlStore:
                     if decision is not None
                     else (None if new_request != current.request_id else current.decision),
                     "seq": current.seq + 1,
+                    "assignee": by
+                    if to == "HUMAN_IN_CONTROL"
+                    else (current.assignee if to in ("RESUMING", "ABORTED") else None),
                 }
             )
             self._write(record)
@@ -265,6 +283,7 @@ class ControlStore:
             "holder": record.lease.holder,
             "by": by,
             "request_id": record.request_id,
+            "assignee": record.assignee,
         }
         if decision is not None:
             line["decision"] = decision.model_dump(exclude_defaults=True)

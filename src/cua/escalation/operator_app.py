@@ -29,9 +29,9 @@ only: another tenant's request, its screenshot and its decisions are not
 found here, and scrubbing uses this tenant's policy, which knows this
 tenant's secrets and nobody else's.
 
-No authentication: it binds to localhost, and anyone who can reach it can
-drive the session. A remote console needs auth in front of this and of the
-browser's debugging port; that is out of scope here and said so.
+Every HTTP surface requires an explicit operator identity with a tenant grant.
+The browser uses HTTP Basic behind TLS, with CSRF tokens on action forms.
+CDP remains private to the host and only the assigned operator can inspect it.
 """
 
 from __future__ import annotations
@@ -42,13 +42,14 @@ import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from urllib.parse import quote
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict
 
+from cua.escalation.access import OperatorGate, Principal
 from cua.escalation.capture import CaptureError, CaptureSession
 from cua.escalation.channel import HUMAN_ACTIONS_FILE, count_human_actions, waiter_alive
 from cua.escalation.controller import (
@@ -92,6 +93,7 @@ class View(BaseModel):
     decision: OperatorDecision | None
     ended: str | None
     run_dir: str
+    assigned_to: str | None = None
 
 
 class Console:
@@ -148,6 +150,7 @@ class Console:
             decision=record.decision if current else None,
             ended=record.ended,
             run_dir=run_dir.as_posix(),
+            assigned_to=record.assignee if current else None,
         )
 
     def screenshot(self, request_id: str) -> Path:
@@ -187,7 +190,11 @@ class Console:
         try:
             if action == "take_control":
                 control.transition(
-                    "HUMAN_IN_CONTROL", by=by, expect_request=request_id, note="took control"
+                    "HUMAN_IN_CONTROL",
+                    by=by,
+                    expect_request=request_id,
+                    note="took control",
+                    expires_at=request.expires_at,
                 )
                 self._record(run_dir, request_id, by=by, action=action)
                 self._start_capture(request, run_dir)
@@ -198,6 +205,8 @@ class Console:
                     expect_request=request_id,
                     decision=OperatorDecision(kind="abort", by=by, why=self.redactor.text(why)),
                     note="aborted from the console",
+                    require_assignee=True,
+                    expires_at=request.expires_at,
                 )
                 self._stop_capture(request_id)
                 self._record(run_dir, request_id, by=by, action=action, why=why)
@@ -209,6 +218,7 @@ class Console:
                         by=by,
                         expect_request=request_id,
                         note=f"{action} from the console",
+                        expires_at=request.expires_at,
                     )
                 control.transition(
                     "RESUMING",
@@ -222,6 +232,8 @@ class Console:
                         approved=action == "approve",
                     ),
                     note=f"{action} from the console",
+                    require_assignee=True,
+                    expires_at=request.expires_at,
                 )
                 self._stop_capture(request_id)
                 self._record(run_dir, request_id, by=by, action=action, resume_at=resume_at)
@@ -261,8 +273,12 @@ class Console:
     # -- helpers ---------------------------------------------------------------
 
     def _start_capture(self, request: InterventionRequest, run_dir: Path) -> None:
+        actor = ControlStore(run_dir).read().assignee
+
         def sink(record: dict[str, Any]) -> None:
-            self._append(run_dir, {"request_id": request.id, "source": "browser", **record})
+            self._append(
+                run_dir, {**record, "request_id": request.id, "source": "browser", "by": actor}
+            )
 
         capture = CaptureSession(cdp_url=request.cdp_url, target_id=request.target_id, sink=sink)
         try:
@@ -322,13 +338,12 @@ def _status(record: ControlRecord, current: bool) -> str:
 class Decide(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    by: str
     resume_at: str | None = None
     why: str = ""
 
 
 def create_app(
-    runs_dir: Path, *, policy: Policy | None = None, tenant: str | None = None
+    runs_dir: Path, *, gate: OperatorGate, tenant: str, policy: Policy | None = None
 ) -> FastAPI:
     console = Console(runs_dir, policy=policy, tenant=tenant)
 
@@ -340,6 +355,55 @@ def create_app(
     app = FastAPI(title="cua operator console", lifespan=lifespan)
     app.state.console = console
 
+    @app.middleware("http")
+    async def authenticate(request: Request, call_next: Any) -> Any:
+        principal = gate.authenticate(request.headers.get("authorization", ""), tenant)
+        if principal is None:
+            return JSONResponse(
+                {"error": "operator authentication required"},
+                status_code=401,
+                headers={
+                    "WWW-Authenticate": 'Basic realm="cua operator", charset="UTF-8"',
+                    "Cache-Control": "no-store",
+                },
+            )
+        request.state.operator = principal
+        # Basic credentials are ambient browser authority: reject cross-site writes.
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            origin = request.headers.get("origin")
+            expected_origin = str(request.base_url).rstrip("/")
+            if request.headers.get("sec-fetch-site") == "cross-site" or (
+                origin is not None and origin != expected_origin
+            ):
+                return JSONResponse({"error": "cross-origin action refused"}, status_code=403)
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        # Preserve same-origin form Origin headers while withholding cross-site URLs.
+        response.headers["Referrer-Policy"] = "same-origin"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; style-src 'unsafe-inline'; "
+            "frame-ancestors 'none'; form-action 'self'"
+        )
+        return response
+
+    def principal(request: Request) -> Principal:
+        return cast(Principal, request.state.operator)
+
+    def authorize(request: Request, action: str) -> Principal:
+        actor = principal(request)
+        if not actor.permits("operate") or (action == "approve" and not actor.permits("approve")):
+            raise ConsoleError(403, "operator role does not permit this action")
+        return actor
+
+    def public(view: View) -> dict[str, Any]:
+        data = view.model_dump(mode="json")
+        data.pop("run_dir")
+        for key in ("cdp_url", "devtools_url", "target_id", "page_url"):
+            data["request"].pop(key, None)
+        return data
+
     @app.exception_handler(ConsoleError)
     async def console_error(request: Request, exc: ConsoleError) -> JSONResponse:
         return JSONResponse({"error": str(exc)}, status_code=exc.status)
@@ -350,34 +414,80 @@ def create_app(
 
     # -- JSON API (the scripted operator in the tests uses this) --------------
 
+    @app.get("/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/ready")
+    def ready() -> JSONResponse:
+        from cua.replay.ownership import SQLiteInvocationStore
+
+        try:
+            if not runs_dir.is_dir():
+                raise ValueError("runs directory unavailable")
+            console.views()
+            if (runs_dir / ".invocations").exists():
+                SQLiteInvocationStore.existing(runs_dir).records()
+        except (OSError, ValueError):
+            return JSONResponse({"status": "not_ready"}, status_code=503)
+        return JSONResponse({"status": "ready"})
+
     @app.get("/api/requests")
     def api_list() -> list[dict[str, Any]]:
-        console.sweep()
-        return [v.model_dump(mode="json") for v in console.views()]
+        return [public(v) for v in console.views()]
 
     @app.get("/api/requests/{request_id}")
     def api_get(request_id: str) -> dict[str, Any]:
-        return console.view(request_id).model_dump(mode="json")
+        return public(console.view(request_id))
+
+    @app.get("/api/requests/{request_id}/history")
+    def history(request_id: str) -> list[dict[str, object]]:
+        view = console.view(request_id)
+        return ControlStore(Path(view.run_dir)).transitions()
+
+    @app.get("/api/requests/{request_id}/session")
+    def session(request_id: str, request: Request) -> dict[str, Any]:
+        actor = authorize(request, "take_control")
+        view = console.view(request_id)
+        if (
+            view.state != "HUMAN_IN_CONTROL"
+            or view.assigned_to != actor.name
+            or view.request.expires_at <= utc_now()
+        ):
+            raise ConsoleError(409, "take control before inspecting the private local session")
+        return {"cdp_url": view.request.cdp_url, "target_id": view.request.target_id}
 
     @app.post("/api/requests/{request_id}/{action}")
-    def api_act(request_id: str, action: str, body: Decide) -> dict[str, Any]:
-        view = console.act(request_id, action, by=body.by, resume_at=body.resume_at, why=body.why)
-        return view.model_dump(mode="json")
+    def api_act(request_id: str, action: str, body: Decide, request: Request) -> dict[str, Any]:
+        actor = authorize(request, action)
+        if request.headers.get("x-cua-operator-request") != "1":
+            raise ConsoleError(403, "JSON actions require X-Cua-Operator-Request: 1")
+        view = console.act(
+            request_id, action, by=actor.name, resume_at=body.resume_at, why=body.why
+        )
+        return public(view)
 
     # -- pages -----------------------------------------------------------------
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
-        console.sweep()
         return _page("Intervention requests", _list_html(console.views()), refresh=3)
 
     @app.get("/requests/{request_id}", response_class=HTMLResponse)
-    def detail(request_id: str, said: str = "") -> str:
+    def detail(request_id: str, request: Request, said: str = "") -> str:
         try:
             view = console.view(request_id)
         except ConsoleError as exc:
             raise HTTPException(exc.status, str(exc)) from None
-        return _page(f"Request {request_id}", _detail_html(view, said))
+        actor = principal(request)
+        tokens: dict[str, str] = {
+            action: gate.csrf(actor, request_id, action) for action in ACTIONS
+        }
+        history = ControlStore(Path(view.run_dir)).transitions()
+        return _page(
+            f"Request {request_id}",
+            _detail_html(view, said, actor=actor, tokens=tokens) + _history_html(view, history),
+        )
 
     @app.get("/requests/{request_id}/screenshot")
     def screenshot(request_id: str) -> FileResponse:
@@ -390,12 +500,16 @@ def create_app(
     def act(
         request_id: str,
         action: str,
-        by: str = Form(default=""),
+        request: Request,
+        csrf: str = Form(default=""),
         resume_at: str = Form(default=""),
         why: str = Form(default=""),
     ) -> RedirectResponse:
+        actor = authorize(request, action)
+        if not gate.check_csrf(csrf, actor, request_id, action):
+            raise ConsoleError(403, "invalid or expired form token; reload the request page")
         try:
-            console.act(request_id, action, by=by, resume_at=resume_at, why=why)
+            console.act(request_id, action, by=actor.name, resume_at=resume_at, why=why)
             said = f"{action.replace('_', ' ')}: done"
         except ConsoleError as exc:
             said = f"refused: {exc}"
@@ -428,19 +542,6 @@ input,select{padding:5px;border:1px solid #9aa3b2;border-radius:4px}
 .said{padding:8px 12px;border-radius:4px;background:#eef0f4;margin:8px 0}
 """
 
-_NAME_JS = """
-<script>
-(function(){
-  var k='cua-operator-name', v='';
-  try{v=localStorage.getItem(k)||''}catch(e){}
-  document.querySelectorAll('input[name=by]').forEach(function(i){
-    if(!i.value)i.value=v;
-    i.addEventListener('change',function(){try{localStorage.setItem(k,i.value)}catch(e){}});
-  });
-})();
-</script>
-"""
-
 
 def _page(title: str, body: str, *, refresh: int | None = None) -> str:
     meta = f'<meta http-equiv="refresh" content="{refresh}">' if refresh else ""
@@ -448,7 +549,7 @@ def _page(title: str, body: str, *, refresh: int | None = None) -> str:
         f'<!doctype html><html><head><meta charset="utf-8">{meta}'
         f"<title>{_e(title)}</title><style>{_CSS}</style></head><body>"
         '<header><a href="/"><b>cua</b> operator console</a></header>'
-        f"<main>{body}</main>{_NAME_JS}</body></html>"
+        f"<main>{body}</main></body></html>"
     )
 
 
@@ -473,7 +574,7 @@ def _list_html(views: list[View]) -> str:
     )
 
 
-def _detail_html(v: View, said: str) -> str:
+def _detail_html(v: View, said: str, *, actor: Principal, tokens: dict[str, str]) -> str:
     r = v.request
     parts = [
         f'<p><a href="/">&larr; all requests</a></p><h2>{_e(r.capability)}'
@@ -493,10 +594,17 @@ def _detail_html(v: View, said: str) -> str:
         f"{v.human_actions}</p>"
         f"<p>Run <code>{_e(r.run_id)}</code> &middot; tenant {_e(r.tenant)} &middot; "
         f"opened {_e(r.created_at)}, expires {_e(r.expires_at)}</p>"
+        f"<p>Signed in as {_e(actor.name)}; assigned to {_e(v.assigned_to or '-')}</p>"
         "</div>"
     )
-    if v.current and v.state in ("PAUSED", "HUMAN_IN_CONTROL"):
-        parts.append(_actions_html(v))
+    if (
+        v.current
+        and v.state in ("PAUSED", "HUMAN_IN_CONTROL")
+        and actor.permits("operate")
+        and v.assigned_to in (None, actor.name)
+        and r.expires_at > utc_now()
+    ):
+        parts.append(_actions_html(v, actor=actor, tokens=tokens))
     elif v.current and v.state == "RESUMING" and not v.waiting and v.ended == "escalated":
         parts.append(
             '<div class="card">Handed back. No process is waiting on this run: its caller '
@@ -505,15 +613,8 @@ def _detail_html(v: View, said: str) -> str:
         )
     parts.append(
         '<div class="card"><h3>The live session</h3>'
-        f"<p>DevTools endpoint: <code>{_e(r.cdp_url)}</code>"
-        f"{f' &middot; page <code>{_e(r.target_id)}</code>' if r.target_id else ''}</p>"
-        + (
-            f'<p><a href="{_e(r.devtools_url)}" target="_blank">Open the page in DevTools</a> '
-            "(for a headless session: shows the page and takes clicks and keys)</p>"
-            if r.devtools_url
-            else ""
-        )
-        + "</div>"
+        "<p>Work in the headed browser on this host. DevTools stays private; "
+        "only the assigned operator can inspect local session metadata.</p></div>"
     )
     if r.masked_screenshot:
         parts.append(
@@ -526,41 +627,63 @@ def _detail_html(v: View, said: str) -> str:
     return "".join(parts)
 
 
-def _actions_html(v: View) -> str:
+def _history_html(view: View, rows: list[dict[str, object]]) -> str:
+    entries = "".join(
+        "<tr>"
+        + "".join(
+            f"<td>{_e(row.get(key) or '-')}</td>"
+            for key in ("ts", "from", "to", "by", "assignee", "note")
+        )
+        + "</tr>"
+        for row in rows[-100:]
+    )
+    return (
+        '<div class="card"><h3>Audited transition history</h3>'
+        "<p>Latest 100 transitions. "
+        f'<a href="/api/requests/{_e(view.request.id)}/history">Full history as JSON</a></p>'
+        "<table><tr><th>Time</th><th>From</th><th>To</th><th>Actor</th>"
+        f"<th>Assigned to</th><th>Note</th></tr>{entries}</table></div>"
+    )
+
+
+def _actions_html(v: View, *, actor: Principal, tokens: dict[str, str]) -> str:
     r = v.request
     rid = _e(r.id)
-    name = '<input name="by" placeholder="your name" required size="14">'
+
+    def token(action: str) -> str:
+        return f'<input type="hidden" name="csrf" value="{_e(tokens[action])}">'
+
     forms = []
     if v.state == "PAUSED":
         forms.append(
-            f'<form method="post" action="/requests/{rid}/take_control">{name}'
+            f'<form method="post" action="/requests/{rid}/take_control">{token("take_control")}'
             '<button class="primary">Take control</button></form>'
         )
     choices = "".join(
         f'<option value="{_e(c.step_id)}">{_e(c.label)}</option>' for c in r.resume_points
     )
     forms.append(
-        f'<form method="post" action="/requests/{rid}/resume">{name} '
+        f'<form method="post" action="/requests/{rid}/resume">{token("resume")} '
         '<select name="resume_at"><option value="">wherever the screen shows</option>'
         f"{choices}</select> <button>Resume</button></form>"
     )
     if "retry_step" in r.options:
         forms.append(
-            f'<form method="post" action="/requests/{rid}/retry_step">{name}'
+            f'<form method="post" action="/requests/{rid}/retry_step">{token("retry_step")}'
             "<button>Retry step</button></form>"
         )
-    if "approve" in r.options:
+    if "approve" in r.options and actor.permits("approve"):
         forms.append(
-            f'<form method="post" action="/requests/{rid}/approve">{name}'
+            f'<form method="post" action="/requests/{rid}/approve">{token("approve")}'
             '<button class="primary">Approve action</button></form>'
         )
     forms.append(
-        f'<form method="post" action="/requests/{rid}/abort">{name} '
+        f'<form method="post" action="/requests/{rid}/abort">{token("abort")} '
         '<input name="why" placeholder="why (optional)" size="18"> '
         '<button class="danger">Abort</button></form>'
     )
     hint = (
-        "<p>Take control, then work in the browser window (or the DevTools link below). "
+        "<p>Take control, then work in the browser window on this host. "
         "When you are done, <b>Resume</b>: the run checks the screen against its checkpoints "
         "and carries on from the newest one that holds.</p>"
     )
