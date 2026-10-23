@@ -161,6 +161,68 @@ class RunService:
         with self._lock:
             return len(self._running)
 
+    def metrics(self, caller: Caller) -> dict[str, int]:
+        """Aggregate only the caller's visible records; no keys or run labels."""
+        from cua.maintenance import safe_path
+
+        caller.require("read")
+        caller.require("operate")
+        counts = dict.fromkeys(
+            (
+                "queued",
+                "running",
+                "escalated",
+                "queue_time_ms",
+                "queue_samples",
+                "oldest_queue_ms",
+                "unknown_side_effects",
+                "storage_bytes",
+                "expired_sessions",
+            ),
+            0,
+        )
+        with self._lock:
+            for path in (self.root / "runs").glob("*.json"):
+                if not safe_path(self.settings.runs_dir, path):
+                    continue
+                record = read_model(path, ApiRun)
+                if (
+                    record.tenant != caller.tenant.id
+                    or record.client != caller.client_id
+                    or not caller.client.may_use(record.capability)
+                ):
+                    continue
+                if record.state in ("queued", "running", "escalated"):
+                    counts[record.state] += 1
+                if record.state == "queued" and record.queued_at:
+                    age = datetime.fromisoformat(utc_now()) - datetime.fromisoformat(
+                        record.queued_at
+                    )
+                    counts["oldest_queue_ms"] = max(
+                        counts["oldest_queue_ms"], max(0, int(age.total_seconds() * 1000))
+                    )
+                if record.queue_duration_ms is not None:
+                    counts["queue_time_ms"] += record.queue_duration_ms
+                    counts["queue_samples"] += 1
+                if record.result and record.result.get("side_effect") == "unknown":
+                    counts["unknown_side_effects"] += 1
+                run = self.settings.runs_dir / record.run_id
+                if safe_path(self.settings.runs_dir, run):
+                    if record.state == "escalated":
+                        from cua.escalation.requests import InterventionRequest
+
+                        for request in (run / "interventions").glob("*.json"):
+                            if safe_path(self.settings.runs_dir, request):
+                                intervention = read_model(request, InterventionRequest)
+                                if datetime.fromisoformat(
+                                    intervention.expires_at
+                                ) < datetime.fromisoformat(utc_now()):
+                                    counts["expired_sessions"] += 1
+                    for item in run.rglob("*"):
+                        if safe_path(self.settings.runs_dir, item) and item.is_file():
+                            counts["storage_bytes"] += item.stat().st_size
+        return counts
+
     def _admit(self) -> None:
         if not self._accepting:
             raise ApiError(503, "service_stopping", "service is shutting down", retry_after_s=1)

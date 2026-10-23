@@ -85,12 +85,59 @@ Reconcile such runs with application state before another write.
 `side_effect: unknown` also requires reconciliation; changing the key and retrying
 may commit twice. Preserve the run directory, journal and original key.
 
-Manage retention manually. Do not delete evidence or caches for active handoffs,
-unreconciled writes or keys callers may retry. Stop services with Ctrl+C and Abort
-pending interventions before removing records. Inspect remaining application
-processes after interruptions; there is no general retention or cleanup guarantee.
-Preserve signing keys and registry lifecycle files; backups must keep artifacts
-and approval records together.
+### Maintenance (PR15 first increment)
+
+Stop local services and replay writers before maintenance. Both commands print
+JSON and default to a dry run, scoped to the selected tenant and project's runs
+directory. Explicit `--runs-dir` follows the usual invocation-directory rules.
+
+```text
+cua maintenance inspect --tenant local --retention-days 30
+cua maintenance cleanup --tenant local --retention-days 30
+cua maintenance cleanup --tenant local --retention-days 30 --apply
+```
+
+This increment removes only top-level PNGs in a completed replay's `screenshots`
+directory, after the result file has aged past the retention period (30 days by
+default). The persisted SQLite answer must match the evidence result. Cleanup
+rechecks ownership under the execution lock; busy owners are counted as failures.
+Symlinks and Windows junctions are refused. Repeated cleanup is safe.
+
+Run/result JSON, observations, logs, registry and capability provenance, legacy
+runs, discovery runs, all handoff-state runs, unresolved outcomes, idempotency
+answers, owner locks and spent consent remain intact. Evidence age never expires
+retry safety. `.maintenance.jsonl` records intent before each deletion and totals
+afterward. An interrupted cleanup may leave only an intent; rerun inspection to
+see remaining files. Reports include eligible/storage bytes, expired escalations,
+unknown effects and cleanup failures. Expiry is reported without changing answers.
+
+Browser termination and abandoned-profile removal remain pending: existing PID
+and profile metadata cannot establish process creation identity. Maintenance
+does not terminate processes or scan/delete temporary profile directories.
+Inspect these sessions manually; never kill a process merely because a saved PID
+matches. This increment does not complete PR15's session lifecycle acceptance gate.
+
+`GET /metrics` requires authenticated `read` and `operate` scopes and reports only
+the caller's client, tenant and allowed capabilities. It returns queued/running/
+escalated counts, queue-duration total/sample count, oldest queue age in ms,
+expired intervention count, storage bytes and unknown outcomes. Values are current
+persisted-record snapshots, not a background reconciliation scheduler; poll run
+status for authoritative recovery. There are no key, run-id or secret labels.
+Unauthenticated `/health` returns only status and version. Tenant-wide cleanup
+reports remain local CLI operations, separate from client-scoped HTTP metrics.
+
+For a consistent backup/export, stop every service, CLI, MCP and operator writer.
+Copy the **whole** runs directory, including hidden `.invocations`, its format
+marker, SQLite database and any journal/WAL/SHM files, owner locks, caches, spent
+consent, API/workflow records and maintenance audit. Copy the registry, capability
+artifacts, project/tenant/access configuration and mounted signing/credential
+secrets in the same stopped-writer window, keeping secrets private. Store these
+as one versioned snapshot; do not export just the database or screenshots.
+Restore into an isolated directory while writers remain stopped, restore secret
+mounts with their original access restrictions, and run `cua doctor` before
+starting one service. Do not combine an older authority with newer evidence or
+discard newer retry tombstones. Reconcile later activity before choosing a restore
+point; there is no supported online backup or downgrade export command.
 
 ## Atomic files and serialized updates
 

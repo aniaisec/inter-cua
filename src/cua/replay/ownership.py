@@ -108,7 +108,22 @@ class SQLiteInvocationStore:
     lock, with original JSON files preserved; seals and evidence are untouched.
     """
 
+    @classmethod
+    def existing(cls, root: Path) -> SQLiteInvocationStore:
+        """Open existing authority without initialization or marker/lock writes."""
+        store = object.__new__(cls)
+        store.root = root
+        store.dir = root / ".invocations"
+        store.path = store.dir / "invocations.sqlite3"
+        store._read_only = True
+        if read_json(store.dir / "format.json") != {"version": VERSION}:
+            raise corrupt(store.path)
+        with store._connect():
+            pass
+        return store
+
     def __init__(self, root: Path) -> None:
+        self._read_only = False
         self.root = root
         self.dir = root / ".invocations"
         self.path = self.dir / "invocations.sqlite3"
@@ -136,7 +151,10 @@ class SQLiteInvocationStore:
     def _connect(self) -> Iterator[sqlite3.Connection]:
         # mode=rw must not recreate a missing authority, even after __init__.
         try:
-            db = sqlite3.connect(self.path.resolve().as_uri() + "?mode=rw", uri=True, timeout=10)
+            mode = "ro" if self._read_only else "rw"
+            db = sqlite3.connect(
+                self.path.resolve().as_uri() + f"?mode={mode}", uri=True, timeout=10
+            )
             try:
                 db.execute("PRAGMA synchronous=FULL")
                 if db.execute("PRAGMA user_version").fetchone() != (VERSION,):
@@ -163,6 +181,24 @@ class SQLiteInvocationStore:
             if record.key_hash != identity:
                 raise ValueError("invocation scope mismatch")
             return record
+        except (ValueError, TypeError):
+            raise corrupt(self.path) from None
+
+    def records(self) -> list[OwnedInvocation]:
+        """Validated snapshot for local maintenance; never changes ownership."""
+        with self._connect() as db:
+            rows = db.execute("SELECT identity, record FROM invocations").fetchall()
+        try:
+            records = [OwnedInvocation.model_validate(_object(row[1])) for row in rows]
+            if any(
+                len(record.key_hash) != 64
+                or any(char not in "0123456789abcdef" for char in record.key_hash)
+                for record in records
+            ):
+                raise ValueError("invalid ownership identity")
+            if any(row[0] != record.key_hash for row, record in zip(rows, records, strict=True)):
+                raise ValueError("invocation scope mismatch")
+            return records
         except (ValueError, TypeError):
             raise corrupt(self.path) from None
 
