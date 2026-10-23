@@ -56,6 +56,10 @@ cua replay demo/member_savings_balance.json --input member_id=ten               
 terminal, then make the Search button read "Find", which the capability has
 never seen:
 
+First configure [operator identities and tenant roles](deployment.md#configure-an-operator).
+The console requires authentication, and records decisions as the signed-in
+operator. There is no anonymous console mode.
+
 ```bash
 cua operator                       # http://127.0.0.1:8100
 ```

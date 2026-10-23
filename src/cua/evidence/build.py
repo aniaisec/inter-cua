@@ -46,6 +46,7 @@ import httpx
 from playwright.sync_api import Page, sync_playwright
 
 from cua.escalation.capture import find_page
+from cua.evidence.operator import IDENTITY, KEY_ENV, configure
 
 EVIDENCE = Path("evidence")
 STAGING = EVIDENCE / "runs" / "_build"
@@ -90,7 +91,9 @@ def _port_open(host: str, port: int) -> bool:
 
 
 @contextmanager
-def _server(argv: list[str], ready_url: str, env: dict[str, str]) -> Iterator[None]:
+def _server(
+    argv: list[str], ready_url: str, env: dict[str, str], *, auth: tuple[str, str] | None = None
+) -> Iterator[None]:
     proc = subprocess.Popen(
         argv, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=Path.cwd()
     )
@@ -100,7 +103,7 @@ def _server(argv: list[str], ready_url: str, env: dict[str, str]) -> Iterator[No
             if proc.poll() is not None:
                 raise BuildError(f"{' '.join(argv[2:4])} exited during startup")
             try:
-                if httpx.get(ready_url, timeout=1.0).status_code == 200:
+                if httpx.get(ready_url, timeout=1.0, auth=auth).status_code == 200:
                     break
             except httpx.TransportError:
                 pass
@@ -155,6 +158,7 @@ class Person(threading.Thread):
         self,
         console: str,
         *,
+        key: str,
         seen: set[str],
         decide: str,
         act: Callable[[Page], None] | None = None,
@@ -163,6 +167,7 @@ class Person(threading.Thread):
     ) -> None:
         super().__init__(daemon=True)
         self.console = console
+        self.key = key
         self.seen = set(seen)
         self.decide = decide
         self.act = act
@@ -178,7 +183,12 @@ class Person(threading.Thread):
             self.error = exc
 
     def _run(self) -> None:
-        with httpx.Client(base_url=self.console, timeout=30) as http:
+        with httpx.Client(
+            base_url=self.console,
+            timeout=30,
+            auth=(IDENTITY, self.key),
+            headers={"X-Cua-Operator-Request": "1"},
+        ) as http:
             deadline = time.monotonic() + REQUEST_WAIT_S
             while True:
                 fresh = [
@@ -194,8 +204,9 @@ class Person(threading.Thread):
             self.request = fresh[0]["request"]
             rid = self.request["id"]
             if self.take_control:
-                _ok(http.post(f"/api/requests/{rid}/take_control", json={"by": PERSON}))
+                _ok(http.post(f"/api/requests/{rid}/take_control", json={}))
             if self.act is not None:
+                self.request.update(http.get(f"/api/requests/{rid}/session").json())
                 with sync_playwright() as pw:
                     browser = pw.chromium.connect_over_cdp(self.request["cdp_url"])
                     try:
@@ -206,7 +217,7 @@ class Person(threading.Thread):
                         page.wait_for_timeout(500)  # let the console's capture see it
                     finally:
                         browser.close()
-            body = {"by": PERSON, "why": self.why}
+            body = {"why": self.why}
             _ok(http.post(f"/api/requests/{rid}/{self.decide}", json=body))
 
     def finish(self) -> None:
@@ -301,7 +312,12 @@ class Build:
         return proc.stdout.strip()
 
     def seen(self) -> set[str]:
-        return {v["request"]["id"] for v in httpx.get(f"{self.console}/api/requests").json()}
+        return {
+            v["request"]["id"]
+            for v in httpx.get(
+                f"{self.console}/api/requests", auth=(IDENTITY, self.env[KEY_ENV])
+            ).json()
+        }
 
 
 def _inputs(*pairs: str) -> list[str]:
@@ -372,7 +388,9 @@ def replay_slow_confirm(b: Build) -> tuple[Path, list[Call]]:
 
 def replay_needs_approval(b: Build) -> tuple[Path, list[Call]]:
     """No token: the commit waits for a person, who approves on the console."""
-    person = Person(b.console, seen=b.seen(), decide="approve", take_control=False)
+    person = Person(
+        b.console, key=b.env[KEY_ENV], seen=b.seen(), decide="approve", take_control=False
+    )
     person.start()
     c = b.replay("replay", GOAL2, *_inputs(*GOAL2_INPUTS), "--handoff", "--handoff-wait", "120")
     person.finish()
@@ -394,7 +412,12 @@ def replay_escalation(b: Build) -> tuple[Path, list[Call]]:
     carries on from the checkpoint that holds."""
     token = b.token(GOAL2, GOAL2_INPUTS)
     person = Person(
-        b.console, seen=b.seen(), decide="resume", act=dismiss_notice, why="closed the notice"
+        b.console,
+        key=b.env[KEY_ENV],
+        seen=b.seen(),
+        decide="resume",
+        act=dismiss_notice,
+        why="closed the notice",
     )
     person.start()
     c = b.replay(
@@ -439,7 +462,14 @@ def replay_resume_after_human(b: Build) -> tuple[Path, list[Call]]:
         "0",
     )
     expect(first, 3, kind="escalated", reason="STUCK", step_id="search.submit")
-    person = Person(b.console, seen=seen, decide="resume", act=click_find, why="pressed Find")
+    person = Person(
+        b.console,
+        key=b.env[KEY_ENV],
+        seen=seen,
+        decide="resume",
+        act=click_find,
+        why="pressed Find",
+    )
     person.start()
     person.finish()
     token = str(first.result["resume_token"])
@@ -512,6 +542,7 @@ def build(names: Sequence[str]) -> int:
     if STAGING.exists():
         shutil.rmtree(STAGING)
     STAGING.mkdir(parents=True)
+    operator_access = configure(STAGING, env)
     out = STAGING / "out"
 
     console_port = _free_port()
@@ -520,10 +551,11 @@ def build(names: Sequence[str]) -> int:
     mock = [*py, "uvicorn", "mockapp.app:app", "--host", host, "--port", str(port)]
     operator = [*py, "cua.cli", "operator", "--port", str(console_port)]
     operator += ["--runs-dir", STAGING.as_posix()]
+    operator += ["--operator-access", str(operator_access)]
     b = Build(env=env, console=console, runs=STAGING)
     with (
         _server(mock, f"{base.scheme}://{host}:{port}/login", env),
-        _server(operator, f"{console}/api/requests", env),
+        _server(operator, f"{console}/api/requests", env, auth=(IDENTITY, env[KEY_ENV])),
     ):
         for name in names:
             print(f"evidence: {name} ...", file=sys.stderr, flush=True)

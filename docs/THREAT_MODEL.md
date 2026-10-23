@@ -124,7 +124,12 @@ attacks are real: the controls are what stop them.
   tokens are bearer secrets, so anything beyond localhost needs TLS in front
   of it. Keys do not expire: rotating one means replacing its file or
   variable and restarting the server. The operator console (`cua operator`)
-  is still unauthenticated and localhost-only, as it was.
+  requires separate verified identities and explicit tenant roles, with Basic
+  authentication behind TLS outside loopback. Browser forms use identity-bound
+  CSRF tokens; API actions require a custom header. Durable assignment prevents
+  competing operators from deciding the same held intervention. Local filesystem
+  access remains a trusted boundary, and CDP ports must remain private. See
+  [operator deployment](deployment.md).
 - **Attacks inside the allowed origin and paths.** If the application itself
   serves attacker-controlled script, it can send data back to its own origin
   (stored XSS, for example). A GET inside an allowed path that commits is

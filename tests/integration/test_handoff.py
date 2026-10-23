@@ -50,6 +50,7 @@ from tests.integration.test_replay import (
     goal2_inputs,
     no_secret_in,
 )
+from tests.operator_support import OPERATOR_KEY, operator_gate
 
 pytestmark = pytest.mark.browser
 
@@ -67,7 +68,10 @@ def console(tmp_path: Path) -> Iterator[str]:
     port = free_port()
     server = uvicorn.Server(
         uvicorn.Config(
-            create_app(tmp_path / "runs"), host="127.0.0.1", port=port, log_level="warning"
+            create_app(tmp_path / "runs", tenant="local", gate=operator_gate(tmp_path)),
+            host="127.0.0.1",
+            port=port,
+            log_level="warning",
         )
     )
     thread = threading.Thread(target=server.run, daemon=True)
@@ -76,7 +80,12 @@ def console(tmp_path: Path) -> Iterator[str]:
     deadline = time.monotonic() + 20
     while time.monotonic() < deadline:
         try:
-            if httpx.get(f"{url}/api/requests", timeout=1).status_code == 200:
+            if (
+                httpx.get(
+                    f"{url}/api/requests", timeout=1, auth=("pat", OPERATOR_KEY + "p")
+                ).status_code
+                == 200
+            ):
                 break
         except httpx.TransportError:
             time.sleep(0.05)
@@ -85,6 +94,33 @@ def console(tmp_path: Path) -> Iterator[str]:
     finally:
         server.should_exit = True
         thread.join(timeout=10)
+
+
+def test_browser_login_and_csrf_form_use_the_verified_operator(
+    console: str, tmp_path: Path, browser_session: BrowserSession
+) -> None:
+    from tests.unit.test_escalation import REQUEST, channel
+
+    ch = channel(tmp_path)
+    ticket = ch.open(REQUEST)
+    with browser_session.browser.new_context(
+        http_credentials={"username": "ann", "password": OPERATOR_KEY}
+    ) as context:
+        page = context.new_page()
+        response = page.goto(f"{console}/requests/{ticket.request_id}")
+        assert response is not None and response.status == 200
+        assert "Signed in as ann" in page.content()
+        assert page.locator('input[name="by"]').count() == 0
+        assert page.request.post(f"{console}/requests/{ticket.request_id}/approve").status == 403
+        with page.expect_response(lambda r: r.request.method == "POST") as submitted:
+            page.get_by_role("button", name="Approve action", exact=True).click()
+        assert submitted.value.status == 303, submitted.value.text()
+        page.wait_for_url(lambda url: "said=" in url)
+        assert "approve: done" in page.content()
+        assert context.cookies() == []
+    record = ch.control.read()
+    assert record.assignee == "ann" and record.decision is not None
+    assert record.decision.by == "ann" and record.decision.approved
 
 
 class Person(threading.Thread):
@@ -116,7 +152,12 @@ class Person(threading.Thread):
             self.error = exc
 
     def _run(self) -> None:
-        with httpx.Client(base_url=self.console, timeout=30) as http:
+        with httpx.Client(
+            base_url=self.console,
+            timeout=30,
+            auth=("pat", OPERATOR_KEY + "p"),
+            headers={"X-Cua-Operator-Request": "1"},
+        ) as http:
             deadline = time.monotonic() + REQUEST_TIMEOUT_S
             while True:
                 open_ = [v for v in http.get("/api/requests").json() if v["state"] == "PAUSED"]
@@ -127,10 +168,11 @@ class Person(threading.Thread):
             self.request = open_[0]["request"]
             rid = self.request["id"]
             if self.take_control:
-                taken = http.post(f"/api/requests/{rid}/take_control", json={"by": "pat"})
+                taken = http.post(f"/api/requests/{rid}/take_control", json={})
                 assert taken.status_code == 200, taken.text
                 assert taken.json()["holder"] == "human"
             if self.act is not None:
+                self.request.update(http.get(f"/api/requests/{rid}/session").json())
                 with sync_playwright() as pw:
                     browser = pw.chromium.connect_over_cdp(self.request["cdp_url"])
                     try:
@@ -140,9 +182,7 @@ class Person(threading.Thread):
                         page.wait_for_timeout(300)  # let the capture see the last event
                     finally:
                         browser.close()
-            decided = http.post(
-                f"/api/requests/{rid}/{self.decide}", json={"by": "pat", "why": self.why}
-            )
+            decided = http.post(f"/api/requests/{rid}/{self.decide}", json={"why": self.why})
             assert decided.status_code == 200, decided.text
 
     def finish(self) -> None:
@@ -273,7 +313,7 @@ def test_row09_a_renamed_button_escalates_with_a_masked_screenshot(
     assert shot.read_bytes().startswith(b"\x89PNG")
     assert 'button "Find"' in request["a11y_excerpt"]
     assert request["cdp_url"] and request["target_id"]
-    listed = httpx.get(f"{console}/api/requests").json()
+    listed = httpx.get(f"{console}/api/requests", auth=("pat", OPERATOR_KEY + "p")).json()
     assert [v["state"] for v in listed] == ["PAUSED"]
     no_secret_in(result.evidence.run_dir)
 
@@ -488,7 +528,7 @@ def test_row17_allow_escalation_false_aborts_without_asking(
     assert (result.code, result.escalation_reason) == ("ESCALATION_ABORTED", "UNRECOVERABLE")
     assert "APP_ERROR" in result.message
     assert not (h.run_dir(result) / "interventions").exists()
-    assert httpx.get(f"{console}/api/requests").json() == []
+    assert httpx.get(f"{console}/api/requests", auth=("pat", OPERATOR_KEY + "p")).json() == []
 
 
 def test_row18_the_person_aborts_a_server_error(h: HandoffHarness, console: str) -> None:

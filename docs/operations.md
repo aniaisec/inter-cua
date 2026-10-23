@@ -2,13 +2,14 @@
 
 The service is a local, single-host runtime backed by run directories. `cua serve`
 binds to loopback by default and uses access-file clients, tenants and scopes. See
-[HTTP](integrations.md#http). The operator console is trusted local tooling, not an
-authenticated internet-facing administration console. Keep keys, runtime files and
-CDP endpoints inside that trust boundary.
+[HTTP](integrations.md#http). The operator console requires separate operator
+identities and tenant roles. See [deployment and access setup](deployment.md).
+Keep keys, runtime files and CDP endpoints inside the single-host trust boundary.
 
 ## Start and operate
 
-For browser takeover, start `cua operator` at the root and use replay with
+For browser takeover, configure [operator access](deployment.md#configure-an-operator),
+start `cua operator` at the root and use replay with
 `--handoff --headed`. The console defaults to `http://127.0.0.1:8100`. Select Take
 control, repair the same live browser, then Resume or Abort. See
 [handoff state and checkpoint rules](architecture.md#handoff).
@@ -79,7 +80,7 @@ redaction does not turn arbitrary application data into a public dataset.
 Direct replay and resume now reserve durable invocation ownership as described
 below. Workflow and HTTP/MCP envelope migration remains in progress; keep one
 service per runs directory. Bounded admission is described above; the runtime
-does not yet provide a retention scheduler or authenticated operator console.
+does not yet provide a retention scheduler or verified abandoned-browser cleanup.
 HTTP can report `lost` when the server stopped without a persisted result.
 Reconcile such runs with application state before another write.
 `side_effect: unknown` also requires reconciliation; changing the key and retrying

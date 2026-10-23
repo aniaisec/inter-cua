@@ -1,0 +1,16 @@
+# Copy to operator/access.yaml and create each referenced private key separately.
+# Key paths resolve against the project root. Never commit actual credentials.
+version: 1
+operators:
+  ann:
+    key:
+      provider: file
+      path: .cua/operator-keys/ann.key
+    tenants:
+      local: [read, operate, approve]
+  observer:
+    key:
+      provider: env
+      var: CUA_OPERATOR_OBSERVER_KEY
+    tenants:
+      local: [read]

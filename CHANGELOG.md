@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- PR16 authenticates every operator console route using explicit operator keys
+  and tenant-bound read/operate/approve roles, separate from API client grants.
+  Forms use identity-bound CSRF tokens; JSON actions require a custom header.
+  Verified identities own durable intervention assignments and audit records;
+  other operators cannot claim or decide a held request. Normal views hide CDP
+  metadata, which is available only to the assigned operator for local tooling.
+  Demo and takeover examples use disposable authenticated accounts. Added
+  authenticated health/readiness and single-host TLS, rotation and recovery docs.
+
 - PR15 first increment: tenant-scoped `cua maintenance inspect|cleanup`, dry-run
   by default, with configurable screenshot retention, ownership checks and an
   audit log. Retry authority, approval records, discovery provenance, handoffs
