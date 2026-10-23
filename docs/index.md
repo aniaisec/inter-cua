@@ -22,6 +22,7 @@ Start with the [README first-run sequence](../README.md) and [getting started](g
 | [Support](../SUPPORT.md) / [Roadmap](../ROADMAP.md) | Supported versions, safe bug reporting and planned release gates |
 | [Packaging](packaging.md) / [Changelog](../CHANGELOG.md) | Extras, pinned development setup and distribution checks |
 | [Adoption release](release/adoption.md) | Candidate checklist, independent developer trial records and evidence checker |
+| [Service release](release/service.md) | Recovery exercise, candidate evidence and unresolved shared-service gates |
 | [Mock target](mock-target.md) | Fixture screens and injected failures |
 | [Evaluation](evaluation.md) / [benchmarks](../bench/README.md) | Measured results and reproduction |
 | [Threat model](THREAT_MODEL.md) / [security policy](../SECURITY.md) | Boundaries and reporting |

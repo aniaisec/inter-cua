@@ -1600,3 +1600,31 @@ Implemented October 20, 2026, on `codex/adoption-pr14`.
   complete PR13 envelope migration, paused-session cleanup/retention and shared
   service release qualification remain separate work. No capability schema or
   approval-seal format changed.
+
+## Adoption PR17 - shared-service recovery release preparation
+
+Implemented October 23, 2026; shared-service qualification remains pending.
+
+- Added `scripts.ci.run_service_exercise` with eight named regression groups,
+  isolated temporary state, per-exercise deadlines, strict JUnit validation,
+  commit/environment records and evidence hashes. Existing evidence directories
+  are never overwritten. Development runs from dirty checkouts are labelled.
+- Added `scripts.ci.check_service_release` to refuse substituted, missing,
+  skipped, failing or incomplete test reports, stale/dirty candidate records,
+  unresolved blockers and missing manual evidence. Successful checking reports
+  readiness for review only; publication/deployment remains separate.
+- Added a stopped-writer snapshot regression that restores an interrupted
+  synthetic write, preserves spent consent and retry identity, applies scoped
+  retention, and proves no second dispatch using an independent commit oracle.
+- Added Linux/Windows CI exercise jobs without artifact uploads, plus a release
+  procedure for PR13/PR15 completion, TLS/supervisor restart, target reconciliation
+  and full deployment backup/restore. These manual gates remain pending by default.
+- Verification on Windows/Python 3.14.5: all eight exercise groups passed (35
+  tests). Focused release/recovery/ownership/admission/operator/maintenance suite:
+  167 passed, one skipped because Windows symlink privilege was unavailable.
+  Repository Ruff lint/format, strict mypy for both new helpers and whitespace
+  checks passed. Hosted CI, production TLS/supervision, real browser recovery and
+  live Windows UIA were not executed for this increment.
+- PR13 workflow/service envelope migration and PR15 verified browser/profile
+  cleanup remain open release blockers. Synthetic passing evidence cannot
+  establish the hardened shared-service boundary or exactly-once UI effects.

@@ -16,6 +16,7 @@ same ref.
 | `windows` (Windows 3.14) | Focused paths, parsing, packaging and feature tests; real Chromium, inventory and shared Surface contract |
 | `providers` (Linux 3.11) | Optional SDK interoperability with synthetic keys and sockets refused |
 | `installed` | Fresh wheel/sdist, minimum/newer Python, optional extras and packaged resources |
+| `service-recovery` (Linux/Windows 3.14) | Named synthetic recovery exercises and strict JUnit checks; local records retain pending manual qualification gates and are not uploaded |
 
 Routine jobs install `.[test]`, which includes test tools and vision support
 without either paid provider SDK. `check_no_providers.py` fails if one is present.

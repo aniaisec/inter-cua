@@ -47,6 +47,7 @@ jobs:
           python -m mypy --explicit-package-bases scripts/ci/check_coverage.py
           scripts/ci/check_test_results.py scripts/ci/check_no_providers.py
           scripts/ci/check_adoption_release.py
+          scripts/ci/check_service_release.py scripts/ci/run_service_exercise.py
       - name: Type-check Windows desktop gate
         run: >-
           python -m mypy --platform win32 --explicit-package-bases scripts/ci/run_desktop_gate.py
@@ -65,6 +66,22 @@ jobs:
           path: |
             artifacts/unit.xml
             artifacts/coverage.json
+
+  service-recovery:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+      - run: python -m pip install -e '.[test]'
+      - run: python -m scripts.ci.run_service_exercise --out artifacts/service-recovery
 
   browser:
     strategy:
