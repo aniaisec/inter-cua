@@ -151,7 +151,21 @@ def post(api: TestClient, path: str, body: Any, headers: dict[str, str], **extra
 def test_health_needs_no_key_and_says_little(api: TestClient) -> None:
     r = api.get("/health")
     assert r.status_code == 200
-    assert r.json()["status"] == "ok" and set(r.json()) == {"status", "version", "runs_executing"}
+    assert r.json()["status"] == "ok" and set(r.json()) == {"status", "version"}
+
+
+def test_metrics_requires_operator_and_filters_client_and_tenant(api: TestClient) -> None:
+    assert api.get("/metrics").status_code == 401
+    assert api.get("/metrics", headers=READER).status_code == 403
+    post(api, "/runs?wait=5", BALANCE, AGENT)
+    post(api, "/runs?wait=5", BALANCE, READER)
+    metrics = api.get("/metrics", headers=AGENT)
+    assert metrics.status_code == 200
+    assert metrics.json()["queue_samples"] == 1
+    assert (
+        api.get("/metrics", headers={**AGENT, "X-Cua-Tenant": "desk"}).json()["queue_samples"] == 0
+    )
+    assert all(isinstance(value, int) for value in metrics.json().values())
 
 
 def test_every_other_request_is_authenticated_and_names_its_tenant(api: TestClient) -> None:

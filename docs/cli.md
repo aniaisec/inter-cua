@@ -15,6 +15,7 @@ at dispatch, with a separate queue expiry; see
 |---|---|---|
 | `cua init PATH --template demo\|web\|windows\|inventory [--dry-run]` | create an editable project from packaged resources; refuse existing files; generate a private per-project signing key | 0 created/planned, 64 invalid/conflict |
 | `cua doctor [--tenant local] [--json] [--probe-browser] [--probe-app]` | local setup checks; opt in to Chromium launch or an unauthenticated application HEAD request | 0 ready for checked prerequisites, 1 failed checks, 64 malformed invocation/project |
+| `cua maintenance inspect\|cleanup --tenant local [--retention-days 30] [--runs-dir DIR]` | JSON retention plan; cleanup also defaults to dry run; add `--apply` to delete eligible completed replay screenshots | 0 inspected/applied, 1 failed |
 | `cua demo [--out DIR] [--repetitions N]` | packaged seven-stage synthetic demo with no provider key; default two independent replays | 0 complete, 1 failed, 64 invalid project |
 | `cua discover --goal ... --param name:type=value --output name:type` | LLM observe → decide → act loop until the goal is met, or a step limit, time limit, dead end or `stuck`; records a draft capability | 0 done, 3 escalated, 1 stopped |
 | `cua discover ... --llm scripted --script <file>` | same loop, no key | as above |

@@ -39,6 +39,9 @@ def _build_parser(*, diagnostic: bool = False) -> argparse.ArgumentParser:
     from cua.doctor import add_parser as _add_doctor
 
     _add_doctor(sub)
+    from cua.maintenance import add_parser as _add_maintenance
+
+    _add_maintenance(sub)
     demo = sub.add_parser("demo", help="Run the packaged seven-stage synthetic demo")
     demo.add_argument("--out", type=Path, help="New session directory; existing paths refused")
     demo.add_argument("--repetitions", type=int, default=2)
@@ -506,6 +509,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         from cua.observability.cli import main as metrics
 
         return metrics(args)
+    if args.command == "maintenance":
+        from cua.maintenance import main as maintenance
+
+        return maintenance(args)
     if args.command == "registry":
         from cua.registry.cli import main as registry
 

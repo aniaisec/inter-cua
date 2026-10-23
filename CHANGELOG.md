@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- PR15 first increment: tenant-scoped `cua maintenance inspect|cleanup`, dry-run
+  by default, with configurable screenshot retention, ownership checks and an
+  audit log. Retry authority, approval records, discovery provenance, handoffs
+  and uncertain outcomes are retained. Authenticated `/metrics` aggregates
+  only the caller's visible runs; `/health` exposes status and version only.
+  Verified browser termination and abandoned profile cleanup remain pending.
+
 - PR14 bounded run admission and stdio MCP dispatch. Run records distinguish
   `queued` from `running` and persist queue/dispatch timing. Saturation returns
   HTTP 503/Retry-After or a structured MCP retry hint without reserving a new
