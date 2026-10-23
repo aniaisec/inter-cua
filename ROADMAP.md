@@ -49,7 +49,7 @@ pre-action feature refusal and explicit uncertainty after a possible commit.
 | PR14: bounded admission | PR13 | Bounded workers/pending runs/MCP dispatch, truthful persisted `queued` state and overload responses. Saturation starts no extra UI sessions and preserves accepted retry identities; verify shutdown and queue expiry. |
 | PR15: cleanup and retention | PR13, PR14 | Scoped inspect/cleanup plans with dry-run default, ownership checks, retention policies and operations metrics. Prove cleanup preserves active sessions, unresolved commits, provenance and retry-safety tombstones. |
 | PR16: operator service | PR13–PR15 | Authenticated tenant-bound operator roles, protected screens/actions, exclusive intervention ownership and deployment instructions. Verify operator isolation, audited transitions and real-screen hand-back checks. |
-| PR17: service release exercise | PR12–PR16 | Recovery exercise covering concurrent requests, saturation, expired handoffs, process loss, backup/restore and retention. Record passing evidence before claiming the hardened single-host boundary. |
+| PR17: service release exercise (preparation implemented) | PR12–PR16 | [Repeatable synthetic recovery exercise and evidence checker](docs/release/service.md) for concurrency, saturation, operator isolation, expired handoffs, process loss, shutdown, backup/restore and retention. PR13/PR15 completion and reviewed deployment evidence remain required before claiming the hardened single-host boundary. |
 
 Durable local ownership cannot make an application UI and a local database one
 transaction. Tests must measure external effects and expose uncertain outcomes.

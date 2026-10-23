@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- PR17 recovery release preparation: repeatable synthetic service exercises,
+  stopped-writer restore/retention regression, Linux/Windows CI and a commit-bound
+  evidence checker. Missing, changed, skipped or incomplete reports fail the gate.
+  Outstanding PR13/PR15 work and manual deployment recovery gates keep the shared
+  service release unqualified.
+
 - PR16 authenticates every operator console route using explicit operator keys
   and tenant-bound read/operate/approve roles, separate from API client grants.
   Forms use identity-bound CSRF tokens; JSON actions require a custom header.

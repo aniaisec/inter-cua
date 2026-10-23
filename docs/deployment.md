@@ -7,6 +7,9 @@ termination/profile cleanup remain incomplete; PR17's shared-service recovery
 release gate is not yet satisfied. Do not run distributed workers or advertise
 exactly-once UI effects.
 
+Run the [PR17 recovery exercise and evidence checker](release/service.md) for a
+candidate. Automated checks leave manual deployment and dependency gates pending.
+
 ## Configure an operator
 
 Operator accounts are independent of API clients. An API bearer key grants no
