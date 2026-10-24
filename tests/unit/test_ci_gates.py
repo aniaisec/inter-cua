@@ -31,6 +31,7 @@ def test_compatibility_workflow_assigns_every_acceptance_gate():
         "windows",
         "providers",
         "installed",
+        "service-recovery",
     }
     for name in ("quality", "browser"):
         assert jobs[name]["strategy"]["matrix"]["python"] == ["3.11", "3.14"]
@@ -53,6 +54,15 @@ def test_compatibility_workflow_assigns_every_acceptance_gate():
     assert all("--platform win32" in command for command in desktop_type_checks)
     assert "tests/integration/test_examples.py --require-browser" in str(jobs["examples"])
     assert "tests/security --require-browser" in str(jobs["security"])
+    recovery = jobs["service-recovery"]
+    assert recovery["strategy"]["matrix"]["os"] == ["ubuntu-latest", "windows-latest"]
+    assert recovery["runs-on"] == "${{ matrix.os }}"
+    assert any(step.get("with", {}).get("python-version") == "3.14" for step in recovery["steps"])
+    assert any(
+        step.get("run")
+        == "python -m scripts.ci.run_service_exercise --out artifacts/service-recovery"
+        for step in recovery["steps"]
+    )
 
 
 def complete_coverage():
