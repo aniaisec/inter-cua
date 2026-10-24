@@ -7,6 +7,37 @@ maintainer chooses the candidate version in `src/cua/__init__.py` and the change
 
 ## Prepare one candidate
 
+The snapshot preparer builds from a full reviewed commit ID, keeping workspace
+edits and untracked files out of the candidate. It creates a new private bundle
+with source archive, wheel/sdist, hashes, build logs, provenance, a pending release
+record and two blank trial templates. For example, in PowerShell or POSIX:
+
+```text
+python -m scripts.ci.prepare_adoption_candidate --commit FULL_40_CHARACTER_COMMIT --out artifacts/adoption/candidate1
+```
+
+Install `.[test]` first for the build tools. The source is extracted into a
+temporary directory and built with `--no-isolation`; the preparer refuses links
+and paths escaping the snapshot. Only a committed snapshot is built, even when
+the invoking checkout has local edits. Existing output directories are refused.
+Run this only for a reviewed commit: building executes that snapshot's build
+backend and validation helpers. The package version is retained from its source;
+this command does not choose a new release version, tag or publish artifacts.
+
+Add `--verify-installed` to run the snapshot's existing fresh wheel **and**
+sdist-built wheel checks, including browser probing, the seven-stage no-key demo
+and inventory consent/retry scenario outside the checkout. This option installs
+dependencies and Chromium as needed. Linux browser system libraries must already
+be available. It does not replace the full CI matrix or the live Windows gate.
+
+Exit 0 means `candidate_prepared`, with `release_status: not_qualified`. Every
+release gate and both trials still need review. A failed command returns exit 1,
+retains its logs and writes a failed summary/provenance record. Preserve failed
+attempts and rerun into a new directory; do not turn a timeout or skipped test
+into passing evidence. Keep logs, source archives and runtime material private.
+The [initial qualification report](candidates/0.1.0-6fda797.md) records the first
+observations; it is not a qualified release or evidence for a different commit.
+
 Choose a reviewed, clean commit after PR01–PR10. Follow
 [packaging](../packaging.md#wheel-and-sdist-verification) to build wheel/sdist and
 verify clean installations outside the checkout, including the no-key demo and
@@ -46,7 +77,8 @@ See [CI](../CI.md) for exact job commands and allowed desktop skips. Desktop
 evidence is required for the current Windows UIA support boundary. A skipped
 GUI run or a Windows type check cannot substitute for it. Documentation review
 also verifies no undocumented source edits were needed and preserves the stated
-concurrency/recovery limitations; PR12–PR17 remain future work.
+concurrency/recovery limitations. Some PR12–PR17 hardening is implemented, but
+the [shared-service release](service.md) remains unqualified.
 
 ## Run two developer trials
 

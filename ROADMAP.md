@@ -19,6 +19,10 @@ they do not establish its usability results.
 Status: preparation implemented after PR01–PR10; candidate qualification and
 independent developer trials pending. The [release procedure](docs/release/adoption.md)
 includes trial templates and a checker for the candidate evidence bundle.
+The committed-snapshot preparer now builds wheel/sdist bundles with provenance
+and optional fresh installed-browser checks. See the
+[initial qualification observations](docs/release/candidates/0.1.0-6fda797.md);
+these do not close pending candidate review or human-trial requirements.
 
 - Have at least two developers unfamiliar with the code follow the guides on
   supported platforms. Record platform, installation method, time to first demo,
