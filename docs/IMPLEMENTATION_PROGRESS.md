@@ -1628,3 +1628,34 @@ Implemented October 23, 2026; shared-service qualification remains pending.
 - PR13 workflow/service envelope migration and PR15 verified browser/profile
   cleanup remain open release blockers. Synthetic passing evidence cannot
   establish the hardened shared-service boundary or exactly-once UI effects.
+
+## PR11 follow-up - committed candidate snapshots and initial qualification
+
+Implemented October 24, 2026, on `codex/adoption-qualification`.
+
+- Started the first remaining plan item, adoption candidate qualification, before
+  the remaining runtime hardening. The prepared workflow ownership increment is
+  preserved separately in local commit `b863a36` on `codex/workflow-ownership`;
+  it is not part of this candidate or qualification PR.
+- Added `scripts.ci.prepare_adoption_candidate`: build the exact reviewed commit
+  in a temporary source snapshot, rejecting unsupported archive paths/links and
+  ignoring workspace/untracked edits. Record source/wheel/sdist hashes, commands,
+  environment, logs and pending gate/trial records. Refuse existing bundles and
+  retain failed status on build, installed-check or cleanup errors.
+- Optional fresh installed checks reuse the candidate snapshot's existing wheel
+  and sdist validation helpers. Preparation cannot approve gates or fabricate
+  human trial results. Added regression tests, CI helper typing and a dated
+  qualification report with the actual candidate identity and observations.
+- Built main commit `6fda797cb16db6eafd6163d15f22b14e3d0adc7a`, whose hosted
+  CI run `40109997079` reports all 18 jobs successful. Two local builds produced
+  matching wheel/sdist/source hashes. The first installed-wheel probe timed out;
+  its failed evidence was retained. The second attempt passed fresh wheel and
+  sdist-built wheel checks, including the no-key demo and inventory scenario.
+- Verification on Windows/Python 3.14.5: 97 candidate/release/CI gate tests passed;
+  repository Ruff lint/format, strict helper mypy for Linux/Windows, whitespace
+  and changed-document local links passed. The pending candidate record still
+  fails the readiness checker. No package was published and no version/tag changed.
+- Candidate-bound review, interactive Windows desktop evidence and two genuine
+  unfamiliar-developer trials remain pending. Passing source CI does not prove
+  its wheel bytes equal the local candidate, and this work does not qualify the
+  adoption release or close the separate shared-service release blockers.
